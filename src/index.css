@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --outstanding: #437a22;
+    --good: #006494;
+    --satisfactory: #d19900;
+    --unsatisfactory: #da7101;
+    --nui: #a12c7b;
+    --primary: #01696f;
+    --primary-hover: #0c4e54;
+    --bg: #f7f6f2;
+    --surface: #ffffff;
+    --border: #e2e0db;
+    --text: #1a1a1a;
+    --text-muted: #6b7280;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    font-family: 'Satoshi', system-ui, sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3, h4 {
+    font-family: 'Instrument Serif', Georgia, serif;
+  }
+}
