@@ -23,8 +23,8 @@ export function DomainRadar({ domainJudgements }: DomainRadarProps) {
   }));
 
   return (
-    <div className="h-64">
-      <ResponsiveContainer width="100%" height="100%">
+    <div style={{ width: '100%', height: 256, minHeight: 256 }}>
+      <ResponsiveContainer width="99%" height="100%">
         <RadarChart data={data}>
           <PolarGrid stroke="#e2e0db" />
           <PolarAngleAxis

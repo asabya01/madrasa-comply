@@ -10,6 +10,7 @@ import { Textarea } from '../components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { useSchoolStore } from '../stores/schoolStore';
 import { useJudgements } from '../hooks/useJudgements';
+import { useToast } from '../components/ui/toast';
 import { JUDGEMENT_LABELS, JUDGEMENT_COLORS, type JudgementLevel } from '../lib/judgement';
 
 const DOMAIN_NAMES: Record<string, string> = {
@@ -24,6 +25,7 @@ export function SelfEvaluationPage() {
   const { school, setSchool } = useSchoolStore();
   const queryClient = useQueryClient();
   const { judgements } = useJudgements();
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState('profile');
   const [domainNarratives, setDomainNarratives] = useState<Record<string, { strengths: string; improvements: string }>>({});
 
@@ -65,6 +67,11 @@ export function SelfEvaluationPage() {
     onSuccess: (data) => {
       if (data && setSchool) setSchool(data);
       queryClient.invalidateQueries({ queryKey: ['school'] });
+      showToast('Profile saved', 'success');
+    },
+    onError: (error: Error) => {
+      console.error('[SelfEvaluation] updateSchool error:', error.message);
+      showToast(`Failed to save: ${error.message}`, 'error');
     },
   });
 

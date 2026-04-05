@@ -6,11 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { useSchoolStore } from '../stores/schoolStore';
+import { useToast } from '../components/ui/toast';
 import type { AuditChecklistItem, AuditSettings } from '../types';
 
 export function AuditPrepPage() {
   const { school } = useSchoolStore();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [newItem, setNewItem] = useState('');
   const [auditDateInput, setAuditDateInput] = useState('');
 
@@ -76,7 +78,11 @@ export function AuditPrepPage() {
         { onConflict: 'school_id' }
       );
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['audit-settings'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['audit-settings'] });
+      showToast('Audit date saved', 'success');
+    },
+    onError: (error: Error) => showToast(`Failed to save date: ${error.message}`, 'error'),
   });
 
   const toggleItem = useMutation({
@@ -87,6 +93,7 @@ export function AuditPrepPage() {
       }).eq('id', id);
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['audit-checklist'] }),
+    onError: (error: Error) => showToast(`Failed: ${error.message}`, 'error'),
   });
 
   const addCustomItem = useMutation({
@@ -102,7 +109,9 @@ export function AuditPrepPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['audit-checklist'] });
       setNewItem('');
+      showToast('Item added', 'success');
     },
+    onError: (error: Error) => showToast(`Failed to add item: ${error.message}`, 'error'),
   });
 
   const daysUntil = auditDateInput

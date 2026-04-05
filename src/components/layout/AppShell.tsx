@@ -23,8 +23,26 @@ function getTitle(pathname: string): string {
 
 export function AppShell() {
   const location = useLocation();
-  // Bootstrap school/profile into Zustand store for the whole app
-  useSchool();
+  const { isLoading, school, error } = useSchool();
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen bg-[#f7f6f2]">
+        <div className="w-60 bg-[#0c4e54] shrink-0" />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-sm text-[#6b7280]">Loading school data…</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    console.error('[AppShell] Failed to load school data:', error);
+  }
+
+  if (!school) {
+    console.warn('[AppShell] School not found after load — writing operations will fail');
+  }
 
   return (
     <div className="flex h-screen bg-[#f7f6f2]">

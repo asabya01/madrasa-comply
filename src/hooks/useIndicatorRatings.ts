@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
+import { useToast } from '../components/ui/toast';
 import type { IndicatorRating } from '../types';
 
 export function useIndicatorRatings(standardId?: string) {
@@ -54,6 +55,7 @@ export function useAllRatings() {
 export function useSaveRating() {
   const queryClient = useQueryClient();
   const { school, academicYear, profile } = useSchoolStore();
+  const { showToast } = useToast();
 
   return useMutation({
     mutationFn: async (params: {
@@ -88,6 +90,11 @@ export function useSaveRating() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['indicator-ratings'] });
       queryClient.invalidateQueries({ queryKey: ['all-ratings'] });
+      showToast('Rating saved', 'success');
+    },
+    onError: (error: Error) => {
+      console.error('[useSaveRating] Error:', error.message);
+      showToast(`Failed to save rating: ${error.message}`, 'error');
     },
   });
 }

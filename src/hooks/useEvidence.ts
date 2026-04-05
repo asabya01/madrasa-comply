@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
+import { useToast } from '../components/ui/toast';
 import type { EvidenceFile, EvidenceIndicatorLink } from '../types';
 
 export function useEvidence(indicatorId?: string) {
@@ -58,6 +59,7 @@ export function useEvidenceLinks() {
 export function useUploadEvidence() {
   const queryClient = useQueryClient();
   const { school, profile } = useSchoolStore();
+  const { showToast } = useToast();
 
   return useMutation({
     mutationFn: async (params: {
@@ -113,6 +115,11 @@ export function useUploadEvidence() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['evidence'] });
       queryClient.invalidateQueries({ queryKey: ['evidence-links'] });
+      showToast('Evidence uploaded', 'success');
+    },
+    onError: (error: Error) => {
+      console.error('[useUploadEvidence] Error:', error.message);
+      showToast(`Upload failed: ${error.message}`, 'error');
     },
   });
 }
@@ -120,6 +127,7 @@ export function useUploadEvidence() {
 export function useLinkEvidence() {
   const queryClient = useQueryClient();
   const { school } = useSchoolStore();
+  const { showToast } = useToast();
 
   return useMutation({
     mutationFn: async (params: {
@@ -146,6 +154,11 @@ export function useLinkEvidence() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['evidence-links'] });
       queryClient.invalidateQueries({ queryKey: ['evidence'] });
+      showToast('Evidence linked', 'success');
+    },
+    onError: (error: Error) => {
+      console.error('[useLinkEvidence] Error:', error.message);
+      showToast(`Failed to link evidence: ${error.message}`, 'error');
     },
   });
 }

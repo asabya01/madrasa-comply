@@ -8,6 +8,7 @@ import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { useSchoolStore } from '../stores/schoolStore';
+import { useToast } from '../components/ui/toast';
 import { formatDate } from '../lib/utils';
 import type { ActionItem } from '../types';
 
@@ -28,6 +29,7 @@ const PRIORITY_COLORS: Record<string, string> = {
 export function ImprovementPlanPage() {
   const { school, academicYear, profile } = useSchoolStore();
   const queryClient = useQueryClient();
+  const { showToast } = useToast();
   const [modalOpen, setModalOpen] = useState(false);
   const [newItem, setNewItem] = useState<{
     title: string; description: string; priority: 'critical' | 'high' | 'medium' | 'low';
@@ -73,6 +75,11 @@ export function ImprovementPlanPage() {
       queryClient.invalidateQueries({ queryKey: ['action-stats'] });
       setModalOpen(false);
       setNewItem({ title: '', description: '', priority: 'medium', due_date: '', indicator_id: '', success_metric: '' });
+      showToast('Action item added', 'success');
+    },
+    onError: (error: Error) => {
+      console.error('[ImprovementPlan] addMutation error:', error.message);
+      showToast(`Failed to add action: ${error.message}`, 'error');
     },
   });
 
@@ -83,7 +90,11 @@ export function ImprovementPlanPage() {
         completed_at: status === 'completed' ? new Date().toISOString() : null,
       }).eq('id', id);
     },
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['action-items'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['action-items'] });
+      showToast('Status updated', 'success');
+    },
+    onError: (error: Error) => showToast(`Failed: ${error.message}`, 'error'),
   });
 
   const total = actions?.length || 0;
