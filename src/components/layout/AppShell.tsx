@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
+import { useSchool } from '../../hooks/useSchool';
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard': 'Dashboard',
@@ -22,6 +23,8 @@ function getTitle(pathname: string): string {
 
 export function AppShell() {
   const location = useLocation();
+  // Bootstrap school/profile into Zustand store for the whole app
+  useSchool();
 
   return (
     <div className="flex h-screen bg-[#f7f6f2]">

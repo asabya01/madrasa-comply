@@ -3,7 +3,6 @@ import { useQuery } from '@tanstack/react-query';
 import { FolderOpen, Search, Upload, FileText, Image, Table, File, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent } from '../components/ui/card';
-import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { useEvidence, useUploadEvidence } from '../hooks/useEvidence';
 import { useSchoolStore } from '../stores/schoolStore';
@@ -120,9 +119,9 @@ export function EvidencePage() {
           <Upload className="h-8 w-8 text-[#6b7280] mx-auto mb-2" />
           <p className="text-sm text-[#1a1a1a] font-medium">Drag and drop files here</p>
           <p className="text-xs text-[#6b7280] mt-1 mb-3">PDF, Word, images, spreadsheets up to 50MB</p>
-          <label>
+          <label className="cursor-pointer inline-flex items-center justify-center px-3 py-1.5 text-sm font-medium border border-[#e2e0db] rounded-md bg-white hover:bg-gray-50 transition-colors">
             <input type="file" className="hidden" multiple onChange={handleFileInput} />
-            <Button variant="outline" size="sm" type="button" onClick={() => {}}>Browse Files</Button>
+            Browse Files
           </label>
           {uploadEvidence.isPending && <p className="text-xs text-[#01696f] mt-2">Uploading...</p>}
         </div>

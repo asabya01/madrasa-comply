@@ -89,7 +89,7 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Audit countdown */}
-      {daysUntilAudit !== null && (
+      {daysUntilAudit !== null ? (
         <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border ${
           daysUntilAudit <= 30 ? 'bg-red-50 border-red-200 text-red-800' :
           daysUntilAudit <= 90 ? 'bg-amber-50 border-amber-200 text-amber-800' :
@@ -103,6 +103,14 @@ export function DashboardPage() {
           </span>
           <Link to="/audit-prep" className="ml-auto text-xs underline flex items-center gap-1">
             View preparation <ExternalLink className="h-3 w-3" />
+          </Link>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-dashed border-[#e2e0db] bg-white">
+          <Calendar className="h-5 w-5 text-[#6b7280] shrink-0" />
+          <span className="text-sm text-[#6b7280]">No audit date set</span>
+          <Link to="/audit-prep" className="ml-auto text-xs text-[#01696f] underline flex items-center gap-1 font-medium">
+            Set audit date <ExternalLink className="h-3 w-3" />
           </Link>
         </div>
       )}

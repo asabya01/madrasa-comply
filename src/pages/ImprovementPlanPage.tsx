@@ -69,6 +69,8 @@ export function ImprovementPlanPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['action-items'] });
+      queryClient.invalidateQueries({ queryKey: ['action-items-widget'] });
+      queryClient.invalidateQueries({ queryKey: ['action-stats'] });
       setModalOpen(false);
       setNewItem({ title: '', description: '', priority: 'medium', due_date: '', indicator_id: '', success_metric: '' });
     },

@@ -1,7 +1,7 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useState, useCallback } from 'react';
-import { ChevronRight, Upload, FileText } from 'lucide-react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { ChevronRight, Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent } from '../components/ui/card';
 import { Textarea } from '../components/ui/textarea';
@@ -20,6 +20,8 @@ const RATING_OPTIONS = [
   { value: 5, label: 'Needs Urgent Intervention' },
 ];
 
+type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+
 function IndicatorRatingCard({
   indicator, domainName, standardName,
 }: { indicator: Indicator; domainName: string; standardName: string }) {
@@ -27,42 +29,52 @@ function IndicatorRatingCard({
   const saveRating = useSaveRating();
   const { data: evidenceFiles } = useEvidence(indicator.id);
   const uploadEvidence = useUploadEvidence();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const existing = ratings?.find((r) => r.indicator_id === indicator.id);
-  const [rating, setRating] = useState<number>(existing?.rating || 0);
-  const [strengths, setStrengths] = useState(existing?.strengths || '');
-  const [improvements, setImprovements] = useState(existing?.improvement_areas || '');
-  const [saving, setSaving] = useState(false);
 
-  const handleRatingChange = useCallback(async (newRating: number) => {
+  const [rating, setRating] = useState<number>(0);
+  const [strengths, setStrengths] = useState('');
+  const [improvements, setImprovements] = useState('');
+  const [saveState, setSaveState] = useState<SaveState>('idle');
+
+  // Sync state from loaded data (runs once when existing changes from undefined to a value)
+  useEffect(() => {
+    if (existing) {
+      setRating(existing.rating || 0);
+      setStrengths(existing.strengths || '');
+      setImprovements(existing.improvement_areas || '');
+    }
+  }, [existing?.indicator_id]); // only re-run when the record ID changes
+
+  const doSave = useCallback(async (r: number, s: string, imp: string) => {
+    if (!r) return;
+    setSaveState('saving');
+    try {
+      await saveRating.mutateAsync({
+        indicator_id: indicator.id,
+        rating: r,
+        strengths: s,
+        improvement_areas: imp,
+      });
+      setSaveState('saved');
+      setTimeout(() => setSaveState('idle'), 2000);
+    } catch {
+      setSaveState('error');
+    }
+  }, [indicator.id, saveRating]);
+
+  // Debounce ref for text saves
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleTextSave = useCallback((r: number, s: string, imp: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => doSave(r, s, imp), 800);
+  }, [doSave]);
+
+  const handleRatingChange = useCallback((newRating: number) => {
     setRating(newRating);
-    setSaving(true);
-    try {
-      await saveRating.mutateAsync({
-        indicator_id: indicator.id,
-        rating: newRating,
-        strengths,
-        improvement_areas: improvements,
-      });
-    } finally {
-      setSaving(false);
-    }
-  }, [indicator.id, strengths, improvements, saveRating]);
-
-  const handleBlur = useCallback(async () => {
-    if (!rating) return;
-    setSaving(true);
-    try {
-      await saveRating.mutateAsync({
-        indicator_id: indicator.id,
-        rating,
-        strengths,
-        improvement_areas: improvements,
-      });
-    } finally {
-      setSaving(false);
-    }
-  }, [indicator.id, rating, strengths, improvements, saveRating]);
+    doSave(newRating, strengths, improvements);
+  }, [strengths, improvements, doSave]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -73,6 +85,8 @@ function IndicatorRatingCard({
       standardId: indicator.standard_id,
       domainId: indicator.domain_id,
     });
+    // Reset input so same file can be re-uploaded
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   return (
@@ -85,7 +99,19 @@ function IndicatorRatingCard({
             </span>
             <p className="text-sm text-[#1a1a1a] leading-relaxed">{indicator.description_en}</p>
           </div>
-          {saving && <span className="text-xs text-[#6b7280] ml-3 shrink-0">Saving...</span>}
+          <div className="ml-3 shrink-0 text-xs">
+            {saveState === 'saving' && <span className="text-[#6b7280]">Saving...</span>}
+            {saveState === 'saved' && (
+              <span className="flex items-center gap-1 text-[#437a22]">
+                <CheckCircle className="h-3.5 w-3.5" /> Saved
+              </span>
+            )}
+            {saveState === 'error' && (
+              <span className="flex items-center gap-1 text-red-500">
+                <AlertCircle className="h-3.5 w-3.5" /> Failed
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Rating buttons */}
@@ -112,8 +138,10 @@ function IndicatorRatingCard({
             <label className="text-xs font-medium text-[#6b7280] block mb-1">Strengths</label>
             <Textarea
               value={strengths}
-              onChange={(e) => setStrengths(e.target.value)}
-              onBlur={handleBlur}
+              onChange={(e) => {
+                setStrengths(e.target.value);
+                scheduleTextSave(rating, e.target.value, improvements);
+              }}
               placeholder="What does the school do well in this area?"
               className="text-xs min-h-[72px]"
             />
@@ -122,8 +150,10 @@ function IndicatorRatingCard({
             <label className="text-xs font-medium text-[#6b7280] block mb-1">Areas for Improvement</label>
             <Textarea
               value={improvements}
-              onChange={(e) => setImprovements(e.target.value)}
-              onBlur={handleBlur}
+              onChange={(e) => {
+                setImprovements(e.target.value);
+                scheduleTextSave(rating, strengths, e.target.value);
+              }}
               placeholder="What needs to improve?"
               className="text-xs min-h-[72px]"
             />
@@ -147,13 +177,12 @@ function IndicatorRatingCard({
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-[#6b7280]" />
             <span className="text-xs text-[#6b7280]">{evidenceFiles?.length || 0} evidence files</span>
+            {uploadEvidence.isPending && <span className="text-xs text-[#01696f]">Uploading...</span>}
           </div>
-          <label className="cursor-pointer">
-            <input type="file" className="hidden" onChange={handleFileUpload} />
-            <span className="flex items-center gap-1.5 text-xs text-[#01696f] hover:underline font-medium">
-              <Upload className="h-3.5 w-3.5" />
-              Upload evidence
-            </span>
+          <label className="cursor-pointer flex items-center gap-1.5 text-xs text-[#01696f] hover:underline font-medium">
+            <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
+            <Upload className="h-3.5 w-3.5" />
+            Upload evidence
           </label>
         </div>
 
@@ -202,7 +231,6 @@ export function StandardPage() {
   });
 
   const { data: ratings } = useIndicatorRatings(standardId);
-
   const ratedCount = (indicators || []).filter((i) => ratings?.some((r) => r.indicator_id === i.id)).length;
 
   if (!standard || !domain) {
@@ -211,7 +239,6 @@ export function StandardPage() {
 
   return (
     <div className="max-w-4xl">
-      {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-[#6b7280] mb-4">
         <Link to="/domains" className="hover:text-[#01696f]">Domains</Link>
         <ChevronRight className="h-4 w-4" />
@@ -220,7 +247,6 @@ export function StandardPage() {
         <span className="text-[#1a1a1a]">{standard.name_en}</span>
       </div>
 
-      {/* Standard header */}
       <div className="mb-5 p-4 bg-white rounded-lg border border-[#e2e0db]">
         <div className="flex items-start justify-between">
           <div>
@@ -234,7 +260,6 @@ export function StandardPage() {
         </div>
       </div>
 
-      {/* Indicators */}
       {(indicators || []).map((indicator) => (
         <IndicatorRatingCard
           key={indicator.id}

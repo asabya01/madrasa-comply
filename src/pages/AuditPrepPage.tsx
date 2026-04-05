@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Calendar, CheckSquare, Square, Plus, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -12,6 +12,7 @@ export function AuditPrepPage() {
   const { school } = useSchoolStore();
   const queryClient = useQueryClient();
   const [newItem, setNewItem] = useState('');
+  const [auditDateInput, setAuditDateInput] = useState('');
 
   const { data: auditSettings } = useQuery({
     queryKey: ['audit-settings', school?.id],
@@ -22,6 +23,13 @@ export function AuditPrepPage() {
     },
     enabled: !!school,
   });
+
+  // Sync date input when audit settings load from DB
+  useEffect(() => {
+    if (auditSettings?.expected_audit_date) {
+      setAuditDateInput(auditSettings.expected_audit_date);
+    }
+  }, [auditSettings?.expected_audit_date]);
 
   const { data: checklist } = useQuery({
     queryKey: ['audit-checklist', school?.id],
@@ -97,8 +105,8 @@ export function AuditPrepPage() {
     },
   });
 
-  const daysUntil = auditSettings?.expected_audit_date
-    ? Math.ceil((new Date(auditSettings.expected_audit_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+  const daysUntil = auditDateInput
+    ? Math.ceil((new Date(auditDateInput).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
     : null;
 
   const completedCount = (checklist || []).filter((i) => i.is_completed).length;
@@ -120,8 +128,11 @@ export function AuditPrepPage() {
             </div>
             <Input
               type="date"
-              defaultValue={auditSettings?.expected_audit_date || ''}
-              onChange={(e) => e.target.value && setAuditDate.mutate(e.target.value)}
+              value={auditDateInput}
+              onChange={(e) => {
+                setAuditDateInput(e.target.value);
+                if (e.target.value) setAuditDate.mutate(e.target.value);
+              }}
               className="w-44"
             />
           </div>

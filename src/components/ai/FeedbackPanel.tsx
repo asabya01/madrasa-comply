@@ -20,9 +20,12 @@ export function FeedbackPanel({
 }: FeedbackPanelProps) {
   const [feedback, setFeedback] = useState<Record<string, unknown> | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { mutateAsync, isPending } = useAIFeedback();
 
   const handleGetFeedback = async () => {
+    setError(null);
+    try {
     const result = await mutateAsync({
       scope: 'indicator',
       indicatorId: indicator.id,
@@ -40,6 +43,9 @@ export function FeedbackPanel({
     });
     setFeedback(result);
     setExpanded(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to get AI feedback');
+    }
   };
 
   const priorityColor: Record<string, string> = {
@@ -51,6 +57,11 @@ export function FeedbackPanel({
 
   return (
     <div className="mt-3 border-t border-[#e2e0db] pt-3">
+      {error && (
+        <p className="text-xs text-red-600 mb-2 flex items-center gap-1">
+          <AlertCircle className="h-3.5 w-3.5" /> {error}
+        </p>
+      )}
       {!feedback ? (
         <Button
           variant="outline"
@@ -60,7 +71,7 @@ export function FeedbackPanel({
           className="gap-2"
         >
           <Sparkles className="h-3.5 w-3.5" />
-          {isPending ? 'Analysing...' : 'Get AI Feedback'}
+          {isPending ? 'Analysing with AI...' : 'Get AI Feedback'}
         </Button>
       ) : (
         <div>

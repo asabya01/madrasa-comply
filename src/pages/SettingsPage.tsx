@@ -33,7 +33,15 @@ export function SettingsPage() {
     onError: () => showToast('Failed to save settings', 'error'),
   });
 
-  if (!school) return null;
+  if (!school) {
+    return (
+      <div className="max-w-2xl space-y-4">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="h-20 bg-white rounded-lg border border-[#e2e0db] animate-pulse" />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-2xl">

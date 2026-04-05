@@ -127,7 +127,15 @@ export function SelfEvaluationPage() {
     doc.save(`SED-${school?.name_en?.replace(/\s+/g, '-') || 'school'}-${new Date().getFullYear()}.pdf`);
   };
 
-  if (!school) return null;
+  if (!school) {
+    return (
+      <div className="max-w-4xl space-y-4">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="h-24 bg-white rounded-lg border border-[#e2e0db] animate-pulse" />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-4xl space-y-6">
