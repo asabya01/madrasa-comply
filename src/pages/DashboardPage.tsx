@@ -64,7 +64,7 @@ export function DashboardPage() {
         .from('audit_settings')
         .select('*')
         .eq('school_id', school.id)
-        .single();
+        .maybeSingle();
       return data;
     },
     enabled: !!school,

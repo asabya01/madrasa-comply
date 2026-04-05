@@ -20,7 +20,7 @@ export function AuditPrepPage() {
     queryKey: ['audit-settings', school?.id],
     queryFn: async () => {
       if (!school) return null;
-      const { data } = await supabase.from('audit_settings').select('*').eq('school_id', school.id).single();
+      const { data } = await supabase.from('audit_settings').select('*').eq('school_id', school.id).maybeSingle();
       return data as AuditSettings | null;
     },
     enabled: !!school,

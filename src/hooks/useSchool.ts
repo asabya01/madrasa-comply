@@ -45,7 +45,7 @@ export function useSchool() {
         .from('schools')
         .select('*')
         .eq('id', profileQuery.data.school_id)
-        .single();
+        .maybeSingle();
       if (error) {
         console.error('[useSchool] School fetch error:', error.code, error.message);
         throw error;
