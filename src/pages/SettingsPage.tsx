@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -13,10 +14,19 @@ const GOVERNORATES = [
   'Al Sharqiyah South','Al Dhahirah','Al Wusta',
 ];
 
+const ROLE_LABELS: Record<string, string> = {
+  super_admin: 'Super Admin',
+  principal: 'Principal',
+  vice_principal: 'Vice Principal',
+  quality_coordinator: 'Quality Coordinator',
+  teacher: 'Teacher',
+};
+
 export function SettingsPage() {
-  const { school, setSchool, academicYear, setAcademicYear } = useSchoolStore();
+  const { school, setSchool, profile, setProfile, academicYear, setAcademicYear } = useSchoolStore();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const [fullName, setFullName] = useState(profile?.full_name || '');
 
   const updateSchool = useMutation({
     mutationFn: async (updates: Record<string, unknown>) => {
@@ -33,6 +43,25 @@ export function SettingsPage() {
     onError: () => showToast('Failed to save settings', 'error'),
   });
 
+  const updateProfile = useMutation({
+    mutationFn: async (updates: { full_name: string }) => {
+      if (!profile) return;
+      const { data, error } = await supabase
+        .from('profiles')
+        .update(updates)
+        .eq('id', profile.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data) setProfile(data);
+      showToast('Profile saved', 'success');
+    },
+    onError: (error: Error) => showToast(`Failed to save profile: ${error.message}`, 'error'),
+  });
+
   if (!school) {
     return (
       <div className="max-w-2xl space-y-4">
@@ -47,12 +76,58 @@ export function SettingsPage() {
     <div className="max-w-2xl">
       <Tabs defaultValue="profile">
         <TabsList>
-          <TabsTrigger value="profile">School Profile</TabsTrigger>
+          <TabsTrigger value="profile">My Profile</TabsTrigger>
+          <TabsTrigger value="school">School Profile</TabsTrigger>
           <TabsTrigger value="year">Academic Year</TabsTrigger>
           <TabsTrigger value="account">Account</TabsTrigger>
         </TabsList>
 
+        {/* ── My Profile ── */}
         <TabsContent value="profile" className="mt-4">
+          <Card>
+            <CardHeader><CardTitle className="font-sans">My Profile</CardTitle></CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <label className="text-xs text-[#6b7280] block mb-1">Full Name</label>
+                <Input
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Your full name"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-[#6b7280] block mb-1">Role</label>
+                <div className="flex h-9 items-center rounded-md border border-[#e2e0db] bg-gray-50 px-3 text-sm text-[#6b7280]">
+                  {ROLE_LABELS[profile?.role || ''] || profile?.role || '—'}
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-[#6b7280] block mb-1">School</label>
+                <div className="flex h-9 items-center rounded-md border border-[#e2e0db] bg-gray-50 px-3 text-sm text-[#6b7280]">
+                  {school.name_en}
+                  <button
+                    className="ml-auto text-xs text-[#01696f] hover:underline"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      (document.querySelector('[data-value="school"]') as HTMLButtonElement)?.click();
+                    }}
+                  >
+                    Edit school →
+                  </button>
+                </div>
+              </div>
+              <Button
+                onClick={() => updateProfile.mutate({ full_name: fullName })}
+                disabled={updateProfile.isPending || !fullName.trim()}
+              >
+                {updateProfile.isPending ? 'Saving…' : 'Save Profile'}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ── School Profile ── */}
+        <TabsContent value="school" className="mt-4">
           <Card>
             <CardHeader><CardTitle className="font-sans">School Profile</CardTitle></CardHeader>
             <CardContent className="space-y-4">
@@ -124,6 +199,7 @@ export function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* ── Academic Year ── */}
         <TabsContent value="year" className="mt-4">
           <Card>
             <CardHeader><CardTitle className="font-sans">Academic Year</CardTitle></CardHeader>
@@ -146,6 +222,7 @@ export function SettingsPage() {
           </Card>
         </TabsContent>
 
+        {/* ── Account ── */}
         <TabsContent value="account" className="mt-4">
           <Card>
             <CardHeader><CardTitle className="font-sans">Account</CardTitle></CardHeader>
