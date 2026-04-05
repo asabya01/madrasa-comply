@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
+import { useToast } from '../../components/ui/toast';
 
 const GOVERNORATES = [
   'Muscat','Dhofar','Musandam','Al Buraimi','Al Dakhiliyah',
@@ -29,6 +30,7 @@ const DEFAULT_CHECKLIST = [
 
 export function OnboardingPage() {
   const navigate = useNavigate();
+  const { showToast } = useToast();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -56,24 +58,36 @@ export function OnboardingPage() {
     e.preventDefault();
     setError('');
     setLoading(true);
+
     try {
-      // Sign up user
+      // Step 1: Create auth user
+      console.log('[Onboarding] Signing up user:', accountForm.email);
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: accountForm.email,
         password: accountForm.password,
       });
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('User creation failed');
+      if (authError) {
+        console.error('[Onboarding] signUp error:', authError.message);
+        throw authError;
+      }
+      if (!authData.user) throw new Error('User creation failed — no user returned');
+      console.log('[Onboarding] Auth user created:', authData.user.id);
 
-      // Create school
+      // Step 2: Insert school row
+      console.log('[Onboarding] Inserting school:', schoolForm.name_en);
       const { data: school, error: schoolError } = await supabase
         .from('schools')
         .insert({ ...schoolForm })
         .select()
         .single();
-      if (schoolError) throw schoolError;
+      if (schoolError) {
+        console.error('[Onboarding] School insert error:', schoolError.code, schoolError.message);
+        throw new Error(`School creation failed: ${schoolError.message}`);
+      }
+      console.log('[Onboarding] School created:', school.id, school.name_en);
 
-      // Create profile
+      // Step 3: Insert profile row with auth.uid() as id
+      console.log('[Onboarding] Inserting profile for user:', authData.user.id, 'school:', school.id);
       const { error: profileError } = await supabase
         .from('profiles')
         .insert({
@@ -82,20 +96,36 @@ export function OnboardingPage() {
           full_name: accountForm.full_name,
           role: 'principal',
         });
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error('[Onboarding] Profile insert error:', profileError.code, profileError.message);
+        throw new Error(`Profile creation failed: ${profileError.message}`);
+      }
+      console.log('[Onboarding] Profile created successfully');
 
-      // Seed audit checklist
-      const checklistItems = DEFAULT_CHECKLIST.map((item) => ({
-        school_id: school.id,
-        category: item.category,
-        item_text: item.item_text,
-        is_custom: false,
-      }));
-      await supabase.from('audit_checklist_items').insert(checklistItems);
+      // Step 4: Seed default audit checklist (non-blocking — failure doesn't abort setup)
+      console.log('[Onboarding] Seeding audit checklist for school:', school.id);
+      const { error: checklistError } = await supabase.from('audit_checklist_items').insert(
+        DEFAULT_CHECKLIST.map((item) => ({
+          school_id: school.id,
+          category: item.category,
+          item_text: item.item_text,
+          is_custom: false,
+        }))
+      );
+      if (checklistError) {
+        console.warn('[Onboarding] Checklist seed failed (non-fatal):', checklistError.message);
+      } else {
+        console.log('[Onboarding] Checklist seeded');
+      }
 
+      showToast('School registered successfully!', 'success');
+      console.log('[Onboarding] Setup complete — navigating to dashboard');
       navigate('/dashboard');
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Setup failed');
+      const message = err instanceof Error ? err.message : 'Setup failed';
+      console.error('[Onboarding] Fatal error:', message);
+      setError(message);
+      showToast(message, 'error');
     } finally {
       setLoading(false);
     }
@@ -227,10 +257,10 @@ export function OnboardingPage() {
               )}
 
               <div className="flex gap-3">
-                <Button type="button" variant="outline" onClick={() => setStep(1)} className="flex-1">
+                <Button type="button" variant="outline" onClick={() => setStep(1)} className="flex-1" disabled={loading}>
                   Back
                 </Button>
-                <Button type="submit" className="flex-1" disabled={loading}>
+                <Button type="submit" className="flex-1" disabled={loading || !schoolForm.name_en}>
                   {loading ? 'Creating...' : 'Create School'}
                 </Button>
               </div>

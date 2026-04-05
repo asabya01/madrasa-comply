@@ -21,11 +21,9 @@ export function useSchool() {
         .from('profiles')
         .select('*')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
       if (error) {
         console.error('[useSchool] Profile fetch error:', error.code, error.message);
-        // PGRST116 = no rows — user has no profile yet
-        if (error.code === 'PGRST116') return null;
         throw error;
       }
       console.log('[useSchool] Profile loaded — school_id:', data?.school_id, 'role:', data?.role);

@@ -25,7 +25,7 @@ function ProtectedRoute({ session }: { session: Session | null }) {
 function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
-  const { setProfile, setSchool } = useSchoolStore();
+  const { setProfile, setSchool, profile } = useSchoolStore();
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -55,7 +55,8 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={session ? <Navigate to="/dashboard" /> : <LoginPage />} />
-      <Route path="/onboarding" element={session ? <Navigate to="/dashboard" /> : <OnboardingPage />} />
+      {/* Only redirect away from onboarding once profile exists — prevents mid-signup redirect */}
+      <Route path="/onboarding" element={session && !!profile ? <Navigate to="/dashboard" /> : <OnboardingPage />} />
 
       <Route element={<ProtectedRoute session={session} />}>
         <Route path="/dashboard" element={<DashboardPage />} />
