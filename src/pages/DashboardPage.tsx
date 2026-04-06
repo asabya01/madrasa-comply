@@ -25,16 +25,7 @@ export function DashboardPage() {
   const { school } = useSchoolStore();
   const { judgements, isLoading } = useJudgements();
 
-  // AppShell already holds the spinner until school is set, but guard here
-  // too so no query fires and no empty UI flashes if school is briefly null.
-  if (!school) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-sm text-[#6b7280]">Loading school data…</div>
-      </div>
-    );
-  }
-
+  // All hooks must be declared before any early return (Rules of Hooks)
   const { data: evidenceCount } = useQuery({
     queryKey: ['evidence-count', school?.id],
     queryFn: async () => {
@@ -79,6 +70,15 @@ export function DashboardPage() {
     },
     enabled: !!school,
   });
+
+  // Early return AFTER all hooks
+  if (!school) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-sm text-[#6b7280]">Loading school data…</div>
+      </div>
+    );
+  }
 
   const daysUntilAudit = auditSettings?.expected_audit_date
     ? Math.ceil((new Date(auditSettings.expected_audit_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
