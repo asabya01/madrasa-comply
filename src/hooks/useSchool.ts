@@ -49,11 +49,10 @@ export function useSchool() {
       const { data, error } = await supabase
         .from('school_members')
         .select(`
-          id, role, status, school_id, joined_at, created_at,
+          id, user_id, role, status, school_id, joined_at, created_at,
           school:schools (
-            id, name_en, name_ar, slug, logo_url,
-            subscription_tier, subscription_status, trial_ends_at,
-            school_type, governorate, is_active
+            id, name, slug, logo_url,
+            subscription_tier, subscription_status, trial_ends_at
           )
         `)
         .eq('user_id', user.id)
@@ -106,7 +105,7 @@ export function useSchool() {
 
   useEffect(() => {
     if (activeSchool) {
-      console.log('[useSchool] Active school:', activeSchool.id, activeSchool.name_en);
+      console.log('[useSchool] Active school:', activeSchool.id, activeSchool.name);
       setSchool(activeSchool);
     }
     if (activeMembership) {
