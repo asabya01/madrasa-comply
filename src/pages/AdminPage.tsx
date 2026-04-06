@@ -430,7 +430,7 @@ function SchoolsTab() {
                     <td className="px-4 py-3 text-xs text-[#6b7280]">{formatDate(s.created_at)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        <button onClick={() => { setEditSchool(s); setEditName(s.name); }}
+                        <button onClick={() => { setEditSchool(s); setEditName(s.name ?? ''); }}
                           className="p-1 text-[#6b7280] hover:text-[#01696f]" title="Edit">
                           <Pencil className="h-3.5 w-3.5" />
                         </button>

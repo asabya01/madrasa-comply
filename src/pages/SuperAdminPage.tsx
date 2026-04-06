@@ -7,11 +7,10 @@ import {
   ShieldCheck, ShieldOff, TrendingUp, AlertCircle,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
+import { Card, CardContent } from '../components/ui/card';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
-import { Badge } from '../components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { useSchoolStore } from '../stores/schoolStore';
@@ -424,7 +423,7 @@ export function SuperAdminPage() {
                             <Eye className="h-3.5 w-3.5" />
                           </button>
                           <button
-                            onClick={() => toggleSuspendMutation.mutate({ id: s.id, suspend: s.is_active })}
+                            onClick={() => toggleSuspendMutation.mutate({ id: s.id, suspend: s.is_active ?? false })}
                             title={s.is_active ? 'Suspend' : 'Reactivate'}
                             className={`p-1.5 rounded transition-colors ${
                               s.is_active

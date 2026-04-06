@@ -62,7 +62,12 @@ export function useSchool() {
         throw error;
       }
       console.log('[useSchool] Memberships loaded:', data?.length);
-      return (data ?? []) as SchoolMember[];
+      // Supabase returns foreign-key joins as arrays; flatten school → single object
+      const rows = (data ?? []) as unknown as (Omit<SchoolMember, 'school'> & { school: School | School[] | null | undefined })[];
+      return rows.map((m) => ({
+        ...m,
+        school: Array.isArray(m.school) ? m.school[0] : m.school,
+      })) as SchoolMember[];
     },
     // Run once profile query has settled (success or empty) — do NOT gate on !!profile
     enabled: profileQuery.isSuccess,
