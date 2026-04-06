@@ -83,18 +83,20 @@ export function ImprovementPlanPage() {
   const addMutation = useMutation({
     mutationFn: async () => {
       if (!school) return;
-      const { error } = await supabase.from('action_items').insert({
+      const { error } = await supabase.from('action_items').upsert({
+        id:             crypto.randomUUID(),
         school_id:      school.id,
         title:          form.title,
         description:    form.description,
         priority:       form.priority,
+        status:         'not_started',
         due_date:       form.due_date || null,
         indicator_id:   form.indicator_id || null,
         success_metric: form.success_metric,
         academic_year:  academicYear,
         created_by:     profile?.id,
         source:         'manual',
-      });
+      }, { onConflict: 'id', ignoreDuplicates: false });
       if (error) throw error;
     },
     onSuccess: () => {
