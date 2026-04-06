@@ -70,7 +70,7 @@ export function OnboardingPage() {
 
   // ── CREATE SCHOOL ─────────────────────────────────────────────────────────
   const [schoolForm, setSchoolForm] = useState({
-    name_en:        '',
+    name:           '',
     school_type:    'public' as 'public' | 'private',
     governorate:    '',
     wilayat:        '',
@@ -89,7 +89,7 @@ export function OnboardingPage() {
       const { data: school, error: schoolErr } = await supabase
         .from('schools')
         .insert({ ...schoolForm })
-        .select('id, name_en')
+        .select('id, name')
         .single();
       if (schoolErr) throw new Error(`Could not create school: ${schoolErr.message}`);
 
@@ -117,7 +117,7 @@ export function OnboardingPage() {
         if (e) console.warn('[Onboarding] Checklist seed failed (non-fatal):', e.message);
       });
 
-      showToast(`${school.name_en} registered successfully!`, 'success');
+      showToast(`${school.name} registered successfully!`, 'success');
 
       // 4. Bust query cache so useSchool sees the new membership immediately,
       //    then navigate. Without this, AppShell may see stale empty memberships
@@ -142,8 +142,8 @@ export function OnboardingPage() {
     if (q.trim().length < 2) { setSearchResults([]); return; }
     const { data } = await supabase
       .from('schools')
-      .select('id, name_en, governorate, school_type')
-      .ilike('name_en', `%${q}%`)
+      .select('id, name, governorate, school_type')
+      .ilike('name', `%${q}%`)
       .limit(10);
     setSearchResults((data ?? []) as School[]);
   };
@@ -258,8 +258,8 @@ export function OnboardingPage() {
                 <div className="space-y-1.5">
                   <Label>School Name (English)</Label>
                   <Input
-                    value={schoolForm.name_en}
-                    onChange={(e) => setSchoolForm({ ...schoolForm, name_en: e.target.value })}
+                    value={schoolForm.name}
+                    onChange={(e) => setSchoolForm({ ...schoolForm, name: e.target.value })}
                     placeholder="Al Salam Primary School"
                     required
                   />
@@ -315,7 +315,7 @@ export function OnboardingPage() {
                   <Button type="button" variant="outline" onClick={() => setView('choose')} className="flex-1" disabled={loading}>
                     Back
                   </Button>
-                  <Button type="submit" className="flex-1" disabled={loading || !schoolForm.name_en}>
+                  <Button type="submit" className="flex-1" disabled={loading || !schoolForm.name}>
                     {loading ? 'Creating…' : 'Create School'}
                   </Button>
                 </div>
@@ -355,7 +355,7 @@ export function OnboardingPage() {
                             : 'hover:bg-[#f7f6f2]'
                         }`}
                       >
-                        <div className="font-medium">{s.name_en}</div>
+                        <div className="font-medium">{s.name}</div>
                         {s.governorate && (
                           <div className="text-xs text-[#6b7280] mt-0.5">{s.governorate} · {s.school_type}</div>
                         )}

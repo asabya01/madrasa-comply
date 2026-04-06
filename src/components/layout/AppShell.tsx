@@ -73,7 +73,7 @@ export function AppShell() {
             <div className="flex items-center gap-2">
               <Eye className="h-4 w-4" />
               <span>
-                Viewing as <strong>{impersonating.name_en}</strong> — Super Admin Mode
+                Viewing as <strong>{impersonating.name}</strong> — Super Admin Mode
               </span>
             </div>
             <button
