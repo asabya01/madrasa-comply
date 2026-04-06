@@ -1,6 +1,6 @@
 import { NavLink, useSearchParams } from 'react-router-dom';
 import {
-  LayoutDashboard, Building2, Users, Settings,
+  LayoutDashboard, Building2, Users,
   LogOut, ShieldAlert,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
