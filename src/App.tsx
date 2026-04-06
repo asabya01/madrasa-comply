@@ -4,6 +4,7 @@ import { supabase } from './lib/supabase';
 import { AppShell } from './components/layout/AppShell';
 import { LoginPage } from './pages/auth/LoginPage';
 import { OnboardingPage } from './pages/auth/OnboardingPage';
+import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { DomainsPage } from './pages/DomainsPage';
 import { DomainDetailPage } from './pages/DomainDetailPage';
@@ -55,6 +56,8 @@ function App() {
   return (
     <Routes>
       <Route path="/login" element={session ? <Navigate to="/dashboard" /> : <LoginPage />} />
+      {/* Accessible even when logged in — Supabase redirects here with a recovery token in the URL */}
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       {/* Only redirect away from onboarding once profile exists — prevents mid-signup redirect */}
       <Route path="/onboarding" element={session && !!profile ? <Navigate to="/dashboard" /> : <OnboardingPage />} />
 
