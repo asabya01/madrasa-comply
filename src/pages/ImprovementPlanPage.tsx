@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/
 import { useSchoolStore } from '../stores/schoolStore';
 import { useToast } from '../components/ui/toast';
 import { formatDate } from '../lib/utils';
-import type { ActionItem } from '../types';
+import type { ActionItem, Indicator } from '../types';
 
 const STATUS_COLUMNS = [
   { key: 'not_started', label: 'Not Started', color: 'bg-gray-100' },
@@ -33,6 +33,14 @@ const PRIORITY_COLORS: Record<string, string> = {
   high:     'bg-[#da7101] text-white',
   medium:   'bg-[#d19900] text-white',
   low:      'bg-[#437a22] text-white',
+};
+
+const DOMAIN_LABELS: Record<string, string> = {
+  '1': 'Domain 1 — Academic Achievement',
+  '2': 'Domain 2 — Personal Development',
+  '3': 'Domain 3 — Teaching and Assessment',
+  '4': 'Domain 4 — School Climate and Learning Environment',
+  '5': 'Domain 5 — Leadership, Management and Governance',
 };
 
 type ItemForm = {
@@ -74,6 +82,18 @@ export function ImprovementPlanPage() {
     enabled: !!school,
   });
 
+  // Fetch all indicators for the dropdown — ordered by id so 1.1.1, 1.1.2… appear in sequence
+  const { data: indicators = [] } = useQuery({
+    queryKey: ['indicators-for-actions'],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('indicators')
+        .select('id, description_en, domain_id, standard_id')
+        .order('order_num');
+      return (data || []) as Indicator[];
+    },
+  });
+
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['action-items'] });
     queryClient.invalidateQueries({ queryKey: ['action-items-widget'] });
@@ -108,17 +128,25 @@ export function ImprovementPlanPage() {
     onError: (e: Error) => showToast(`Failed to add: ${e.message}`, 'error'),
   });
 
+  // FIX 2: upsert with full payload including id so onConflict: 'id' resolves
+  // any duplicate-key error instead of returning 409 on PATCH
   const editMutation = useMutation({
     mutationFn: async () => {
       if (!editItem) return;
-      const { error } = await supabase.from('action_items').update({
+      const { error } = await supabase.from('action_items').upsert({
+        id:             editItem.id,
+        school_id:      editItem.school_id,
         title:          editForm.title,
         description:    editForm.description,
         priority:       editForm.priority,
+        status:         editItem.status,
         due_date:       editForm.due_date || null,
         indicator_id:   editForm.indicator_id || null,
         success_metric: editForm.success_metric,
-      }).eq('id', editItem.id);
+        academic_year:  editItem.academic_year,
+        created_by:     editItem.created_by,
+        source:         editItem.source,
+      }, { onConflict: 'id', ignoreDuplicates: false });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -219,6 +247,7 @@ export function ImprovementPlanPage() {
         title="Add Action Item"
         form={form}
         setForm={setForm}
+        indicators={indicators}
         onSubmit={() => addMutation.mutate()}
         isPending={addMutation.isPending}
         submitLabel="Add Action"
@@ -231,6 +260,7 @@ export function ImprovementPlanPage() {
         title="Edit Action Item"
         form={editForm}
         setForm={setEditForm}
+        indicators={indicators}
         onSubmit={() => editMutation.mutate()}
         isPending={editMutation.isPending}
         submitLabel="Save Changes"
@@ -325,17 +355,26 @@ function ActionCard({
 
 /* ── Shared Add/Edit Form Dialog ── */
 function ActionFormDialog({
-  open, onOpenChange, title, form, setForm, onSubmit, isPending, submitLabel,
+  open, onOpenChange, title, form, setForm, indicators, onSubmit, isPending, submitLabel,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   title: string;
   form: ItemForm;
   setForm: (f: ItemForm) => void;
+  indicators: Indicator[];
   onSubmit: () => void;
   isPending: boolean;
   submitLabel: string;
 }) {
+  // Group indicators by domain_id for <optgroup> navigation
+  const byDomain = indicators.reduce<Record<string, Indicator[]>>((acc, ind) => {
+    const key = ind.domain_id;
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(ind);
+    return acc;
+  }, {});
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -377,11 +416,28 @@ function ActionFormDialog({
               />
             </div>
           </div>
-          <Input
-            placeholder="Indicator ID (e.g. 3.3.1)"
-            value={form.indicator_id}
-            onChange={(e) => setForm({ ...form, indicator_id: e.target.value })}
-          />
+
+          {/* FIX 1: Indicator dropdown grouped by domain */}
+          <div>
+            <label className="text-xs text-[#6b7280]">Linked Indicator (optional)</label>
+            <select
+              className="flex h-9 w-full rounded-md border border-[#e2e0db] bg-white px-3 py-1 text-sm mt-1"
+              value={form.indicator_id}
+              onChange={(e) => setForm({ ...form, indicator_id: e.target.value })}
+            >
+              <option value="">— Not linked —</option>
+              {Object.entries(byDomain).sort(([a], [b]) => a.localeCompare(b)).map(([domainId, inds]) => (
+                <optgroup key={domainId} label={DOMAIN_LABELS[domainId] ?? `Domain ${domainId}`}>
+                  {inds.map((ind) => (
+                    <option key={ind.id} value={ind.id}>
+                      {ind.id} — {ind.description_en}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+
           <Input
             placeholder="Success metric"
             value={form.success_metric}
