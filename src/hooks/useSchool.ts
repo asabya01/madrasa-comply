@@ -95,13 +95,17 @@ export function useSchool() {
   const error = profileQuery.error || membershipsQuery.error;
 
   // Needs onboarding when:
-  //   - Profile exists
+  //   - Profile query has completed (regardless of whether a row exists)
   //   - No active school memberships
   //   - Not a super admin (super admins have no school by design)
+  //
+  // NOTE: !!loadedProfile is intentionally NOT required here. A null profile
+  // (trigger hasn't fired yet, or row was never created) also means the user
+  // needs onboarding — showing the app shell without a school would be broken.
   const needsOnboarding =
     !isLoading &&
-    !!loadedProfile &&
-    !loadedProfile.is_super_admin &&
+    profileQuery.isSuccess &&
+    !loadedProfile?.is_super_admin &&
     (membershipsQuery.data?.length ?? 0) === 0;
 
   // Switch to a different school (for multi-school users)
