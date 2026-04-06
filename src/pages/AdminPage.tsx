@@ -340,10 +340,14 @@ function SchoolsTab() {
     queryFn: async () => {
       const { data: schoolList, error } = await supabase.from('schools').select('*').order('name_en');
       if (error) throw error;
-      const { data: profiles } = await supabase.from('profiles').select('school_id');
+      // Count active members per school from school_members (not legacy profiles.school_id)
+      const { data: members } = await supabase
+        .from('school_members')
+        .select('school_id')
+        .eq('status', 'active');
       const counts: Record<string, number> = {};
-      (profiles || []).forEach((p) => {
-        if (p.school_id) counts[p.school_id] = (counts[p.school_id] || 0) + 1;
+      (members || []).forEach((m) => {
+        counts[m.school_id] = (counts[m.school_id] || 0) + 1;
       });
       return (schoolList || []).map((s) => ({ ...s, user_count: counts[s.id] || 0 })) as SchoolWithCount[];
     },

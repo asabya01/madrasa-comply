@@ -54,11 +54,6 @@ export function AppShell() {
     console.error('[AppShell] Failed to load school data:', error);
   }
 
-  // Warn only for non-super-admin users — super admins have no school by design
-  if (!school && !profile?.is_super_admin) {
-    console.warn('[AppShell] School not found — write operations will fail');
-  }
-
   return (
     <div className="flex h-screen bg-[#f7f6f2]">
       <Sidebar />
