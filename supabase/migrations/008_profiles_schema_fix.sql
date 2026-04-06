@@ -13,8 +13,10 @@ ALTER TABLE profiles ADD COLUMN IF NOT EXISTS avatar_url text;
 
 -- ── 2. Make role nullable ─────────────────────────────────────────────────────
 
--- Drop NOT NULL so new profiles created by the trigger have no role
+-- Drop NOT NULL and set default to NULL
+-- Role is authoritative in school_members; profiles.role is legacy only
 ALTER TABLE profiles ALTER COLUMN role DROP NOT NULL;
+ALTER TABLE profiles ALTER COLUMN role SET DEFAULT NULL;
 
 -- Replace the strict role check with one that permits NULL
 ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_role_check;

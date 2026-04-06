@@ -31,12 +31,12 @@ serve(async (req) => {
 
     const { data: callerProfile } = await supabaseUser
       .from('profiles')
-      .select('role')
+      .select('is_super_admin')
       .eq('id', user.id)
       .single();
 
-    if (callerProfile?.role !== 'admin') {
-      return json({ error: 'Forbidden — admin access required' }, 403);
+    if (!callerProfile?.is_super_admin) {
+      return json({ error: 'Forbidden — super admin access required' }, 403);
     }
 
     // ── Service-role client for admin operations ────────────────────────────
