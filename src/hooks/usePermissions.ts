@@ -1,89 +1,189 @@
 import { useSchoolStore } from '../stores/schoolStore';
-import type { SchoolMemberRole } from '../types';
 
-type Permission =
-  | 'rate_indicator'
-  | 'upload_evidence'
-  | 'manage_evidence'
-  | 'manage_improvement_plan'
-  | 'view_reports'
-  | 'generate_reports'
-  | 'manage_audit_prep'
-  | 'manage_school_settings'
-  | 'manage_users'
-  | 'invite_users'
-  | 'assign_tasks'
-  | 'view_self_evaluation'
-  | 'edit_self_evaluation';
+// ─── Role taxonomy ────────────────────────────────────────────
+// These align to both profiles.role and school_members.role.
 
-// Role → permission matrix
-const ROLE_PERMISSIONS: Record<SchoolMemberRole, Permission[]> = {
-  school_admin: [
-    'rate_indicator', 'upload_evidence', 'manage_evidence',
-    'manage_improvement_plan', 'view_reports', 'generate_reports',
-    'manage_audit_prep', 'manage_school_settings', 'manage_users',
-    'invite_users', 'assign_tasks', 'view_self_evaluation', 'edit_self_evaluation',
-  ],
-  principal: [
-    'rate_indicator', 'upload_evidence', 'manage_evidence',
-    'manage_improvement_plan', 'view_reports', 'generate_reports',
-    'manage_audit_prep', 'manage_school_settings', 'invite_users',
-    'assign_tasks', 'view_self_evaluation', 'edit_self_evaluation',
-  ],
-  vice_principal: [
-    'rate_indicator', 'upload_evidence', 'manage_evidence',
-    'manage_improvement_plan', 'view_reports', 'generate_reports',
-    'manage_audit_prep', 'assign_tasks', 'view_self_evaluation', 'edit_self_evaluation',
-  ],
-  senior_management: [
-    'rate_indicator', 'upload_evidence', 'manage_evidence',
-    'manage_improvement_plan', 'view_reports', 'generate_reports',
-    'assign_tasks', 'view_self_evaluation', 'edit_self_evaluation',
-  ],
-  head_of_department: [
-    'rate_indicator', 'upload_evidence', 'manage_evidence',
-    'manage_improvement_plan', 'view_reports',
-    'view_self_evaluation', 'edit_self_evaluation',
-  ],
-  quality_coordinator: [
-    'rate_indicator', 'upload_evidence', 'manage_evidence',
-    'manage_improvement_plan', 'view_reports', 'generate_reports',
-    'manage_audit_prep', 'assign_tasks', 'view_self_evaluation', 'edit_self_evaluation',
-  ],
-  teacher: [
-    'rate_indicator', 'upload_evidence',
-    'view_reports', 'view_self_evaluation',
-  ],
-  auditor: [
-    'view_reports', 'view_self_evaluation',
-  ],
+export type AppRole =
+  | 'super_admin'
+  | 'school_admin'
+  | 'principal'
+  | 'vice_principal'
+  | 'senior_management'
+  | 'head_of_department'
+  | 'quality_coordinator'
+  | 'teacher'
+  | 'auditor';
+
+// ─── Permission definitions (PSD Section 7.2) ────────────────
+
+export interface Permissions {
+  /** Platform-level: create/manage schools */
+  canManageSchools: boolean;
+  /** School-level: manage users and invitations */
+  canManageUsers: boolean;
+  /** Enter school-level indicator ratings (Domains 1, 2, 4, 5) */
+  canRateSchoolIndicators: boolean;
+  /** Enter Domain 3 teacher self-assessment ratings */
+  canRateDomain3Indicators: boolean;
+  /** Conduct and record classroom observations */
+  canRecordObservations: boolean;
+  /** Enter student proficiency / national exam data */
+  canEnterStudentPerformance: boolean;
+  /** Enter attendance data */
+  canEnterAttendance: boolean;
+  /** Upload evidence files */
+  canUploadEvidence: boolean;
+  /** Create and manage action items */
+  canManageActionItems: boolean;
+  /** View judgement calculations */
+  canViewJudgements: boolean;
+  /** Generate the Self-Evaluation Document */
+  canGenerateSED: boolean;
+  /** Export and download reports */
+  canExportReports: boolean;
+  /** Access AI feedback features */
+  canUseAI: boolean;
+  /** View billing / subscription settings */
+  canManageBilling: boolean;
+  /** Read-only external reviewer access */
+  isExternalViewer: boolean;
+}
+
+const FULL_ADMIN_PERMS: Permissions = {
+  canManageSchools: true,
+  canManageUsers: true,
+  canRateSchoolIndicators: true,
+  canRateDomain3Indicators: true,
+  canRecordObservations: true,
+  canEnterStudentPerformance: true,
+  canEnterAttendance: true,
+  canUploadEvidence: true,
+  canManageActionItems: true,
+  canViewJudgements: true,
+  canGenerateSED: true,
+  canExportReports: true,
+  canUseAI: true,
+  canManageBilling: true,
+  isExternalViewer: false,
 };
 
-export function usePermissions() {
-  const { userRole, profile } = useSchoolStore();
+const SCHOOL_ADMIN_PERMS: Permissions = {
+  ...FULL_ADMIN_PERMS,
+  canManageSchools: false,
+  canManageBilling: false,
+};
 
-  // Super admins bypass all permission checks
-  const isSuperAdmin = profile?.is_super_admin ?? false;
+const HOD_PERMS: Permissions = {
+  canManageSchools: false,
+  canManageUsers: false,
+  canRateSchoolIndicators: false,   // HOD cannot rate Domains 1,2,4,5 at school level
+  canRateDomain3Indicators: true,
+  canRecordObservations: true,
+  canEnterStudentPerformance: true, // own subject only (enforced by UI/query filter)
+  canEnterAttendance: false,
+  canUploadEvidence: true,
+  canManageActionItems: true,
+  canViewJudgements: true,
+  canGenerateSED: false,
+  canExportReports: true,
+  canUseAI: true,
+  canManageBilling: false,
+  isExternalViewer: false,
+};
 
-  function can(permission: Permission): boolean {
-    if (isSuperAdmin) return true;
-    if (!userRole) return false;
-    return ROLE_PERMISSIONS[userRole]?.includes(permission) ?? false;
+const TEACHER_PERMS: Permissions = {
+  canManageSchools: false,
+  canManageUsers: false,
+  canRateSchoolIndicators: false,
+  canRateDomain3Indicators: true,   // own classes only
+  canRecordObservations: false,
+  canEnterStudentPerformance: false,
+  canEnterAttendance: false,
+  canUploadEvidence: true,          // own indicators only
+  canManageActionItems: false,
+  canViewJudgements: true,          // own data only
+  canGenerateSED: false,
+  canExportReports: false,
+  canUseAI: true,
+  canManageBilling: false,
+  isExternalViewer: false,
+};
+
+const EXTERNAL_VIEWER_PERMS: Permissions = {
+  canManageSchools: false,
+  canManageUsers: false,
+  canRateSchoolIndicators: false,
+  canRateDomain3Indicators: false,
+  canRecordObservations: false,
+  canEnterStudentPerformance: false,
+  canEnterAttendance: false,
+  canUploadEvidence: false,
+  canManageActionItems: false,
+  canViewJudgements: true,
+  canGenerateSED: false,
+  canExportReports: true,
+  canUseAI: false,
+  canManageBilling: false,
+  isExternalViewer: true,
+};
+
+const NO_PERMS: Permissions = {
+  canManageSchools: false,
+  canManageUsers: false,
+  canRateSchoolIndicators: false,
+  canRateDomain3Indicators: false,
+  canRecordObservations: false,
+  canEnterStudentPerformance: false,
+  canEnterAttendance: false,
+  canUploadEvidence: false,
+  canManageActionItems: false,
+  canViewJudgements: false,
+  canGenerateSED: false,
+  canExportReports: false,
+  canUseAI: false,
+  canManageBilling: false,
+  isExternalViewer: false,
+};
+
+// ─── Role → permissions mapping ───────────────────────────────
+
+function roleToPermissions(role: string | null | undefined, isSuperAdmin: boolean): Permissions {
+  if (isSuperAdmin) return FULL_ADMIN_PERMS;
+  switch (role as AppRole) {
+    case 'school_admin':
+    case 'principal':
+    case 'vice_principal':
+    case 'quality_coordinator':
+      return SCHOOL_ADMIN_PERMS;
+    case 'senior_management':
+      return { ...SCHOOL_ADMIN_PERMS, canManageBilling: false };
+    case 'head_of_department':
+      return HOD_PERMS;
+    case 'teacher':
+      return TEACHER_PERMS;
+    case 'auditor':
+      return EXTERNAL_VIEWER_PERMS;
+    default:
+      return NO_PERMS;
   }
+}
 
-  function canAny(...permissions: Permission[]): boolean {
-    return permissions.some((p) => can(p));
-  }
+// ─── Hook ─────────────────────────────────────────────────────
 
-  function canAll(...permissions: Permission[]): boolean {
-    return permissions.every((p) => can(p));
-  }
+export function usePermissions(): Permissions {
+  const { profile } = useSchoolStore();
 
-  return {
-    can,
-    canAny,
-    canAll,
-    userRole,
-    isSuperAdmin,
-  };
+  const role = profile?.role ?? null;
+  const isSuperAdmin = Boolean(profile?.is_super_admin);
+
+  return roleToPermissions(role, isSuperAdmin);
+}
+
+// ─── Standalone helper (useful outside React components) ──────
+
+export function getPermissionsForRole(
+  role: string | null | undefined,
+  isSuperAdmin = false
+): Permissions {
+  return roleToPermissions(role, isSuperAdmin);
 }
