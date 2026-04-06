@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom';
+import { NavLink, useSearchParams } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, Users, Settings,
   LogOut, ShieldAlert,
@@ -6,14 +6,18 @@ import {
 import { supabase } from '../../lib/supabase';
 import { cn } from '../../lib/utils';
 
+// All sections live on /super-admin; tab is controlled via ?tab= query param.
+// 'overview' renders the stats/overview section (no tab panel).
 const NAV_ITEMS = [
-  { to: '/super-admin',         icon: LayoutDashboard, label: 'Overview',  end: true },
-  { to: '/super-admin/schools', icon: Building2,        label: 'Schools' },
-  { to: '/super-admin/users',   icon: Users,            label: 'Users' },
-  { to: '/super-admin/system',  icon: Settings,         label: 'System' },
+  { tab: 'overview', icon: LayoutDashboard, label: 'Overview' },
+  { tab: 'schools',  icon: Building2,       label: 'Schools' },
+  { tab: 'users',    icon: Users,           label: 'Users' },
 ];
 
 export function SuperAdminSidebar() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'overview';
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     window.location.href = '/login';
@@ -32,23 +36,20 @@ export function SuperAdminSidebar() {
 
       {/* Nav */}
       <nav className="flex-1 py-4 overflow-y-auto">
-        {NAV_ITEMS.map(({ to, icon: Icon, label, end }) => (
-          <NavLink
-            key={to}
-            to={to}
-            end={end}
-            className={({ isActive }) =>
-              cn(
-                'flex items-center gap-3 px-5 py-2.5 text-sm transition-colors',
-                isActive
-                  ? 'bg-white/20 text-white font-medium'
-                  : 'text-white/70 hover:bg-white/10 hover:text-white'
-              )
-            }
+        {NAV_ITEMS.map(({ tab, icon: Icon, label }) => (
+          <button
+            key={tab}
+            onClick={() => setSearchParams({ tab })}
+            className={cn(
+              'flex items-center gap-3 w-full px-5 py-2.5 text-sm transition-colors text-left',
+              activeTab === tab
+                ? 'bg-white/20 text-white font-medium'
+                : 'text-white/70 hover:bg-white/10 hover:text-white'
+            )}
           >
             <Icon className="h-4 w-4 shrink-0" />
             {label}
-          </NavLink>
+          </button>
         ))}
       </nav>
 

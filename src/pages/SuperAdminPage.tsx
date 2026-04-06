@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Building2, Users, FileText, CheckSquare,
@@ -163,9 +163,12 @@ function useUsers(search: string) {
 
 export function SuperAdminPage() {
   const navigate     = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient  = useQueryClient();
   const { showToast } = useToast();
   const { setImpersonating } = useSchoolStore();
+
+  const activeTab = searchParams.get('tab') || 'schools';
 
   // ── Schools tab state ──────────────────────────────────────────────────────
   const [schoolSearch, setSchoolSearch]   = useState('');
@@ -318,7 +321,7 @@ export function SuperAdminPage() {
       </div>
 
       {/* ── Tabs ── */}
-      <Tabs defaultValue="schools">
+      <Tabs value={activeTab === 'overview' ? 'schools' : activeTab} onValueChange={(v) => setSearchParams({ tab: v })}>
         <TabsList>
           <TabsTrigger value="schools">Schools</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
