@@ -7,11 +7,15 @@ interface SchoolState {
   academicYear: string;
   userRole: SchoolMemberRole | null;
   allMemberships: SchoolMember[];
+  // Super-admin impersonation — set when viewing a school as super admin
+  impersonating: School | null;
   setSchool: (school: School | null) => void;
   setProfile: (profile: Profile | null) => void;
   setAcademicYear: (year: string) => void;
   setUserRole: (role: SchoolMemberRole | null) => void;
   setAllMemberships: (memberships: SchoolMember[]) => void;
+  setImpersonating: (school: School | null) => void;
+  exitImpersonation: () => void;
 }
 
 function getCurrentAcademicYear(): string {
@@ -23,14 +27,17 @@ function getCurrentAcademicYear(): string {
 }
 
 export const useSchoolStore = create<SchoolState>((set) => ({
-  school: null,
-  profile: null,
-  academicYear: getCurrentAcademicYear(),
-  userRole: null,
+  school:         null,
+  profile:        null,
+  academicYear:   getCurrentAcademicYear(),
+  userRole:       null,
   allMemberships: [],
-  setSchool: (school) => set({ school }),
-  setProfile: (profile) => set({ profile }),
-  setAcademicYear: (academicYear) => set({ academicYear }),
-  setUserRole: (userRole) => set({ userRole }),
+  impersonating:  null,
+  setSchool:         (school)         => set({ school }),
+  setProfile:        (profile)        => set({ profile }),
+  setAcademicYear:   (academicYear)   => set({ academicYear }),
+  setUserRole:       (userRole)       => set({ userRole }),
   setAllMemberships: (allMemberships) => set({ allMemberships }),
+  setImpersonating:  (impersonating)  => set({ impersonating, school: impersonating }),
+  exitImpersonation: ()               => set({ impersonating: null, school: null }),
 }));

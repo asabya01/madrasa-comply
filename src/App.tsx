@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { AppShell } from './components/layout/AppShell';
+import { SuperAdminShell } from './components/layout/SuperAdminShell';
 import { LoginPage } from './pages/auth/LoginPage';
 import { SignupPage } from './pages/auth/SignupPage';
 import { OnboardingPage } from './pages/auth/OnboardingPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
+import { SuperAdminPage } from './pages/SuperAdminPage';
 import { AdminPage } from './pages/AdminPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { DomainsPage } from './pages/DomainsPage';
@@ -23,6 +25,11 @@ import type { Session } from '@supabase/supabase-js';
 function ProtectedRoute({ session }: { session: Session | null }) {
   if (!session) return <Navigate to="/login" replace />;
   return <AppShell />;
+}
+
+function SuperAdminRoute({ session }: { session: Session | null }) {
+  if (!session) return <Navigate to="/login" replace />;
+  return <SuperAdminShell />;
 }
 
 function App() {
@@ -55,22 +62,31 @@ function App() {
     );
   }
 
+  // After login, super admins go to /super-admin; everyone else to /dashboard.
+  // profile is from the Zustand store — populated once useSchool runs inside
+  // a shell. On fresh page load it may be null, so the shells handle the
+  // final redirect internally.
+  const postLoginPath = profile?.is_super_admin ? '/super-admin' : '/dashboard';
+
   return (
     <Routes>
-      <Route path="/login"  element={session ? <Navigate to="/dashboard" /> : <LoginPage />} />
-      <Route path="/signup" element={session ? <Navigate to="/onboarding" /> : <SignupPage />} />
-
-      {/* Accessible even when logged in — Supabase redirects here with a recovery token */}
+      {/* ── Public auth routes ── */}
+      <Route path="/login"  element={session ? <Navigate to={postLoginPath} /> : <LoginPage />} />
+      <Route path="/signup" element={session ? <Navigate to="/onboarding" />  : <SignupPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-      {/* Onboarding: super admins are redirected (they have no school).
-          Regular users always see this page — AppShell handles the redirect
-          away from it once a school membership exists. */}
+      {/* ── Onboarding ── */}
       <Route
         path="/onboarding"
-        element={profile?.is_super_admin ? <Navigate to="/dashboard" /> : <OnboardingPage />}
+        element={profile?.is_super_admin ? <Navigate to="/super-admin" /> : <OnboardingPage />}
       />
 
+      {/* ── Super admin shell ── */}
+      <Route element={<SuperAdminRoute session={session} />}>
+        <Route path="/super-admin" element={<SuperAdminPage />} />
+      </Route>
+
+      {/* ── Regular school shell ── */}
       <Route element={<ProtectedRoute session={session} />}>
         <Route path="/dashboard"        element={<DashboardPage />} />
         <Route path="/domains"          element={<DomainsPage />} />
@@ -85,7 +101,7 @@ function App() {
         <Route path="/admin"            element={<AdminPage />} />
       </Route>
 
-      <Route path="*" element={<Navigate to={session ? '/dashboard' : '/login'} />} />
+      <Route path="*" element={<Navigate to={session ? postLoginPath : '/login'} />} />
     </Routes>
   );
 }
