@@ -200,8 +200,8 @@ function UsersTab() {
                       <td className="px-4 py-3 font-medium text-[#1a1a1a]">{u.full_name || '—'}</td>
                       <td className="px-4 py-3 text-[#6b7280]">{u.email || '—'}</td>
                       <td className="px-4 py-3">
-                        <span className={`text-xs px-2 py-0.5 rounded font-medium ${u.role === 'admin' ? 'bg-[#a12c7b]/10 text-[#a12c7b]' : 'bg-gray-100 text-[#6b7280]'}`}>
-                          {ROLE_LABELS[u.role] || u.role}
+                        <span className={`text-xs px-2 py-0.5 rounded font-medium ${u.is_super_admin ? 'bg-[#a12c7b]/10 text-[#a12c7b]' : 'bg-gray-100 text-[#6b7280]'}`}>
+                          {u.is_super_admin ? 'Super Admin' : (ROLE_LABELS[u.role ?? ''] || u.role || '—')}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-[#6b7280]">{(u.schools as { name_en: string } | null)?.name_en || '—'}</td>
@@ -209,7 +209,7 @@ function UsersTab() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
                           <button
-                            onClick={() => { setEditUser(u); setEditForm({ full_name: u.full_name || '', role: u.role, school_id: u.school_id || '' }); }}
+                            onClick={() => { setEditUser(u); setEditForm({ full_name: u.full_name || '', role: u.role ?? '', school_id: u.school_id || '' }); }}
                             className="p-1 text-[#6b7280] hover:text-[#01696f]" title="Edit"
                           >
                             <Pencil className="h-3.5 w-3.5" />

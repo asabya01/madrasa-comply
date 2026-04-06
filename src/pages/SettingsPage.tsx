@@ -15,15 +15,18 @@ const GOVERNORATES = [
 ];
 
 const ROLE_LABELS: Record<string, string> = {
-  super_admin: 'Super Admin',
-  principal: 'Principal',
-  vice_principal: 'Vice Principal',
+  school_admin:        'School Admin',
+  principal:           'Principal',
+  vice_principal:      'Vice Principal',
+  senior_management:   'Senior Management',
+  head_of_department:  'Head of Department',
   quality_coordinator: 'Quality Coordinator',
-  teacher: 'Teacher',
+  teacher:             'Teacher',
+  auditor:             'Auditor',
 };
 
 export function SettingsPage() {
-  const { school, setSchool, profile, setProfile, academicYear, setAcademicYear } = useSchoolStore();
+  const { school, setSchool, profile, setProfile, academicYear, setAcademicYear, userRole } = useSchoolStore();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const [fullName, setFullName] = useState(profile?.full_name || '');
@@ -98,7 +101,7 @@ export function SettingsPage() {
               <div>
                 <label className="text-xs text-[#6b7280] block mb-1">Role</label>
                 <div className="flex h-9 items-center rounded-md border border-[#e2e0db] bg-gray-50 px-3 text-sm text-[#6b7280]">
-                  {ROLE_LABELS[profile?.role || ''] || profile?.role || '—'}
+                  {ROLE_LABELS[userRole || ''] || userRole || '—'}
                 </div>
               </div>
               <div>

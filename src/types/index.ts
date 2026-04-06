@@ -83,7 +83,8 @@ export interface Profile {
   school_id?: string;         // legacy — kept for backward compat
   email?: string;
   full_name?: string;
-  role: 'admin' | 'super_admin' | 'principal' | 'vice_principal' | 'quality_coordinator' | 'teacher';
+  // role is nullable — authoritative role is in school_members.role
+  role?: 'admin' | 'super_admin' | 'principal' | 'vice_principal' | 'quality_coordinator' | 'teacher' | null;
   department?: string;
   avatar_url?: string;
   is_super_admin: boolean;
