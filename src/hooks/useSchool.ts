@@ -16,7 +16,6 @@ export function useSchool() {
         return null;
       }
       console.log('[useSchool] Fetching profile for user:', user.id);
-      // Use auth.uid() match directly — avoids the self-referential RLS check
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -27,7 +26,7 @@ export function useSchool() {
         throw error;
       }
       console.log('[useSchool] Profile loaded — school_id:', data?.school_id, 'role:', data?.role);
-      return data as Profile;
+      return data as Profile | null;
     },
     retry: 2,
     staleTime: 1000 * 60 * 5,
@@ -51,7 +50,7 @@ export function useSchool() {
         throw error;
       }
       console.log('[useSchool] School loaded:', data?.name_en);
-      return data as School;
+      return data as School | null;
     },
     enabled: !!profileQuery.data?.school_id,
     retry: 2,
@@ -73,12 +72,21 @@ export function useSchool() {
   }, [schoolQuery.data, setSchool]);
 
   const isLoading = profileQuery.isLoading || (!!profileQuery.data?.school_id && schoolQuery.isLoading);
-  const error = profileQuery.error || schoolQuery.error;
+  const error     = profileQuery.error || schoolQuery.error;
+
+  // Profile loaded but no school_id and not an admin → user needs to complete onboarding
+  const loadedProfile = profileQuery.data;
+  const needsOnboarding =
+    !isLoading &&
+    !!loadedProfile &&
+    !loadedProfile.school_id &&
+    loadedProfile.role !== 'admin';
 
   return {
-    school: school || schoolQuery.data || null,
-    profile: profile || profileQuery.data || null,
+    school:          school || schoolQuery.data || null,
+    profile:         profile || loadedProfile || null,
     isLoading,
     error,
+    needsOnboarding,
   };
 }
