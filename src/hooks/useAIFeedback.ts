@@ -4,32 +4,17 @@ import { supabase } from '../lib/supabase';
 export function useAIFeedback() {
   return useMutation({
     mutationFn: async (params: Record<string, unknown>) => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error('Not authenticated');
+      console.log('[AI Feedback] Calling edge function with params:', params);
 
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-      const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-
-      const url = `${supabaseUrl}/functions/v1/ai-feedback`;
-      console.log('[AI Feedback] Calling edge function:', url, params);
-
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-          'apikey': anonKey,
-        },
-        body: JSON.stringify(params),
+      const { data, error } = await supabase.functions.invoke('ai-feedback', {
+        body: params,
       });
 
-      if (!res.ok) {
-        const text = await res.text();
-        console.error('[AI Feedback] Error response:', res.status, text);
-        throw new Error(`AI feedback failed: ${res.status} ${text}`);
+      if (error) {
+        console.error('[AI Feedback] Error:', error);
+        throw new Error(`AI feedback failed: ${error.message}`);
       }
 
-      const data = await res.json();
       console.log('[AI Feedback] Response:', data);
       return data;
     },
