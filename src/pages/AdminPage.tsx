@@ -162,7 +162,7 @@ function UsersTab() {
 
   const resetPassword = async (email: string) => {
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/reset-password',
+      redirectTo: 'https://madrasa-comply-asabya01s-projects.vercel.app/reset-password',
     });
     if (error) showToast(error.message, 'error');
     else showToast(`Reset link sent to ${email}`, 'success');

@@ -58,7 +58,7 @@ export function LoginPage() {
     setResetLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-        redirectTo: window.location.origin + '/reset-password',
+        redirectTo: 'https://madrasa-comply-asabya01s-projects.vercel.app/reset-password',
       });
       if (error) throw error;
       setResetSent(true);
