@@ -51,8 +51,9 @@ export interface School {
 export interface Profile {
   id: string;
   school_id: string;
+  email?: string;
   full_name?: string;
-  role: 'super_admin' | 'principal' | 'vice_principal' | 'quality_coordinator' | 'teacher';
+  role: 'admin' | 'super_admin' | 'principal' | 'vice_principal' | 'quality_coordinator' | 'teacher';
   department?: string;
   avatar_url?: string;
   created_at: string;

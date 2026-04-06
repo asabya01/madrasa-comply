@@ -5,6 +5,7 @@ import { AppShell } from './components/layout/AppShell';
 import { LoginPage } from './pages/auth/LoginPage';
 import { OnboardingPage } from './pages/auth/OnboardingPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
+import { AdminPage } from './pages/AdminPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { DomainsPage } from './pages/DomainsPage';
 import { DomainDetailPage } from './pages/DomainDetailPage';
@@ -72,6 +73,7 @@ function App() {
         <Route path="/audit-prep" element={<AuditPrepPage />} />
         <Route path="/reports" element={<ReportsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/admin" element={<AdminPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to={session ? '/dashboard' : '/login'} />} />

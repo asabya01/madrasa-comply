@@ -1,25 +1,26 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, BookOpen, FileText, FolderOpen, ClipboardList,
-  CheckSquare, BarChart3, Settings, LogOut, Shield,
+  CheckSquare, BarChart3, Settings, LogOut, Shield, ShieldAlert,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useSchoolStore } from '../../stores/schoolStore';
 import { cn } from '../../lib/utils';
 
-const navItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/domains', icon: BookOpen, label: 'Domains & Standards' },
-  { to: '/evidence', icon: FolderOpen, label: 'Evidence Library' },
-  { to: '/self-evaluation', icon: FileText, label: 'Self-Evaluation' },
-  { to: '/improvement-plan', icon: ClipboardList, label: 'Improvement Plan' },
-  { to: '/audit-prep', icon: CheckSquare, label: 'Audit Preparation' },
-  { to: '/reports', icon: BarChart3, label: 'Reports' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
+const NAV_ITEMS = [
+  { to: '/dashboard',        icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/domains',          icon: BookOpen,         label: 'Domains & Standards' },
+  { to: '/evidence',         icon: FolderOpen,       label: 'Evidence Library' },
+  { to: '/self-evaluation',  icon: FileText,         label: 'Self-Evaluation' },
+  { to: '/improvement-plan', icon: ClipboardList,    label: 'Improvement Plan' },
+  { to: '/audit-prep',       icon: CheckSquare,      label: 'Audit Preparation' },
+  { to: '/reports',          icon: BarChart3,        label: 'Reports' },
+  { to: '/settings',         icon: Settings,         label: 'Settings' },
 ];
 
 export function Sidebar() {
-  const { school } = useSchoolStore();
+  const { school, profile } = useSchoolStore();
+  const isAdmin = profile?.role === 'admin';
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -30,18 +31,36 @@ export function Sidebar() {
     <aside className="fixed left-0 top-0 h-full w-60 bg-[#0c4e54] text-white flex flex-col z-40">
       {/* Logo */}
       <div className="flex items-center gap-2 px-5 py-5 border-b border-white/10">
-        <Shield className="h-7 w-7 text-white" />
-        <div>
+        <Shield className="h-7 w-7 text-white shrink-0" />
+        <div className="min-w-0">
           <div className="font-semibold text-sm">Madrasa Comply</div>
-          <div className="text-xs text-white/60 truncate max-w-[140px]">
-            {school?.name_en || 'Loading...'}
+          <div className="text-xs text-white/60 truncate">
+            {isAdmin ? 'Platform Admin' : (school?.name_en || 'Loading…')}
           </div>
         </div>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 py-4 overflow-y-auto">
-        {navItems.map(({ to, icon: Icon, label }) => (
+        {/* Admin Panel link — only for admin role */}
+        {isAdmin && (
+          <NavLink
+            to="/admin"
+            className={({ isActive }) =>
+              cn(
+                'flex items-center gap-3 px-5 py-2.5 text-sm transition-colors border-b border-white/10 mb-1',
+                isActive
+                  ? 'bg-white/20 text-white font-medium'
+                  : 'text-amber-300 hover:bg-white/10 hover:text-white'
+              )
+            }
+          >
+            <ShieldAlert className="h-4 w-4 shrink-0" />
+            Admin Panel
+          </NavLink>
+        )}
+
+        {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}

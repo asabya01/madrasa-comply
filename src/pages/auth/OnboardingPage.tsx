@@ -93,6 +93,7 @@ export function OnboardingPage() {
         .insert({
           id: authData.user.id,
           school_id: school.id,
+          email: accountForm.email,
           full_name: accountForm.full_name,
           role: 'principal',
         });
