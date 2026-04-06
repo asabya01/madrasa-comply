@@ -8,11 +8,11 @@ import { Label } from '../../components/ui/label';
 
 export function SignupPage() {
   const navigate = useNavigate();
-  const [fullName, setFullName]   = useState('');
-  const [email, setEmail]         = useState('');
-  const [password, setPassword]   = useState('');
-  const [error, setError]         = useState('');
-  const [loading, setLoading]     = useState(false);
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail]       = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError]       = useState('');
+  const [loading, setLoading]   = useState(false);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,26 +20,31 @@ export function SignupPage() {
     setLoading(true);
 
     try {
-      // Sign up creates the auth user; the handle_new_user trigger creates the profile row.
-      const { error: authError } = await supabase.auth.signUp({
+      // 1. Create auth user — passes full_name in metadata so the
+      //    handle_new_user trigger can pick it up immediately.
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: { full_name: fullName },
-        },
+        options: { data: { full_name: fullName } },
       });
       if (authError) throw authError;
+      if (!authData.user) throw new Error('Signup succeeded but no user was returned.');
 
-      // Update profile with full_name (trigger creates row with defaults)
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from('profiles')
-          .update({ full_name: fullName, email })
-          .eq('id', user.id);
+      // 2. Upsert the profile row so full_name + email are guaranteed to be
+      //    set regardless of whether the trigger has already fired.
+      //    ON CONFLICT (id) DO UPDATE ensures this is idempotent.
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert(
+          { id: authData.user.id, full_name: fullName, email },
+          { onConflict: 'id' }
+        );
+      if (profileError) {
+        // Non-fatal: trigger may have created the row; log and continue.
+        console.warn('[Signup] Profile upsert warning:', profileError.message);
       }
 
-      // After signup → send to onboarding (create or join a school)
+      // 3. Go to onboarding — create or join a school.
       navigate('/onboarding', { replace: true });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Signup failed');
@@ -64,7 +69,9 @@ export function SignupPage() {
           </div>
 
           <h2 className="text-2xl font-semibold text-[#1a1a1a] mb-1">Get started</h2>
-          <p className="text-sm text-[#6b7280] mb-6">Create an account, then set up or join your school.</p>
+          <p className="text-sm text-[#6b7280] mb-6">
+            Create an account, then set up or join your school.
+          </p>
 
           <form onSubmit={handleSignup} className="space-y-4">
             <div className="space-y-1.5">

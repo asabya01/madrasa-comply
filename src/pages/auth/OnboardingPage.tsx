@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Shield, Search, Plus, Users, Clock, CheckCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { Button } from '../../components/ui/button';
@@ -32,13 +33,16 @@ const DEFAULT_CHECKLIST = [
 type View = 'choose' | 'create' | 'join' | 'pending';
 
 export function OnboardingPage() {
-  const navigate = useNavigate();
+  const navigate     = useNavigate();
+  const queryClient  = useQueryClient();
   const { showToast } = useToast();
-  const [view, setView] = useState<View>('choose');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
 
-  // Check if user already has a pending membership (e.g. they refreshed)
+  const [view, setView]     = useState<View>('choose');
+  const [loading, setLoading] = useState(false);
+  const [error, setError]   = useState('');
+
+  // On mount, check whether the user already has a pending membership
+  // (handles page refresh mid-flow).
   useEffect(() => {
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
@@ -53,12 +57,23 @@ export function OnboardingPage() {
     })();
   }, []);
 
-  // ── Create school state ───────────────────────────────────────────────────
+  // ── Shared: invalidate membership cache then navigate ─────────────────────
+  //
+  // After mutating school_members we MUST bust the TanStack Query cache so
+  // AppShell's useSchool hook fetches fresh data instead of returning the
+  // stale empty array that would trigger a redirect back to /onboarding.
+  async function finalizeAndNavigate(path: '/dashboard' | '/onboarding') {
+    await queryClient.invalidateQueries({ queryKey: ['school_members'] });
+    await queryClient.invalidateQueries({ queryKey: ['profile'] });
+    navigate(path, { replace: true });
+  }
+
+  // ── CREATE SCHOOL ─────────────────────────────────────────────────────────
   const [schoolForm, setSchoolForm] = useState({
-    name_en:       '',
-    school_type:   'public' as 'public' | 'private',
-    governorate:   '',
-    wilayat:       '',
+    name_en:        '',
+    school_type:    'public' as 'public' | 'private',
+    governorate:    '',
+    wilayat:        '',
     principal_name: '',
   });
 
@@ -68,40 +83,46 @@ export function OnboardingPage() {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      if (!user) throw new Error('Not authenticated — please sign in again.');
 
-      // 1. Insert school
+      // 1. Insert school row
       const { data: school, error: schoolErr } = await supabase
         .from('schools')
         .insert({ ...schoolForm })
-        .select()
+        .select('id, name_en')
         .single();
-      if (schoolErr) throw new Error(`School creation failed: ${schoolErr.message}`);
+      if (schoolErr) throw new Error(`Could not create school: ${schoolErr.message}`);
 
-      // 2. Insert school_member as school_admin
+      // 2. Insert school_member as school_admin (active immediately)
+      //    Role in school_members is the authoritative role — do NOT touch profiles.role.
       const { error: memberErr } = await supabase
         .from('school_members')
-        .insert({ school_id: school.id, user_id: user.id, role: 'school_admin', status: 'active' });
-      if (memberErr) throw new Error(`Membership creation failed: ${memberErr.message}`);
+        .insert({
+          school_id: school.id,
+          user_id:   user.id,
+          role:      'school_admin',
+          status:    'active',
+        });
+      if (memberErr) throw new Error(`Could not set up membership: ${memberErr.message}`);
 
-      // 3. Update profile with school_id (legacy field) and role
-      await supabase
-        .from('profiles')
-        .update({ school_id: school.id, role: 'principal' })
-        .eq('id', user.id);
-
-      // 4. Seed default audit checklist
-      await supabase.from('audit_checklist_items').insert(
+      // 3. Seed default audit checklist (non-blocking)
+      supabase.from('audit_checklist_items').insert(
         DEFAULT_CHECKLIST.map((item) => ({
           school_id: school.id,
           category:  item.category,
           item_text: item.item_text,
           is_custom: false,
         }))
-      );
+      ).then(({ error: e }) => {
+        if (e) console.warn('[Onboarding] Checklist seed failed (non-fatal):', e.message);
+      });
 
-      showToast('School registered successfully!', 'success');
-      navigate('/dashboard', { replace: true });
+      showToast(`${school.name_en} registered successfully!`, 'success');
+
+      // 4. Bust query cache so useSchool sees the new membership immediately,
+      //    then navigate. Without this, AppShell may see stale empty memberships
+      //    and redirect back to /onboarding.
+      await finalizeAndNavigate('/dashboard');
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Setup failed';
       setError(msg);
@@ -111,8 +132,8 @@ export function OnboardingPage() {
     }
   };
 
-  // ── Join school state ─────────────────────────────────────────────────────
-  const [searchQuery, setSearchQuery]   = useState('');
+  // ── JOIN SCHOOL ───────────────────────────────────────────────────────────
+  const [searchQuery, setSearchQuery]     = useState('');
   const [searchResults, setSearchResults] = useState<School[]>([]);
   const [selectedSchool, setSelectedSchool] = useState<School | null>(null);
 
@@ -133,11 +154,16 @@ export function OnboardingPage() {
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
+      if (!user) throw new Error('Not authenticated — please sign in again.');
 
       const { error: memberErr } = await supabase
         .from('school_members')
-        .insert({ school_id: selectedSchool.id, user_id: user.id, role: 'teacher', status: 'pending' });
+        .insert({
+          school_id: selectedSchool.id,
+          user_id:   user.id,
+          role:      'teacher',
+          status:    'pending',
+        });
       if (memberErr) throw new Error(memberErr.message);
 
       showToast('Join request sent — waiting for approval', 'success');
@@ -151,12 +177,29 @@ export function OnboardingPage() {
     }
   };
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // ── PENDING: re-check approval status ────────────────────────────────────
+  const handleCheckAgain = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase
+      .from('school_members')
+      .select('status')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .maybeSingle();
+    if (data) {
+      await finalizeAndNavigate('/dashboard');
+    } else {
+      showToast('Still pending approval', 'error');
+    }
+  };
 
+  // ─────────────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-[#f7f6f2] flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
         <div className="bg-white rounded-xl border border-[#e2e0db] p-8 shadow-sm">
+
           {/* Header */}
           <div className="flex items-center gap-3 mb-8">
             <div className="h-10 w-10 bg-[#01696f] rounded-lg flex items-center justify-center">
@@ -168,14 +211,13 @@ export function OnboardingPage() {
             </div>
           </div>
 
-          {/* ── Choose view ── */}
+          {/* ── Choose ── */}
           {view === 'choose' && (
             <>
               <h2 className="text-xl font-semibold text-[#1a1a1a] mb-1">Set up your school</h2>
               <p className="text-sm text-[#6b7280] mb-6">
                 Register a new school or join an existing one.
               </p>
-
               <div className="grid grid-cols-2 gap-3">
                 <button
                   onClick={() => setView('create')}
@@ -206,7 +248,7 @@ export function OnboardingPage() {
             </>
           )}
 
-          {/* ── Create school view ── */}
+          {/* ── Create ── */}
           {view === 'create' && (
             <>
               <h2 className="text-xl font-semibold text-[#1a1a1a] mb-1">Register your school</h2>
@@ -241,9 +283,7 @@ export function OnboardingPage() {
                     onChange={(e) => setSchoolForm({ ...schoolForm, governorate: e.target.value })}
                   >
                     <option value="">Select governorate</option>
-                    {GOVERNORATES.map((g) => (
-                      <option key={g} value={g}>{g}</option>
-                    ))}
+                    {GOVERNORATES.map((g) => <option key={g} value={g}>{g}</option>)}
                   </select>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -283,7 +323,7 @@ export function OnboardingPage() {
             </>
           )}
 
-          {/* ── Join school view ── */}
+          {/* ── Join ── */}
           {view === 'join' && (
             <>
               <h2 className="text-xl font-semibold text-[#1a1a1a] mb-1">Join a school</h2>
@@ -325,7 +365,9 @@ export function OnboardingPage() {
                 )}
 
                 {searchQuery.length >= 2 && searchResults.length === 0 && (
-                  <p className="text-sm text-[#6b7280] text-center py-3">No schools found matching "{searchQuery}"</p>
+                  <p className="text-sm text-[#6b7280] text-center py-3">
+                    No schools found matching "{searchQuery}"
+                  </p>
                 )}
 
                 {error && (
@@ -338,11 +380,7 @@ export function OnboardingPage() {
                   <Button type="button" variant="outline" onClick={() => setView('choose')} className="flex-1" disabled={loading}>
                     Back
                   </Button>
-                  <Button
-                    onClick={handleRequestJoin}
-                    className="flex-1"
-                    disabled={loading || !selectedSchool}
-                  >
+                  <Button onClick={handleRequestJoin} className="flex-1" disabled={loading || !selectedSchool}>
                     {loading ? 'Sending…' : 'Request Access'}
                   </Button>
                 </div>
@@ -350,7 +388,7 @@ export function OnboardingPage() {
             </>
           )}
 
-          {/* ── Pending view ── */}
+          {/* ── Pending ── */}
           {view === 'pending' && (
             <div className="text-center py-4">
               <div className="flex items-center justify-center mb-4">
@@ -366,24 +404,8 @@ export function OnboardingPage() {
                 <CheckCircle className="h-4 w-4 text-[#01696f]" />
                 We'll notify you by email once approved.
               </div>
-
               <button
-                onClick={async () => {
-                  // Re-check membership status in case it was approved
-                  const { data: { user } } = await supabase.auth.getUser();
-                  if (!user) return;
-                  const { data } = await supabase
-                    .from('school_members')
-                    .select('status')
-                    .eq('user_id', user.id)
-                    .eq('status', 'active')
-                    .maybeSingle();
-                  if (data) {
-                    navigate('/dashboard', { replace: true });
-                  } else {
-                    showToast('Still pending approval', 'error');
-                  }
-                }}
+                onClick={handleCheckAgain}
                 className="mt-6 text-xs text-[#01696f] hover:underline"
               >
                 Check again

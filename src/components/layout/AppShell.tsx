@@ -23,12 +23,20 @@ function getTitle(pathname: string): string {
   return 'Madrasa Comply';
 }
 
+const Spinner = () => (
+  <div className="flex h-screen bg-[#f7f6f2]">
+    <div className="w-60 bg-[#0c4e54] shrink-0" />
+    <div className="flex-1 flex items-center justify-center">
+      <div className="text-sm text-[#6b7280]">Loading…</div>
+    </div>
+  </div>
+);
+
 export function AppShell() {
   const location = useLocation();
   const navigate  = useNavigate();
   const { isLoading, school, profile, error, needsOnboarding } = useSchool();
 
-  // Redirect to onboarding when profile exists but user has no school memberships
   useEffect(() => {
     if (needsOnboarding) {
       console.log('[AppShell] No active school membership — redirecting to onboarding');
@@ -36,23 +44,19 @@ export function AppShell() {
     }
   }, [needsOnboarding, navigate]);
 
-  if (isLoading) {
-    return (
-      <div className="flex h-screen bg-[#f7f6f2]">
-        <div className="w-60 bg-[#0c4e54] shrink-0" />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-sm text-[#6b7280]">Loading…</div>
-        </div>
-      </div>
-    );
-  }
+  // 1. Queries still in flight
+  if (isLoading) return <Spinner />;
 
-  // Still loading redirect — render nothing to avoid flash
+  // 2. Redirect pending — render nothing to avoid flash
   if (needsOnboarding) return null;
 
-  if (error) {
-    console.error('[AppShell] Failed to load school data:', error);
-  }
+  if (error) console.error('[AppShell] Failed to load school data:', error);
+
+  // 3. For non-super-admin users, the school must be available before we
+  //    render any page. There is a single render tick between when the
+  //    membership query resolves and when the useEffect in useSchool syncs
+  //    the school into the Zustand store. Hold the spinner for that tick.
+  if (!profile?.is_super_admin && !school) return <Spinner />;
 
   return (
     <div className="flex h-screen bg-[#f7f6f2]">
