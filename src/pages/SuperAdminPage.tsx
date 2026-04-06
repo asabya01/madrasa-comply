@@ -103,7 +103,7 @@ function useSchools(search: string, tierFilter: string, statusFilter: string) {
         .from('schools')
         .select('*')
         .order('created_at', { ascending: false });
-      if (search)       q = q.ilike('name', `%${search}%`);
+      if (search)       q = q.ilike('name_en', `%${search}%`);
       if (tierFilter)   q = q.eq('subscription_tier', tierFilter);
       if (statusFilter) q = q.eq('subscription_status', statusFilter);
 
@@ -188,7 +188,7 @@ export function SuperAdminPage() {
   const addSchoolMutation = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from('schools').insert({
-        name:              newSchoolName.trim(),
+        name_en:           newSchoolName.trim(),
         subscription_tier: 'trial',
       });
       if (error) throw error;
@@ -387,7 +387,7 @@ export function SuperAdminPage() {
                   ) : schools.map((s) => (
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-[#1a1a1a]">
-                        {s.name}
+                        {s.name_en}
                         {s.subscription_status === 'suspended' && (
                           <span className="ml-2 text-xs text-red-500 font-normal">(suspended)</span>
                         )}
@@ -557,7 +557,7 @@ export function SuperAdminPage() {
             <DialogTitle>Delete School</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-[#6b7280] py-2">
-            Permanently delete <strong>{deleteConfirm?.name}</strong> and all its data?
+            Permanently delete <strong>{deleteConfirm?.name_en}</strong> and all its data?
             This cannot be undone.
           </p>
           <div className="flex gap-2">

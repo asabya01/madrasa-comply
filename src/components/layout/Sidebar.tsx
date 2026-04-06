@@ -43,7 +43,7 @@ export function Sidebar() {
           <div className="min-w-0">
             <div className="font-semibold text-sm">Madrasa Comply</div>
             <div className="text-xs text-white/60 truncate">
-              {isSuperAdmin ? 'Platform Admin' : (school?.name || 'Loading…')}
+              {isSuperAdmin ? 'Platform Admin' : (school?.name_en || 'Loading…')}
             </div>
           </div>
         </div>
@@ -63,7 +63,7 @@ export function Sidebar() {
             {schoolMenuOpen && (
               <div className="absolute left-0 top-full mt-1 w-full bg-[#0a3d42] border border-white/10 rounded-md shadow-lg z-50">
                 {allMemberships.map((m) => {
-                  const memberSchool = m.school as { name: string } | undefined;
+                  const memberSchool = m.school as { name_en: string } | undefined;
                   return (
                     <button
                       key={m.school_id}
@@ -75,7 +75,7 @@ export function Sidebar() {
                           : 'text-white/70 hover:text-white hover:bg-white/5'
                       )}
                     >
-                      {memberSchool?.name ?? m.school_id}
+                      {memberSchool?.name_en ?? m.school_id}
                     </button>
                   );
                 })}

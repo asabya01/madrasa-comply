@@ -77,7 +77,7 @@ export function ReportsPage() {
 
   const generateExecutive = () => {
     const doc = new jsPDF();
-    const schoolName = school?.name || 'School';
+    const schoolName = school?.name_en || 'School';
     let y = addPageHeader(doc, schoolName, 'Executive Summary');
 
     doc.setFontSize(18);
@@ -149,7 +149,7 @@ export function ReportsPage() {
 
   const generateEvidenceCoverage = () => {
     const doc = new jsPDF();
-    const schoolName = school?.name || 'School';
+    const schoolName = school?.name_en || 'School';
     let y = addPageHeader(doc, schoolName, 'Evidence Coverage');
 
     doc.setFontSize(16);
@@ -228,7 +228,7 @@ export function ReportsPage() {
 
   const generateImprovementPlan = () => {
     const doc = new jsPDF();
-    const schoolName = school?.name || 'School';
+    const schoolName = school?.name_en || 'School';
     let y = addPageHeader(doc, schoolName, 'Improvement Plan');
 
     doc.setFontSize(16);

@@ -37,7 +37,7 @@ async function callAdminAction(action: string, payload: Record<string, unknown> 
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type ProfileWithSchool = Profile & { email?: string; schools?: { name: string } | null };
+type ProfileWithSchool = Profile & { email?: string; schools?: { name_en: string } | null };
 type SchoolWithCount  = School & { user_count?: number };
 
 const ROLE_OPTIONS = ['admin', 'principal', 'vice_principal', 'quality_coordinator', 'teacher'] as const;
@@ -106,7 +106,7 @@ function UsersTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*, schools(name)')
+        .select('*, schools(name_en)')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data as ProfileWithSchool[];
@@ -116,7 +116,7 @@ function UsersTab() {
   const { data: schools = [] } = useQuery({
     queryKey: ['admin-schools-list'],
     queryFn: async () => {
-      const { data } = await supabase.from('schools').select('id, name').order('name');
+      const { data } = await supabase.from('schools').select('id, name_en').order('name_en');
       return data || [];
     },
   });
@@ -204,7 +204,7 @@ function UsersTab() {
                           {u.is_super_admin ? 'Super Admin' : (ROLE_LABELS[u.role ?? ''] || u.role || '—')}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-[#6b7280]">{(u.schools as { name: string } | null)?.name || '—'}</td>
+                      <td className="px-4 py-3 text-[#6b7280]">{(u.schools as { name_en: string } | null)?.name_en || '—'}</td>
                       <td className="px-4 py-3 text-[#6b7280] text-xs">{formatDate(u.created_at)}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5">
@@ -257,7 +257,7 @@ function UsersTab() {
               <select className="flex h-9 w-full rounded-md border border-[#e2e0db] bg-white px-3 py-1 text-sm mt-1"
                 value={newUser.school_id} onChange={(e) => setNewUser({ ...newUser, school_id: e.target.value })}>
                 <option value="">No school (admin)</option>
-                {schools.map((s: { id: string; name: string }) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {schools.map((s: { id: string; name_en: string }) => <option key={s.id} value={s.id}>{s.name_en}</option>)}
               </select>
             </div>
             <p className="text-xs text-[#6b7280]">The user will need to set a password via "Reset Password" after creation.</p>
@@ -290,7 +290,7 @@ function UsersTab() {
               <select className="flex h-9 w-full rounded-md border border-[#e2e0db] bg-white px-3 py-1 text-sm mt-1"
                 value={editForm.school_id} onChange={(e) => setEditForm({ ...editForm, school_id: e.target.value })}>
                 <option value="">No school</option>
-                {schools.map((s: { id: string; name: string }) => <option key={s.id} value={s.id}>{s.name}</option>)}
+                {schools.map((s: { id: string; name_en: string }) => <option key={s.id} value={s.id}>{s.name_en}</option>)}
               </select>
             </div>
             <div className="flex gap-3 pt-1">
@@ -338,7 +338,7 @@ function SchoolsTab() {
   const { data: schools = [], isLoading } = useQuery({
     queryKey: ['admin-schools'],
     queryFn: async () => {
-      const { data: schoolList, error } = await supabase.from('schools').select('*').order('name');
+      const { data: schoolList, error } = await supabase.from('schools').select('*').order('name_en');
       if (error) throw error;
       // Count active members per school from school_members (not legacy profiles.school_id)
       const { data: members } = await supabase
@@ -355,7 +355,7 @@ function SchoolsTab() {
 
   const addMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from('schools').insert({ name: newName.trim() });
+      const { error } = await supabase.from('schools').insert({ name_en: newName.trim() });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -423,14 +423,14 @@ function SchoolsTab() {
               <tbody className="divide-y divide-[#e2e0db]">
                 {schools.map((s) => (
                   <tr key={s.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-[#1a1a1a]">{s.name}</td>
+                    <td className="px-4 py-3 font-medium text-[#1a1a1a]">{s.name_en}</td>
                     <td className="px-4 py-3 text-[#6b7280] capitalize">{s.school_type}</td>
                     <td className="px-4 py-3 text-[#6b7280]">{s.governorate || '—'}</td>
                     <td className="px-4 py-3 text-[#6b7280]">{s.user_count}</td>
                     <td className="px-4 py-3 text-xs text-[#6b7280]">{formatDate(s.created_at)}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
-                        <button onClick={() => { setEditSchool(s); setEditName(s.name ?? ''); }}
+                        <button onClick={() => { setEditSchool(s); setEditName(s.name_en ?? ''); }}
                           className="p-1 text-[#6b7280] hover:text-[#01696f]" title="Edit">
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
@@ -489,7 +489,7 @@ function SchoolsTab() {
         <DialogContent>
           <DialogHeader><DialogTitle>Delete School</DialogTitle></DialogHeader>
           <p className="text-sm text-[#6b7280]">
-            Permanently delete <strong className="text-[#1a1a1a]">{deleteSchool?.name}</strong> and all its data?
+            Permanently delete <strong className="text-[#1a1a1a]">{deleteSchool?.name_en}</strong> and all its data?
             This cannot be undone.
           </p>
           <div className="flex gap-3 pt-2">
@@ -556,7 +556,7 @@ function MonitoringTab() {
                   <div key={i} className="flex items-center justify-between py-2 border-b border-[#e2e0db] last:border-0">
                     <div>
                       <p className="text-xs font-medium text-[#1a1a1a]">{f.file_name as string}</p>
-                      <p className="text-xs text-[#6b7280]">{(f.schools as { name: string } | null)?.name || '—'}</p>
+                      <p className="text-xs text-[#6b7280]">{(f.schools as { name_en: string } | null)?.name_en || '—'}</p>
                     </div>
                     <p className="text-xs text-[#6b7280]">{formatDate(f.uploaded_at as string)}</p>
                   </div>
@@ -577,7 +577,7 @@ function MonitoringTab() {
                   <div key={i} className="flex items-center justify-between py-2 border-b border-[#e2e0db] last:border-0">
                     <div>
                       <p className="text-xs font-medium text-[#1a1a1a]">{a.title as string}</p>
-                      <p className="text-xs text-[#6b7280]">{(a.schools as { name: string } | null)?.name || '—'}</p>
+                      <p className="text-xs text-[#6b7280]">{(a.schools as { name_en: string } | null)?.name_en || '—'}</p>
                     </div>
                     <span className="text-xs bg-gray-100 text-[#6b7280] px-1.5 py-0.5 rounded capitalize">
                       {(a.status as string)?.replace('_', ' ')}

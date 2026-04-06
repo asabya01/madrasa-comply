@@ -51,9 +51,9 @@ export function useSchool() {
         .select(`
           id, user_id, role, status, school_id, joined_at, created_at,
           school:schools!school_members_school_id_fkey (
-            id, name, slug, logo_url,
+            id, name_en, name_ar, logo_url,
             subscription_tier, subscription_status, trial_ends_at,
-            invite_mode
+            invite_mode, is_active, slug
           )
         `)
         .eq('user_id', user.id)
@@ -111,7 +111,7 @@ export function useSchool() {
 
   useEffect(() => {
     if (activeSchool) {
-      console.log('[useSchool] Active school:', activeSchool.id, activeSchool.name);
+      console.log('[useSchool] Active school:', activeSchool.id, activeSchool.name_en);
       setSchool(activeSchool);
     }
     if (activeMembership) {

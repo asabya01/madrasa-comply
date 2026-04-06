@@ -89,7 +89,7 @@ export function SelfEvaluationPage() {
     doc.text('Self-Evaluation Document', 20, y);
     y += 10;
     doc.setFontSize(12);
-    doc.text(`${school?.name || 'School'} — ${new Date().getFullYear()}`, 20, y);
+    doc.text(`${school?.name_en || 'School'} — ${new Date().getFullYear()}`, 20, y);
     y += 10;
     doc.text(`OAAAQA School Evaluation Framework`, 20, y);
     y += 15;
@@ -98,7 +98,7 @@ export function SelfEvaluationPage() {
     doc.text('School Profile', 20, y);
     y += 8;
     doc.setFontSize(10);
-    doc.text(`School Name: ${school?.name || '-'}`, 20, y); y += 6;
+    doc.text(`School Name: ${school?.name_en || '-'}`, 20, y); y += 6;
     doc.text(`Type: ${school?.school_type || '-'}`, 20, y); y += 6;
     doc.text(`Governorate: ${school?.governorate || '-'}`, 20, y); y += 6;
     doc.text(`Principal: ${school?.principal_name || '-'}`, 20, y); y += 6;
@@ -131,7 +131,7 @@ export function SelfEvaluationPage() {
       y += 4;
     });
 
-    doc.save(`SED-${school?.name?.replace(/\s+/g, '-') || 'school'}-${new Date().getFullYear()}.pdf`);
+    doc.save(`SED-${school?.name_en?.replace(/\s+/g, '-') || 'school'}-${new Date().getFullYear()}.pdf`);
   };
 
   if (!school) {
@@ -175,7 +175,7 @@ export function SelfEvaluationPage() {
             <CardContent className="space-y-4">
               <div>
                 <label className="text-xs text-[#6b7280] block mb-1">School Name</label>
-                <Input defaultValue={school.name} onBlur={(e) => updateSchool.mutate({ name: e.target.value })} />
+                <Input defaultValue={school.name_en} onBlur={(e) => updateSchool.mutate({ name_en: e.target.value })} />
               </div>
             </CardContent>
           </Card>

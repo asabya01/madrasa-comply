@@ -30,21 +30,18 @@ export interface Indicator {
 
 export interface School {
   id: string;
-  // 'name' is the primary DB column; name_en/name_ar kept as optional aliases
-  // for legacy compatibility with existing page components.
-  name: string;
-  name_en?: string;
+  name_en: string;
   name_ar?: string;
-  slug?: string;
   logo_url?: string;
   subscription_tier: 'trial' | 'basic' | 'premium' | 'starter' | 'school';
   subscription_status?: 'trial' | 'active' | 'suspended' | 'cancelled';
-  invite_mode?: 'open' | 'invite_only';
+  invite_mode?: string;
   trial_ends_at?: string;
+  is_active?: boolean;
+  slug?: string;
   created_at: string;
   updated_at?: string;
-  // Extended fields present in full school records (not returned by membership join)
-  school_type?: 'public' | 'private';
+  school_type?: string;
   governorate?: string;
   wilayat?: string;
   principal_name?: string;
@@ -54,7 +51,6 @@ export interface School {
   school_levels?: string[];
   vision_statement?: string;
   mission_statement?: string;
-  is_active?: boolean;
 }
 
 export type SchoolMemberRole =

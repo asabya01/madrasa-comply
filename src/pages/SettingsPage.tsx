@@ -102,7 +102,7 @@ export function SettingsPage() {
               <div>
                 <label className="text-xs text-[#6b7280] block mb-1">School</label>
                 <div className="flex h-9 items-center rounded-md border border-[#e2e0db] bg-gray-50 px-3 text-sm text-[#6b7280]">
-                  {school.name}
+                  {school.name_en}
                   <button
                     className="ml-auto text-xs text-[#01696f] hover:underline"
                     onClick={(e) => {
@@ -132,9 +132,9 @@ export function SettingsPage() {
               <div>
                 <label className="text-xs text-[#6b7280] block mb-1">School Name*</label>
                 <Input
-                  defaultValue={school.name}
-                  id="name"
-                  onBlur={(e) => updateSchool.mutate({ name: e.target.value })}
+                  defaultValue={school.name_en}
+                  id="name_en"
+                  onBlur={(e) => updateSchool.mutate({ name_en: e.target.value })}
                 />
               </div>
             </CardContent>

@@ -63,7 +63,7 @@ export function OnboardingPage() {
   }
 
   // ── CREATE SCHOOL ─────────────────────────────────────────────────────────
-  const [schoolForm, setSchoolForm] = useState({ name: '' });
+  const [schoolForm, setSchoolForm] = useState({ name_en: '' });
 
   const handleCreateSchool = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,7 +77,7 @@ export function OnboardingPage() {
       const { data: school, error: schoolErr } = await supabase
         .from('schools')
         .insert({ ...schoolForm })
-        .select('id, name')
+        .select('id, name_en')
         .single();
       if (schoolErr) throw new Error(`Could not create school: ${schoolErr.message}`);
 
@@ -105,7 +105,7 @@ export function OnboardingPage() {
         if (e) console.warn('[Onboarding] Checklist seed failed (non-fatal):', e.message);
       });
 
-      showToast(`${school.name} registered successfully!`, 'success');
+      showToast(`${school.name_en} registered successfully!`, 'success');
 
       // 4. Bust query cache so useSchool sees the new membership immediately,
       //    then navigate. Without this, AppShell may see stale empty memberships
@@ -130,8 +130,8 @@ export function OnboardingPage() {
     if (q.trim().length < 2) { setSearchResults([]); return; }
     const { data } = await supabase
       .from('schools')
-      .select('id, name')
-      .ilike('name', `%${q}%`)
+      .select('id, name_en')
+      .ilike('name_en', `%${q}%`)
       .limit(10);
     setSearchResults((data ?? []) as School[]);
   };
@@ -246,8 +246,8 @@ export function OnboardingPage() {
                 <div className="space-y-1.5">
                   <Label>School Name</Label>
                   <Input
-                    value={schoolForm.name}
-                    onChange={(e) => setSchoolForm({ name: e.target.value })}
+                    value={schoolForm.name_en}
+                    onChange={(e) => setSchoolForm({ name_en: e.target.value })}
                     placeholder="Al Salam Primary School"
                     required
                   />
@@ -263,7 +263,7 @@ export function OnboardingPage() {
                   <Button type="button" variant="outline" onClick={() => setView('choose')} className="flex-1" disabled={loading}>
                     Back
                   </Button>
-                  <Button type="submit" className="flex-1" disabled={loading || !schoolForm.name}>
+                  <Button type="submit" className="flex-1" disabled={loading || !schoolForm.name_en}>
                     {loading ? 'Creating…' : 'Create School'}
                   </Button>
                 </div>
@@ -303,7 +303,7 @@ export function OnboardingPage() {
                             : 'hover:bg-[#f7f6f2]'
                         }`}
                       >
-                        <div className="font-medium">{s.name}</div>
+                        <div className="font-medium">{s.name_en}</div>
                       </button>
                     ))}
                   </div>
