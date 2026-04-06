@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS tasks (
   assigned_to  uuid REFERENCES auth.users(id),
   title        text NOT NULL,
   description  text,
-  indicator_id uuid REFERENCES indicators(id),
+  indicator_id text,  -- string IDs like "1.1.1", no FK constraint
   due_date     date,
   priority     text NOT NULL DEFAULT 'medium'
     CHECK (priority IN ('critical','high','medium','low')),
