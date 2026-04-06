@@ -28,10 +28,10 @@ export function AppShell() {
   const navigate  = useNavigate();
   const { isLoading, school, profile, error, needsOnboarding } = useSchool();
 
-  // Redirect to onboarding when profile exists but school is not yet set up
+  // Redirect to onboarding when profile exists but user has no school memberships
   useEffect(() => {
     if (needsOnboarding) {
-      console.log('[AppShell] Profile has no school_id — redirecting to onboarding');
+      console.log('[AppShell] No active school membership — redirecting to onboarding');
       navigate('/onboarding', { replace: true });
     }
   }, [needsOnboarding, navigate]);
@@ -54,8 +54,8 @@ export function AppShell() {
     console.error('[AppShell] Failed to load school data:', error);
   }
 
-  // Warn only for non-admin users — admins have no school by design
-  if (!school && profile?.role !== 'admin') {
+  // Warn only for non-super-admin users — super admins have no school by design
+  if (!school && !profile?.is_super_admin) {
     console.warn('[AppShell] School not found — write operations will fail');
   }
 

@@ -133,9 +133,9 @@ export function LoginPage() {
               </button>
 
               <p className="text-xs text-center text-[#6b7280] mt-4">
-                New school?{' '}
-                <a href="/onboarding" className="text-[#01696f] hover:underline">
-                  Register here
+                New to Madrasa Comply?{' '}
+                <a href="/signup" className="text-[#01696f] hover:underline">
+                  Create an account
                 </a>
               </p>
             </>

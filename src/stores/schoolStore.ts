@@ -1,13 +1,17 @@
 import { create } from 'zustand';
-import type { School, Profile } from '../types';
+import type { School, Profile, SchoolMember, SchoolMemberRole } from '../types';
 
 interface SchoolState {
   school: School | null;
   profile: Profile | null;
   academicYear: string;
+  userRole: SchoolMemberRole | null;
+  allMemberships: SchoolMember[];
   setSchool: (school: School | null) => void;
   setProfile: (profile: Profile | null) => void;
   setAcademicYear: (year: string) => void;
+  setUserRole: (role: SchoolMemberRole | null) => void;
+  setAllMemberships: (memberships: SchoolMember[]) => void;
 }
 
 function getCurrentAcademicYear(): string {
@@ -22,7 +26,11 @@ export const useSchoolStore = create<SchoolState>((set) => ({
   school: null,
   profile: null,
   academicYear: getCurrentAcademicYear(),
+  userRole: null,
+  allMemberships: [],
   setSchool: (school) => set({ school }),
   setProfile: (profile) => set({ profile }),
   setAcademicYear: (academicYear) => set({ academicYear }),
+  setUserRole: (userRole) => set({ userRole }),
+  setAllMemberships: (allMemberships) => set({ allMemberships }),
 }));

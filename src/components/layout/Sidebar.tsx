@@ -2,9 +2,12 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, BookOpen, FileText, FolderOpen, ClipboardList,
   CheckSquare, BarChart3, Settings, LogOut, Shield, ShieldAlert,
+  ChevronDown, Building2,
 } from 'lucide-react';
+import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useSchoolStore } from '../../stores/schoolStore';
+import { useSchool } from '../../hooks/useSchool';
 import { cn } from '../../lib/utils';
 
 const NAV_ITEMS = [
@@ -20,7 +23,11 @@ const NAV_ITEMS = [
 
 export function Sidebar() {
   const { school, profile } = useSchoolStore();
-  const isAdmin = profile?.role === 'admin';
+  const { allMemberships, switchSchool } = useSchool();
+  const [schoolMenuOpen, setSchoolMenuOpen] = useState(false);
+
+  const isSuperAdmin = profile?.is_super_admin ?? false;
+  const multiSchool  = allMemberships.length > 1;
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -29,21 +36,59 @@ export function Sidebar() {
 
   return (
     <aside className="fixed left-0 top-0 h-full w-60 bg-[#0c4e54] text-white flex flex-col z-40">
-      {/* Logo */}
-      <div className="flex items-center gap-2 px-5 py-5 border-b border-white/10">
-        <Shield className="h-7 w-7 text-white shrink-0" />
-        <div className="min-w-0">
-          <div className="font-semibold text-sm">Madrasa Comply</div>
-          <div className="text-xs text-white/60 truncate">
-            {isAdmin ? 'Platform Admin' : (school?.name_en || 'Loading…')}
+      {/* Logo + school name / switcher */}
+      <div className="px-5 py-5 border-b border-white/10">
+        <div className="flex items-center gap-2">
+          <Shield className="h-7 w-7 text-white shrink-0" />
+          <div className="min-w-0">
+            <div className="font-semibold text-sm">Madrasa Comply</div>
+            <div className="text-xs text-white/60 truncate">
+              {isSuperAdmin ? 'Platform Admin' : (school?.name_en || 'Loading…')}
+            </div>
           </div>
         </div>
+
+        {/* School switcher — only shown when user belongs to multiple schools */}
+        {multiSchool && (
+          <div className="mt-3 relative">
+            <button
+              onClick={() => setSchoolMenuOpen((o) => !o)}
+              className="flex items-center gap-1.5 w-full text-xs text-white/70 hover:text-white transition-colors"
+            >
+              <Building2 className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate flex-1 text-left">Switch school</span>
+              <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 transition-transform', schoolMenuOpen && 'rotate-180')} />
+            </button>
+
+            {schoolMenuOpen && (
+              <div className="absolute left-0 top-full mt-1 w-full bg-[#0a3d42] border border-white/10 rounded-md shadow-lg z-50">
+                {allMemberships.map((m) => {
+                  const memberSchool = m.school as { name_en: string } | undefined;
+                  return (
+                    <button
+                      key={m.school_id}
+                      onClick={() => { switchSchool(m.school_id); setSchoolMenuOpen(false); }}
+                      className={cn(
+                        'block w-full text-left px-3 py-2 text-xs transition-colors',
+                        m.school_id === school?.id
+                          ? 'text-white bg-white/10'
+                          : 'text-white/70 hover:text-white hover:bg-white/5'
+                      )}
+                    >
+                      {memberSchool?.name_en ?? m.school_id}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Nav */}
       <nav className="flex-1 py-4 overflow-y-auto">
-        {/* Admin Panel link — only for admin role */}
-        {isAdmin && (
+        {/* Admin Panel link — only for super admins */}
+        {isSuperAdmin && (
           <NavLink
             to="/admin"
             className={({ isActive }) =>

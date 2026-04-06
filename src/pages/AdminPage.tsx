@@ -60,7 +60,7 @@ export function AdminPage() {
     );
   }
 
-  if (profile.role !== 'admin') {
+  if (!profile.is_super_admin) {
     navigate('/dashboard');
     return null;
   }

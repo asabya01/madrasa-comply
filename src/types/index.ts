@@ -32,6 +32,7 @@ export interface School {
   id: string;
   name_en: string;
   name_ar?: string;
+  slug?: string;
   school_type: 'public' | 'private';
   governorate?: string;
   wilayat?: string;
@@ -43,19 +44,89 @@ export interface School {
   vision_statement?: string;
   mission_statement?: string;
   logo_url?: string;
-  subscription_tier: 'trial' | 'basic' | 'premium';
+  subscription_tier: 'trial' | 'basic' | 'premium' | 'starter' | 'school';
+  subscription_status?: 'trial' | 'active' | 'suspended' | 'cancelled';
+  invite_mode?: 'open' | 'invite_only';
+  trial_ends_at?: string;
   created_at: string;
+  updated_at?: string;
   is_active: boolean;
+}
+
+export type SchoolMemberRole =
+  | 'school_admin'
+  | 'principal'
+  | 'vice_principal'
+  | 'senior_management'
+  | 'head_of_department'
+  | 'quality_coordinator'
+  | 'teacher'
+  | 'auditor';
+
+export type SchoolMemberStatus = 'active' | 'pending' | 'suspended';
+
+export interface SchoolMember {
+  id: string;
+  school_id: string;
+  user_id: string;
+  role: SchoolMemberRole;
+  status: SchoolMemberStatus;
+  invited_by?: string;
+  joined_at: string;
+  created_at: string;
+  // joined from schools table when queried with select
+  school?: School;
 }
 
 export interface Profile {
   id: string;
-  school_id: string;
+  school_id?: string;         // legacy — kept for backward compat
   email?: string;
   full_name?: string;
   role: 'admin' | 'super_admin' | 'principal' | 'vice_principal' | 'quality_coordinator' | 'teacher';
   department?: string;
   avatar_url?: string;
+  is_super_admin: boolean;
+  created_at: string;
+}
+
+export interface SchoolInvitation {
+  id: string;
+  school_id: string;
+  token: string;
+  email?: string;
+  role: SchoolMemberRole;
+  invited_by?: string;
+  expires_at: string;
+  used_at?: string;
+  created_at: string;
+}
+
+export interface Task {
+  id: string;
+  school_id: string;
+  created_by?: string;
+  assigned_to?: string;
+  title: string;
+  description?: string;
+  indicator_id?: string;
+  due_date?: string;
+  priority: 'critical' | 'high' | 'medium' | 'low';
+  status: 'not_started' | 'in_progress' | 'completed' | 'overdue';
+  is_broadcast: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AppNotification {
+  id: string;
+  school_id: string;
+  user_id: string;
+  title: string;
+  body?: string;
+  type: 'info' | 'warning' | 'error' | 'success' | 'task' | 'audit';
+  related_id?: string;
+  is_read: boolean;
   created_at: string;
 }
 

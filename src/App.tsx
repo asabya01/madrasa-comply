@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { supabase } from './lib/supabase';
 import { AppShell } from './components/layout/AppShell';
 import { LoginPage } from './pages/auth/LoginPage';
+import { SignupPage } from './pages/auth/SignupPage';
 import { OnboardingPage } from './pages/auth/OnboardingPage';
 import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { AdminPage } from './pages/AdminPage';
@@ -56,24 +57,32 @@ function App() {
 
   return (
     <Routes>
-      <Route path="/login" element={session ? <Navigate to="/dashboard" /> : <LoginPage />} />
-      {/* Accessible even when logged in — Supabase redirects here with a recovery token in the URL */}
+      <Route path="/login"  element={session ? <Navigate to="/dashboard" /> : <LoginPage />} />
+      <Route path="/signup" element={session ? <Navigate to="/onboarding" /> : <SignupPage />} />
+
+      {/* Accessible even when logged in — Supabase redirects here with a recovery token */}
       <Route path="/reset-password" element={<ResetPasswordPage />} />
-      {/* Only redirect away from onboarding once profile exists — prevents mid-signup redirect */}
-      <Route path="/onboarding" element={session && !!profile ? <Navigate to="/dashboard" /> : <OnboardingPage />} />
+
+      {/* Onboarding: super admins are redirected (they have no school).
+          Regular users always see this page — AppShell handles the redirect
+          away from it once a school membership exists. */}
+      <Route
+        path="/onboarding"
+        element={profile?.is_super_admin ? <Navigate to="/dashboard" /> : <OnboardingPage />}
+      />
 
       <Route element={<ProtectedRoute session={session} />}>
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/domains" element={<DomainsPage />} />
+        <Route path="/dashboard"        element={<DashboardPage />} />
+        <Route path="/domains"          element={<DomainsPage />} />
         <Route path="/domains/:domainId" element={<DomainDetailPage />} />
         <Route path="/domains/:domainId/:standardId" element={<StandardPage />} />
-        <Route path="/evidence" element={<EvidencePage />} />
-        <Route path="/self-evaluation" element={<SelfEvaluationPage />} />
+        <Route path="/evidence"         element={<EvidencePage />} />
+        <Route path="/self-evaluation"  element={<SelfEvaluationPage />} />
         <Route path="/improvement-plan" element={<ImprovementPlanPage />} />
-        <Route path="/audit-prep" element={<AuditPrepPage />} />
-        <Route path="/reports" element={<ReportsPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/audit-prep"       element={<AuditPrepPage />} />
+        <Route path="/reports"          element={<ReportsPage />} />
+        <Route path="/settings"         element={<SettingsPage />} />
+        <Route path="/admin"            element={<AdminPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to={session ? '/dashboard' : '/login'} />} />

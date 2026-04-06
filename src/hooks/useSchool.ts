@@ -2,11 +2,15 @@ import { useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
-import type { School, Profile } from '../types';
+import type { School, Profile, SchoolMember } from '../types';
 
 export function useSchool() {
-  const { school, profile, setSchool, setProfile } = useSchoolStore();
+  const {
+    school, profile, setSchool, setProfile,
+    userRole, setUserRole, setAllMemberships,
+  } = useSchoolStore();
 
+  // 1. Load profile for the current auth user
   const profileQuery = useQuery({
     queryKey: ['profile'],
     queryFn: async () => {
@@ -25,38 +29,42 @@ export function useSchool() {
         console.error('[useSchool] Profile fetch error:', error.code, error.message);
         throw error;
       }
-      console.log('[useSchool] Profile loaded — school_id:', data?.school_id, 'role:', data?.role);
+      console.log('[useSchool] Profile loaded — is_super_admin:', data?.is_super_admin);
       return data as Profile | null;
     },
     retry: 2,
     staleTime: 1000 * 60 * 5,
   });
 
-  const schoolQuery = useQuery({
-    queryKey: ['school', profileQuery.data?.school_id],
+  // 2. Load all school memberships for this user
+  const membershipsQuery = useQuery({
+    queryKey: ['school_members', profileQuery.data?.id],
     queryFn: async () => {
-      if (!profileQuery.data?.school_id) {
-        console.warn('[useSchool] Profile has no school_id');
-        return null;
-      }
-      console.log('[useSchool] Fetching school:', profileQuery.data.school_id);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+      console.log('[useSchool] Fetching school memberships for user:', user.id);
       const { data, error } = await supabase
-        .from('schools')
-        .select('*')
-        .eq('id', profileQuery.data.school_id)
-        .maybeSingle();
+        .from('school_members')
+        .select('*, school:schools(*)')
+        .eq('user_id', user.id)
+        .eq('status', 'active');
       if (error) {
-        console.error('[useSchool] School fetch error:', error.code, error.message);
+        console.error('[useSchool] Memberships fetch error:', error.code, error.message);
         throw error;
       }
-      console.log('[useSchool] School loaded:', data?.name_en);
-      return data as School | null;
+      console.log('[useSchool] Memberships loaded:', data?.length);
+      return (data ?? []) as SchoolMember[];
     },
-    enabled: !!profileQuery.data?.school_id,
+    enabled: !!profileQuery.data,
     retry: 2,
     staleTime: 1000 * 60 * 5,
   });
 
+  // 3. Derive the active school from memberships (first one, or previously persisted)
+  const activeMembership = membershipsQuery.data?.[0] ?? null;
+  const activeSchool = (activeMembership?.school as School | undefined) ?? null;
+
+  // 4. Sync to store
   useEffect(() => {
     if (profileQuery.data) {
       console.log('[useSchool] Setting profile in store:', profileQuery.data.id);
@@ -65,28 +73,56 @@ export function useSchool() {
   }, [profileQuery.data, setProfile]);
 
   useEffect(() => {
-    if (schoolQuery.data) {
-      console.log('[useSchool] Setting school in store:', schoolQuery.data.id, schoolQuery.data.name_en);
-      setSchool(schoolQuery.data);
+    if (membershipsQuery.data) {
+      setAllMemberships(membershipsQuery.data);
     }
-  }, [schoolQuery.data, setSchool]);
+  }, [membershipsQuery.data, setAllMemberships]);
 
-  const isLoading = profileQuery.isLoading || (!!profileQuery.data?.school_id && schoolQuery.isLoading);
-  const error     = profileQuery.error || schoolQuery.error;
+  useEffect(() => {
+    if (activeSchool) {
+      console.log('[useSchool] Setting school in store:', activeSchool.id, activeSchool.name_en);
+      setSchool(activeSchool);
+    }
+    if (activeMembership) {
+      setUserRole(activeMembership.role);
+    }
+  }, [activeSchool, activeMembership, setSchool, setUserRole]);
 
-  // Profile loaded but no school_id and not an admin → user needs to complete onboarding
   const loadedProfile = profileQuery.data;
+  const isLoading =
+    profileQuery.isLoading ||
+    (!!profileQuery.data && membershipsQuery.isLoading);
+  const error = profileQuery.error || membershipsQuery.error;
+
+  // Needs onboarding when:
+  //   - Profile exists
+  //   - No active school memberships
+  //   - Not a super admin (super admins have no school by design)
   const needsOnboarding =
     !isLoading &&
     !!loadedProfile &&
-    !loadedProfile.school_id &&
-    loadedProfile.role !== 'admin';
+    !loadedProfile.is_super_admin &&
+    (membershipsQuery.data?.length ?? 0) === 0;
+
+  // Switch to a different school (for multi-school users)
+  function switchSchool(schoolId: string) {
+    const membership = membershipsQuery.data?.find((m) => m.school_id === schoolId);
+    if (!membership) return;
+    const newSchool = membership.school as School | undefined;
+    if (newSchool) {
+      setSchool(newSchool);
+      setUserRole(membership.role);
+    }
+  }
 
   return {
-    school:          school || schoolQuery.data || null,
+    school:          school || activeSchool || null,
     profile:         profile || loadedProfile || null,
+    userRole:        userRole || activeMembership?.role || null,
+    allMemberships:  membershipsQuery.data ?? [],
     isLoading,
     error,
     needsOnboarding,
+    switchSchool,
   };
 }
