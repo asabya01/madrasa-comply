@@ -8,11 +8,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs'
 import { useSchoolStore } from '../stores/schoolStore';
 import { useToast } from '../components/ui/toast';
 
-const GOVERNORATES = [
-  'Muscat','Dhofar','Musandam','Al Buraimi','Al Dakhiliyah',
-  'Al Batinah North','Al Batinah South','Al Sharqiyah North',
-  'Al Sharqiyah South','Al Dhahirah','Al Wusta',
-];
 
 const ROLE_LABELS: Record<string, string> = {
   school_admin:        'School Admin',
@@ -135,68 +130,12 @@ export function SettingsPage() {
             <CardHeader><CardTitle className="font-sans">School Profile</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <label className="text-xs text-[#6b7280] block mb-1">School Name (English)*</label>
+                <label className="text-xs text-[#6b7280] block mb-1">School Name*</label>
                 <Input
                   defaultValue={school.name}
                   id="name"
                   onBlur={(e) => updateSchool.mutate({ name: e.target.value })}
                 />
-              </div>
-              <div>
-                <label className="text-xs text-[#6b7280] block mb-1">School Name (Arabic)</label>
-                <Input
-                  defaultValue={school.name_ar || ''}
-                  onBlur={(e) => updateSchool.mutate({ name_ar: e.target.value })}
-                  dir="rtl"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-[#6b7280] block mb-1">School Type</label>
-                  <select
-                    className="flex h-9 w-full rounded-md border border-[#e2e0db] bg-white px-3 py-1 text-sm"
-                    defaultValue={school.school_type}
-                    onChange={(e) => updateSchool.mutate({ school_type: e.target.value })}
-                  >
-                    <option value="public">Public</option>
-                    <option value="private">Private</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs text-[#6b7280] block mb-1">Governorate</label>
-                  <select
-                    className="flex h-9 w-full rounded-md border border-[#e2e0db] bg-white px-3 py-1 text-sm"
-                    defaultValue={school.governorate || ''}
-                    onChange={(e) => updateSchool.mutate({ governorate: e.target.value })}
-                  >
-                    <option value="">Select...</option>
-                    {GOVERNORATES.map((g) => <option key={g} value={g}>{g}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-[#6b7280] block mb-1">Wilayat</label>
-                  <Input defaultValue={school.wilayat || ''} onBlur={(e) => updateSchool.mutate({ wilayat: e.target.value })} />
-                </div>
-                <div>
-                  <label className="text-xs text-[#6b7280] block mb-1">Principal Name</label>
-                  <Input defaultValue={school.principal_name || ''} onBlur={(e) => updateSchool.mutate({ principal_name: e.target.value })} />
-                </div>
-              </div>
-              <div className="grid grid-cols-3 gap-4">
-                <div>
-                  <label className="text-xs text-[#6b7280] block mb-1">Male Students</label>
-                  <Input type="number" defaultValue={school.total_students_male} onBlur={(e) => updateSchool.mutate({ total_students_male: parseInt(e.target.value) || 0 })} />
-                </div>
-                <div>
-                  <label className="text-xs text-[#6b7280] block mb-1">Female Students</label>
-                  <Input type="number" defaultValue={school.total_students_female} onBlur={(e) => updateSchool.mutate({ total_students_female: parseInt(e.target.value) || 0 })} />
-                </div>
-                <div>
-                  <label className="text-xs text-[#6b7280] block mb-1">Teachers</label>
-                  <Input type="number" defaultValue={school.total_teachers} onBlur={(e) => updateSchool.mutate({ total_teachers: parseInt(e.target.value) || 0 })} />
-                </div>
               </div>
             </CardContent>
           </Card>

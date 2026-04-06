@@ -52,7 +52,8 @@ export function useSchool() {
           id, user_id, role, status, school_id, joined_at, created_at,
           school:schools!school_members_school_id_fkey (
             id, name, slug, logo_url,
-            subscription_tier, subscription_status, trial_ends_at
+            subscription_tier, subscription_status, trial_ends_at,
+            invite_mode
           )
         `)
         .eq('user_id', user.id)

@@ -76,9 +76,9 @@ function useStats() {
         supabase.from('profiles').select('*', { count: 'exact', head: true }),
         supabase.from('evidence_files').select('*', { count: 'exact', head: true }),
         supabase.from('tasks').select('*', { count: 'exact', head: true }).neq('status', 'completed'),
-        supabase.from('schools').select('subscription_status, is_active'),
+        supabase.from('schools').select('subscription_status'),
       ]);
-      const activeCount = (schoolMeta ?? []).filter((s) => s.is_active && s.subscription_status === 'active').length;
+      const activeCount = (schoolMeta ?? []).filter((s) => s.subscription_status === 'active').length;
       const trialCount  = (schoolMeta ?? []).filter((s) => s.subscription_status === 'trial').length;
       return {
         schoolCount:   schoolCount ?? 0,
@@ -173,7 +173,6 @@ export function SuperAdminPage() {
   const [statusFilter, setStatusFilter]   = useState('');
   const [addSchoolOpen, setAddSchoolOpen] = useState(false);
   const [newSchoolName, setNewSchoolName] = useState('');
-  const [newSchoolType, setNewSchoolType] = useState<'public' | 'private'>('public');
   const [deleteConfirm, setDeleteConfirm] = useState<SchoolRow | null>(null);
 
   // ── Users tab state ────────────────────────────────────────────────────────
@@ -190,7 +189,6 @@ export function SuperAdminPage() {
     mutationFn: async () => {
       const { error } = await supabase.from('schools').insert({
         name:              newSchoolName.trim(),
-        school_type:       newSchoolType,
         subscription_tier: 'trial',
       });
       if (error) throw error;
@@ -220,8 +218,7 @@ export function SuperAdminPage() {
   const toggleSuspendMutation = useMutation({
     mutationFn: async ({ id, suspend }: { id: string; suspend: boolean }) => {
       const { error } = await supabase.from('schools').update({
-        is_active:            !suspend,
-        subscription_status:  suspend ? 'suspended' : 'active',
+        subscription_status: suspend ? 'suspended' : 'active',
       }).eq('id', id);
       if (error) throw error;
     },
@@ -391,7 +388,7 @@ export function SuperAdminPage() {
                     <tr key={s.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium text-[#1a1a1a]">
                         {s.name}
-                        {!s.is_active && (
+                        {s.subscription_status === 'suspended' && (
                           <span className="ml-2 text-xs text-red-500 font-normal">(suspended)</span>
                         )}
                       </td>
@@ -423,15 +420,15 @@ export function SuperAdminPage() {
                             <Eye className="h-3.5 w-3.5" />
                           </button>
                           <button
-                            onClick={() => toggleSuspendMutation.mutate({ id: s.id, suspend: s.is_active ?? false })}
-                            title={s.is_active ? 'Suspend' : 'Reactivate'}
+                            onClick={() => toggleSuspendMutation.mutate({ id: s.id, suspend: s.subscription_status !== 'suspended' })}
+                            title={s.subscription_status !== 'suspended' ? 'Suspend' : 'Reactivate'}
                             className={`p-1.5 rounded transition-colors ${
-                              s.is_active
+                              s.subscription_status !== 'suspended'
                                 ? 'text-[#6b7280] hover:text-orange-600 hover:bg-orange-50'
                                 : 'text-green-600 hover:bg-green-50'
                             }`}
                           >
-                            {s.is_active ? <AlertCircle className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />}
+                            {s.subscription_status !== 'suspended' ? <AlertCircle className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />}
                           </button>
                           <button
                             onClick={() => setDeleteConfirm(s)}
@@ -536,17 +533,6 @@ export function SuperAdminPage() {
                 onChange={(e) => setNewSchoolName(e.target.value)}
                 placeholder="Al Salam Primary School"
               />
-            </div>
-            <div className="space-y-1.5">
-              <Label>School Type</Label>
-              <select
-                className="flex h-9 w-full rounded-md border border-[#e2e0db] bg-white px-3 text-sm"
-                value={newSchoolType}
-                onChange={(e) => setNewSchoolType(e.target.value as 'public' | 'private')}
-              >
-                <option value="public">Public</option>
-                <option value="private">Private</option>
-              </select>
             </div>
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1" onClick={() => setAddSchoolOpen(false)}>

@@ -173,35 +173,9 @@ export function SelfEvaluationPage() {
           <Card>
             <CardHeader><CardTitle className="font-sans">School Profile</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-xs text-[#6b7280] block mb-1">School Name (English)</label>
-                  <Input defaultValue={school.name} onBlur={(e) => updateSchool.mutate({ name: e.target.value })} />
-                </div>
-                <div>
-                  <label className="text-xs text-[#6b7280] block mb-1">Principal Name</label>
-                  <Input defaultValue={school.principal_name || ''} onBlur={(e) => updateSchool.mutate({ principal_name: e.target.value })} />
-                </div>
-                <div>
-                  <label className="text-xs text-[#6b7280] block mb-1">Total Male Students</label>
-                  <Input type="number" defaultValue={school.total_students_male} onBlur={(e) => updateSchool.mutate({ total_students_male: parseInt(e.target.value) })} />
-                </div>
-                <div>
-                  <label className="text-xs text-[#6b7280] block mb-1">Total Female Students</label>
-                  <Input type="number" defaultValue={school.total_students_female} onBlur={(e) => updateSchool.mutate({ total_students_female: parseInt(e.target.value) })} />
-                </div>
-                <div>
-                  <label className="text-xs text-[#6b7280] block mb-1">Total Teachers</label>
-                  <Input type="number" defaultValue={school.total_teachers} onBlur={(e) => updateSchool.mutate({ total_teachers: parseInt(e.target.value) })} />
-                </div>
-              </div>
               <div>
-                <label className="text-xs text-[#6b7280] block mb-1">Vision Statement</label>
-                <Textarea defaultValue={school.vision_statement || ''} onBlur={(e) => updateSchool.mutate({ vision_statement: e.target.value })} placeholder="Our vision..." />
-              </div>
-              <div>
-                <label className="text-xs text-[#6b7280] block mb-1">Mission Statement</label>
-                <Textarea defaultValue={school.mission_statement || ''} onBlur={(e) => updateSchool.mutate({ mission_statement: e.target.value })} placeholder="Our mission..." />
+                <label className="text-xs text-[#6b7280] block mb-1">School Name</label>
+                <Input defaultValue={school.name} onBlur={(e) => updateSchool.mutate({ name: e.target.value })} />
               </div>
             </CardContent>
           </Card>

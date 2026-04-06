@@ -9,12 +9,6 @@ import { Label } from '../../components/ui/label';
 import { useToast } from '../../components/ui/toast';
 import type { School } from '../../types';
 
-const GOVERNORATES = [
-  'Muscat','Dhofar','Musandam','Al Buraimi','Al Dakhiliyah',
-  'Al Batinah North','Al Batinah South','Al Sharqiyah North',
-  'Al Sharqiyah South','Al Dhahirah','Al Wusta',
-];
-
 const DEFAULT_CHECKLIST = [
   { category: 'documentation', item_text: 'Self-evaluation document fully completed' },
   { category: 'documentation', item_text: 'All domain narratives written' },
@@ -69,13 +63,7 @@ export function OnboardingPage() {
   }
 
   // ── CREATE SCHOOL ─────────────────────────────────────────────────────────
-  const [schoolForm, setSchoolForm] = useState({
-    name:           '',
-    school_type:    'public' as 'public' | 'private',
-    governorate:    '',
-    wilayat:        '',
-    principal_name: '',
-  });
+  const [schoolForm, setSchoolForm] = useState({ name: '' });
 
   const handleCreateSchool = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,7 +130,7 @@ export function OnboardingPage() {
     if (q.trim().length < 2) { setSearchResults([]); return; }
     const { data } = await supabase
       .from('schools')
-      .select('id, name, governorate, school_type')
+      .select('id, name')
       .ilike('name', `%${q}%`)
       .limit(10);
     setSearchResults((data ?? []) as School[]);
@@ -256,53 +244,13 @@ export function OnboardingPage() {
 
               <form onSubmit={handleCreateSchool} className="space-y-4">
                 <div className="space-y-1.5">
-                  <Label>School Name (English)</Label>
+                  <Label>School Name</Label>
                   <Input
                     value={schoolForm.name}
-                    onChange={(e) => setSchoolForm({ ...schoolForm, name: e.target.value })}
+                    onChange={(e) => setSchoolForm({ name: e.target.value })}
                     placeholder="Al Salam Primary School"
                     required
                   />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>School Type</Label>
-                  <select
-                    className="flex h-9 w-full rounded-md border border-[#e2e0db] bg-white px-3 py-1 text-sm"
-                    value={schoolForm.school_type}
-                    onChange={(e) => setSchoolForm({ ...schoolForm, school_type: e.target.value as 'public' | 'private' })}
-                  >
-                    <option value="public">Public</option>
-                    <option value="private">Private</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Governorate</Label>
-                  <select
-                    className="flex h-9 w-full rounded-md border border-[#e2e0db] bg-white px-3 py-1 text-sm"
-                    value={schoolForm.governorate}
-                    onChange={(e) => setSchoolForm({ ...schoolForm, governorate: e.target.value })}
-                  >
-                    <option value="">Select governorate</option>
-                    {GOVERNORATES.map((g) => <option key={g} value={g}>{g}</option>)}
-                  </select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label>Wilayat</Label>
-                    <Input
-                      value={schoolForm.wilayat}
-                      onChange={(e) => setSchoolForm({ ...schoolForm, wilayat: e.target.value })}
-                      placeholder="e.g. Seeb"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label>Principal Name</Label>
-                    <Input
-                      value={schoolForm.principal_name}
-                      onChange={(e) => setSchoolForm({ ...schoolForm, principal_name: e.target.value })}
-                      placeholder="Dr. Ahmed Al-Rashdi"
-                    />
-                  </div>
                 </div>
 
                 {error && (
@@ -356,9 +304,6 @@ export function OnboardingPage() {
                         }`}
                       >
                         <div className="font-medium">{s.name}</div>
-                        {s.governorate && (
-                          <div className="text-xs text-[#6b7280] mt-0.5">{s.governorate} · {s.school_type}</div>
-                        )}
                       </button>
                     ))}
                   </div>
