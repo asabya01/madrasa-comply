@@ -50,7 +50,7 @@ export function useSchool() {
         .from('school_members')
         .select(`
           id, user_id, role, status, school_id, joined_at, created_at,
-          school:schools (
+          school:schools!school_members_school_id_fkey (
             id, name, slug, logo_url,
             subscription_tier, subscription_status, trial_ends_at
           )
@@ -58,7 +58,7 @@ export function useSchool() {
         .eq('user_id', user.id)
         .eq('status', 'active');
       if (error) {
-        console.error('[useSchool] Memberships fetch error:', error.code, error.message);
+        console.error('[useSchool] Memberships fetch error:', error.code, error.message, error);
         throw error;
       }
       console.log('[useSchool] Memberships loaded:', data?.length);
