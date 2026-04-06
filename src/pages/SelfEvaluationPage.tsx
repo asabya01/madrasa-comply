@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { FileDown, CheckCircle, XCircle } from 'lucide-react';
+import { FileDown, CheckCircle, XCircle, ExternalLink } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -32,7 +32,7 @@ export function SelfEvaluationPage() {
   const { data: indicators } = useQuery({
     queryKey: ['indicators-all'],
     queryFn: async () => {
-      const { data } = await supabase.from('indicators').select('id, domain_id, standard_id').order('order_num');
+      const { data } = await supabase.from('indicators').select('id, description_en, domain_id, standard_id').order('order_num');
       return data || [];
     },
   });
@@ -51,8 +51,11 @@ export function SelfEvaluationPage() {
     queryKey: ['evidence-links-eval', school?.id],
     queryFn: async () => {
       if (!school) return [];
-      const { data } = await supabase.from('evidence_indicator_links').select('indicator_id').eq('school_id', school.id);
-      return (data || []).map((l) => l.indicator_id);
+      const { data } = await supabase
+        .from('evidence_indicator_links')
+        .select('indicator_id, evidence_files(id, file_name, file_path)')
+        .eq('school_id', school.id);
+      return data || [];
     },
     enabled: !!school,
   });
@@ -76,10 +79,22 @@ export function SelfEvaluationPage() {
   });
 
   const ratedSet = new Set((ratings || []).map((r) => r.indicator_id));
-  const evidenceSet = new Set(evidenceLinks || []);
+
+  // Build map: indicator_id → evidence files[]
+  const evidenceMap = (evidenceLinks || []).reduce<Record<string, { id: string; file_name: string; file_path: string }[]>>(
+    (acc, link) => {
+      const row = link as unknown as { indicator_id: string; evidence_files: { id: string; file_name: string; file_path: string } | { id: string; file_name: string; file_path: string }[] | null };
+      const files = Array.isArray(row.evidence_files) ? row.evidence_files : row.evidence_files ? [row.evidence_files] : [];
+      if (!acc[row.indicator_id]) acc[row.indicator_id] = [];
+      acc[row.indicator_id].push(...files);
+      return acc;
+    },
+    {}
+  );
+
   const totalIndicators = (indicators || []).length;
   const ratedCount = (indicators || []).filter((i) => ratedSet.has(i.id)).length;
-  const evidencedCount = (indicators || []).filter((i) => evidenceSet.has(i.id)).length;
+  const evidencedCount = (indicators || []).filter((i) => !!evidenceMap[i.id]?.length).length;
 
   const handleExportPDF = () => {
     const doc = new jsPDF();
@@ -185,7 +200,7 @@ export function SelfEvaluationPage() {
           const level = ((judgements?.domains as Record<string, JudgementLevel> || {})[id] || 3) as JudgementLevel;
           const domainInds = (indicators || []).filter((i) => i.domain_id === id);
           const domainRated = domainInds.filter((i) => ratedSet.has(i.id)).length;
-          const domainEvidenced = domainInds.filter((i) => evidenceSet.has(i.id)).length;
+          const domainEvidenced = domainInds.filter((i) => !!evidenceMap[i.id]?.length).length;
 
           return (
             <TabsContent key={id} value={`domain-${id}`}>
@@ -238,10 +253,16 @@ export function SelfEvaluationPage() {
                         <tbody>
                           {domainInds.map((ind) => {
                             const rating = (ratings || []).find((r) => r.indicator_id === ind.id);
+                            const indFiles = evidenceMap[ind.id] || [];
                             return (
                               <tr key={ind.id} className="border-t border-[#e2e0db]">
                                 <td className="px-3 py-2">
-                                  <span className="font-mono text-[#6b7280]">{ind.id}</span>
+                                  <span className="font-mono text-[#6b7280] shrink-0">{ind.id}</span>
+                                  {(ind as unknown as { description_en?: string }).description_en && (
+                                    <span className="text-[#1a1a1a] ml-2">
+                                      — {(ind as unknown as { description_en: string }).description_en}
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="px-3 py-2 text-center">
                                   {rating ? (
@@ -252,8 +273,28 @@ export function SelfEvaluationPage() {
                                     <span className="text-gray-400">—</span>
                                   )}
                                 </td>
-                                <td className="px-3 py-2 text-center">
-                                  {evidenceSet.has(ind.id) ? <CheckCircle className="h-4 w-4 text-[#437a22] mx-auto" /> : <XCircle className="h-4 w-4 text-gray-300 mx-auto" />}
+                                <td className="px-3 py-2">
+                                  {indFiles.length === 0 ? (
+                                    <span className="text-gray-400 block text-center">—</span>
+                                  ) : (
+                                    <div className="flex flex-col gap-1">
+                                      {indFiles.map((f) => {
+                                        const { data: { publicUrl } } = supabase.storage.from('evidence-files').getPublicUrl(f.file_path);
+                                        return (
+                                          <a
+                                            key={f.id}
+                                            href={publicUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1 text-[#01696f] underline hover:opacity-75"
+                                          >
+                                            <ExternalLink className="h-3 w-3 shrink-0" />
+                                            <span className="truncate max-w-[180px]">{f.file_name}</span>
+                                          </a>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
                                 </td>
                               </tr>
                             );
