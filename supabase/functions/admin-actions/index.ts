@@ -20,26 +20,21 @@ serve(async (req) => {
     const token = req.headers.get('Authorization')?.replace('Bearer ', '');
     if (!token) return json({ error: 'Missing authorization token' }, 401);
 
-    // Use service-role client for all server-side auth and admin operations.
-    // auth.getUser(token) validates the JWT against the Auth API without
-    // relying on session storage (which doesn't exist in edge functions).
-    // The service-role client also bypasses RLS for the profile lookup.
+    // Decode the JWT directly instead of calling auth.getUser()
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const userId = payload.sub;
+    if (!userId) return json({ error: 'Invalid token' }, 401);
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token);
-    if (authErr || !user) {
-      console.error('[admin-actions] Auth error:', authErr?.message);
-      return json({ error: 'Invalid token' }, 401);
-    }
-
     const { data: callerProfile } = await supabaseAdmin
       .from('profiles')
       .select('is_super_admin')
-      .eq('id', user.id)
+      .eq('id', userId)
       .single();
 
     if (!callerProfile?.is_super_admin) {
