@@ -11,7 +11,21 @@
       "Bash(git remote:*)",
       "Bash(git commit:*)",
       "Bash(git push:*)",
-      "Bash(npx vercel:*)"
+      "Bash(npx vercel:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vite:*)",
+      "Bash(python3:*)",
+      "Bash(supabase db:*)",
+      "Bash(npx supabase:*)",
+      "Bash(supabase status:*)",
+      "Bash(git -C C:/Users/moust/madrasa-comply remote get-url origin)",
+      "Bash(gh secret:*)",
+      "Bash(sed -n '34,40p' src/pages/SettingsPage.tsx)",
+      "Bash(sed -n '255,262p' src/pages/SettingsPage.tsx)",
+      "Bash(sed -n '1,6p' src/pages/SuperAdminPage.tsx)",
+      "Bash(git:*)",
+      "Bash(supabase functions:*)",
+      "Bash(supabase secrets:*)"
     ]
   }
 }

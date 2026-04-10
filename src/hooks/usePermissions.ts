@@ -171,12 +171,11 @@ function roleToPermissions(role: string | null | undefined, isSuperAdmin: boolea
 // ─── Hook ─────────────────────────────────────────────────────
 
 export function usePermissions(): Permissions {
-  const { profile } = useSchoolStore();
+  const { profile, userRole } = useSchoolStore();
 
-  const role = profile?.role ?? null;
   const isSuperAdmin = Boolean(profile?.is_super_admin);
 
-  return roleToPermissions(role, isSuperAdmin);
+  return roleToPermissions(userRole, isSuperAdmin);
 }
 
 // ─── Standalone helper (useful outside React components) ──────

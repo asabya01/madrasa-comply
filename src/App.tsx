@@ -19,16 +19,33 @@ import ImprovementPlanPage from './pages/ImprovementPlanPage';
 import { AuditPrepPage } from './pages/AuditPrepPage';
 import { ReportsPage } from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
+import { useSchool } from './hooks/useSchool';
 import { useSchoolStore } from './stores/schoolStore';
 import type { Session } from '@supabase/supabase-js';
 
+const Spinner = () => (
+  <div className="min-h-screen bg-[#f7f6f2] flex items-center justify-center">
+    <div className="text-[#6b7280] text-sm">Loading...</div>
+  </div>
+);
+
+// Blocks unauthenticated users, waits for profile+memberships to load,
+// then redirects to /onboarding if the user has no active school membership.
 function ProtectedRoute({ session }: { session: Session | null }) {
+  const { isLoading, needsOnboarding } = useSchool();
   if (!session) return <Navigate to="/login" replace />;
+  if (isLoading) return <Spinner />;
+  if (needsOnboarding) return <Navigate to="/onboarding" replace />;
   return <AppShell />;
 }
 
+// Blocks unauthenticated users and non-super-admins.
+// Redirects to /dashboard if profiles.is_super_admin is not true.
 function SuperAdminRoute({ session }: { session: Session | null }) {
+  const { isLoading, profile } = useSchool();
   if (!session) return <Navigate to="/login" replace />;
+  if (isLoading) return <Spinner />;
+  if (!profile?.is_super_admin) return <Navigate to="/dashboard" replace />;
   return <SuperAdminShell />;
 }
 
@@ -54,13 +71,7 @@ function App() {
     return () => subscription.unsubscribe();
   }, [setProfile, setSchool]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-[#f7f6f2] flex items-center justify-center">
-        <div className="text-[#6b7280] text-sm">Loading...</div>
-      </div>
-    );
-  }
+  if (loading) return <Spinner />;
 
   // After login, super admins go to /super-admin; everyone else to /dashboard.
   // profile is from the Zustand store — populated once useSchool runs inside
