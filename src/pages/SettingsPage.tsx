@@ -34,7 +34,7 @@ export default function SettingsPage() {
       setForm({
         name_en: school.name_en || '',
         name_ar: school.name_ar || '',
-        school_type: school.school_type || 'public',
+        school_type: (school.school_type || 'public') as 'public' | 'private',
         governorate: school.governorate || '',
         wilayat: school.wilayat || '',
         principal_name: school.principal_name || '',
@@ -254,25 +254,34 @@ export default function SettingsPage() {
 
 // ─── Academic Years Panel ─────────────────────────────────────
 
+const ALL_YEAR_OPTIONS: string[] = Array.from({ length: 21 }, (_, i) => {
+  const start = 2024 + i;
+  return `${start}-${start + 1}`;
+});
+
 function AcademicYearsPanel() {
-  const { years, currentYear, loading, error, createYear, setCurrentYear, deleteYear } = useAcademicYears();
+  const { years, loading, error, createYear, setCurrentYear, deleteYear } = useAcademicYears();
   const [showCreate, setShowCreate] = useState(false);
-  const [newLabel, setNewLabel] = useState('');
-  const [newStart, setNewStart] = useState('');
-  const [newEnd, setNewEnd] = useState('');
+  const [selectedLabel, setSelectedLabel] = useState('');
   const [creating, setCreating] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const existingLabels = new Set(years.map(y => y.label));
+  const availableOptions = ALL_YEAR_OPTIONS.filter(y => !existingLabels.has(y));
+
+  function openCreate() {
+    setSelectedLabel(availableOptions[0] ?? '');
+    setActionError(null);
+    setShowCreate(true);
+  }
+
   async function handleCreate() {
-    if (!newLabel.trim()) return;
+    if (!selectedLabel) return;
     setCreating(true);
     setActionError(null);
     try {
-      await createYear(newLabel.trim(), newStart || undefined, newEnd || undefined);
+      await createYear(selectedLabel);
       setShowCreate(false);
-      setNewLabel('');
-      setNewStart('');
-      setNewEnd('');
     } catch (e: any) {
       setActionError(e.message);
     } finally {
@@ -290,8 +299,9 @@ function AcademicYearsPanel() {
           </p>
         </div>
         <button
-          onClick={() => setShowCreate(true)}
-          className="px-3 py-2 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54]"
+          onClick={openCreate}
+          disabled={availableOptions.length === 0}
+          className="px-3 py-2 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54] disabled:opacity-40 disabled:cursor-not-allowed"
         >
           + New Year
         </button>
@@ -312,7 +322,7 @@ function AcademicYearsPanel() {
       ) : years.length === 0 ? (
         <div className="text-center py-10 text-gray-400">
           <p className="text-sm">No academic years configured.</p>
-          <button onClick={() => setShowCreate(true)} className="mt-2 text-[#01696f] text-sm hover:underline">
+          <button onClick={openCreate} className="mt-2 text-[#01696f] text-sm hover:underline">
             Create your first year
           </button>
         </div>
@@ -328,25 +338,15 @@ function AcademicYearsPanel() {
               }`}
             >
               <div className="flex items-center gap-3">
-                {year.is_current && (
-                  <span className="w-2 h-2 bg-[#01696f] rounded-full" />
-                )}
-                <div>
-                  <p className="text-sm font-semibold text-gray-800">{year.label}</p>
-                  {year.start_date && year.end_date && (
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      {new Date(year.start_date).toLocaleDateString()} –{' '}
-                      {new Date(year.end_date).toLocaleDateString()}
-                    </p>
-                  )}
-                </div>
+                {year.is_current && <span className="w-2 h-2 bg-[#01696f] rounded-full" />}
+                <p className="text-sm font-semibold text-gray-800">{year.label}</p>
                 {year.is_current && (
                   <span className="text-xs px-2 py-0.5 bg-[#01696f] text-white rounded-full font-medium">
                     Active
                   </span>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 {!year.is_current && (
                   <button
                     onClick={() => setCurrentYear(year.id)}
@@ -369,42 +369,34 @@ function AcademicYearsPanel() {
         </div>
       )}
 
-      {/* Create modal */}
+      {/* Add year modal */}
       {showCreate && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="text-lg font-semibold text-gray-900">New Academic Year</h3>
-              <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+              <h3 className="text-lg font-semibold text-gray-900">Add Academic Year</h3>
+              <button onClick={() => setShowCreate(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
             </div>
             <div className="space-y-4">
-              <Field label="Year Label *">
-                <input
-                  type="text"
-                  value={newLabel}
-                  onChange={e => setNewLabel(e.target.value)}
-                  placeholder="e.g. 2025-2026"
+              <Field label="Academic Year">
+                <select
+                  value={selectedLabel}
+                  onChange={e => setSelectedLabel(e.target.value)}
                   className={inputCls}
-                />
+                >
+                  {availableOptions.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
               </Field>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Start Date">
-                  <input type="date" value={newStart} onChange={e => setNewStart(e.target.value)} className={inputCls} />
-                </Field>
-                <Field label="End Date">
-                  <input type="date" value={newEnd} onChange={e => setNewEnd(e.target.value)} className={inputCls} />
-                </Field>
-              </div>
-              {actionError && (
-                <p className="text-red-600 text-sm">{actionError}</p>
-              )}
-              <div className="flex gap-3 pt-2">
+              {actionError && <p className="text-red-600 text-sm">{actionError}</p>}
+              <div className="flex gap-3 pt-1">
                 <button
                   onClick={handleCreate}
-                  disabled={creating || !newLabel.trim()}
+                  disabled={creating || !selectedLabel}
                   className="flex-1 py-2 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54] disabled:opacity-50"
                 >
-                  {creating ? 'Creating...' : 'Create Year'}
+                  {creating ? 'Adding...' : 'Add Year'}
                 </button>
                 <button
                   onClick={() => setShowCreate(false)}
