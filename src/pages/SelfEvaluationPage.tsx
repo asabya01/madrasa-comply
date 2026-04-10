@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
-import { JUDGEMENT_LABELS, JUDGEMENT_COLORS, JudgementLevel } from '../lib/judgement';
+import { JUDGEMENT_LABELS, JUDGEMENT_COLORS, type JudgementLevel } from '../lib/judgement';
 import type { Domain, Standard, Indicator, IndicatorRating, EvidenceFile } from '../types';
 
 // ─── Types ───────────────────────────────────────────────────
@@ -23,7 +23,7 @@ interface DomainWithStandards extends Domain {
 // ─── Component ───────────────────────────────────────────────
 
 export default function SelfEvaluationPage() {
-  const { school, profile } = useSchoolStore();
+  const { school } = useSchoolStore();
   const [activeTab, setActiveTab] = useState('1');
   const [domains, setDomains] = useState<DomainWithStandards[]>([]);
   const [loading, setLoading] = useState(true);
