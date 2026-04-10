@@ -60,7 +60,7 @@ export function useJudgements() {
     const d3 = calcDomain3(standardRating('3.1'), standardRating('3.2'), standardRating('3.3'), standardRating('3.4'), standardRating('3.5'));
     const d4 = calcDomain4(standardRating('4.1'), standardRating('4.2'), standardRating('4.3'), standardRating('4.4'));
     const d5 = calcDomain5(standardRating('5.1'), standardRating('5.2'), standardRating('5.3'), standardRating('5.4'), standardRating('5.5'));
-    const overall = calcOverallJudgement(d1, d2, d3, d4, d5);
+    const overall = calcOverallJudgement(d1.judgement, d2.judgement, d3.judgement, d4.judgement, d5.judgement);
 
     const standardJudgements: Record<string, JudgementLevel> = {};
     Object.keys(byStandard).forEach((sid) => {
@@ -68,7 +68,7 @@ export function useJudgements() {
     });
 
     return {
-      domains: { '1': d1, '2': d2, '3': d3, '4': d4, '5': d5 },
+      domains: { '1': d1.judgement, '2': d2.judgement, '3': d3.judgement, '4': d4.judgement, '5': d5.judgement },
       standards: standardJudgements,
       overall,
       ratedCount: ratingsQuery.data.length,

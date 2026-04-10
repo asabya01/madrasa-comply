@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Sparkles, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/button';
-import { useAIFeedback, type IndicatorFeedbackResult } from '../../hooks/useAIFeedback';
+import { useAIFeedback, isIndicatorFeedback, type FeedbackResult } from '../../hooks/useAIFeedback';
 import { JUDGEMENT_LABELS, type JudgementLevel } from '../../lib/judgement';
 import type { Indicator } from '../../types';
 
@@ -18,7 +18,7 @@ interface FeedbackPanelProps {
 export function FeedbackPanel({
   indicator, rating, strengths, improvementAreas, evidenceCount, domainName, standardName,
 }: FeedbackPanelProps) {
-  const [feedback, setFeedback] = useState<IndicatorFeedbackResult | null>(null);
+  const [feedback, setFeedback] = useState<FeedbackResult | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { mutateAsync, isPending } = useAIFeedback();
@@ -84,21 +84,21 @@ export function FeedbackPanel({
             {expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
 
-          {expanded && (
+          {expanded && isIndicatorFeedback(feedback) && (
             <div className="mt-2 space-y-3 p-3 bg-[#f0f7eb] rounded-lg border border-[#437a22]/20">
               {!!feedback.assessment && (
                 <div>
                   <p className="text-xs font-semibold text-[#437a22] uppercase mb-1">Assessment</p>
-                  <p className="text-xs text-[#1a1a1a]">{String(feedback.assessment)}</p>
+                  <p className="text-xs text-[#1a1a1a]">{feedback.assessment}</p>
                 </div>
               )}
               {!!feedback.gap_analysis && (
                 <div>
                   <p className="text-xs font-semibold text-[#006494] uppercase mb-1">Gap Analysis</p>
-                  <p className="text-xs text-[#1a1a1a]">{String(feedback.gap_analysis)}</p>
+                  <p className="text-xs text-[#1a1a1a]">{feedback.gap_analysis}</p>
                 </div>
               )}
-              {Array.isArray(feedback.recommendations) && feedback.recommendations.length > 0 && (
+              {feedback.recommendations.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-[#da7101] uppercase mb-1">Recommendations</p>
                   <div className="space-y-1">
@@ -116,7 +116,7 @@ export function FeedbackPanel({
               {!!feedback.reviewer_focus && (
                 <div>
                   <p className="text-xs font-semibold text-[#a12c7b] uppercase mb-1">Reviewer Focus</p>
-                  <p className="text-xs text-[#1a1a1a]">{String(feedback.reviewer_focus)}</p>
+                  <p className="text-xs text-[#1a1a1a]">{feedback.reviewer_focus}</p>
                 </div>
               )}
               <Button
