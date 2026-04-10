@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useRef, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
 import { usePermissions } from '../hooks/usePermissions';
@@ -513,7 +513,7 @@ function ObservationForm({
   teachers: TeacherOption[];
   classes: ClassOption[];
   framework: { standards: StandardRow[]; indicators: IndicatorRow[] } | undefined;
-  attachInputRef: React.RefObject<HTMLInputElement>;
+  attachInputRef: React.RefObject<HTMLInputElement | null>;
   attachUploading: boolean;
   saving: boolean;
   onAttach: (e: React.ChangeEvent<HTMLInputElement>) => void;
