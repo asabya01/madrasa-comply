@@ -48,8 +48,10 @@ export default function SuperAdminPage() {
     setLoading(true);
     setError(null);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const { data, error } = await supabase.functions.invoke('admin-actions', {
         body: { action: 'get_stats' },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (error) throw error;
       setStats(data);
@@ -131,8 +133,10 @@ export default function SuperAdminPage() {
     if (!newUserEmail.trim() || !newUserName.trim()) return;
     setActionLoading(true);
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const { error } = await supabase.functions.invoke('admin-actions', {
         body: { action: 'create_user', email: newUserEmail.trim(), full_name: newUserName.trim() },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (error) throw error;
       setShowCreateUser(false);
@@ -149,8 +153,10 @@ export default function SuperAdminPage() {
   async function deleteUser(userId: string) {
     if (!window.confirm('Delete this user permanently?')) return;
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const { error } = await supabase.functions.invoke('admin-actions', {
         body: { action: 'delete_user', user_id: userId },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (error) throw error;
       loadUsers();
