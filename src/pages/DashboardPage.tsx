@@ -7,6 +7,7 @@ import { DomainRadar } from '../components/dashboard/DomainRadar';
 import { EvidenceHeatmap } from '../components/dashboard/EvidenceHeatmap';
 import { ActionItemsWidget } from '../components/dashboard/ActionItemsWidget';
 import { ComplianceTrend } from '../components/dashboard/ComplianceTrend';
+import { DomainProgressBar } from '../components/dashboard/DomainProgressBar';
 import { JudgementBadge } from '../components/ui/judgement-badge';
 import { useJudgements } from '../hooks/useJudgements';
 import { useSchoolStore } from '../stores/schoolStore';
@@ -135,6 +136,19 @@ export function DashboardPage() {
         totalActions={actionStats?.total || 0}
         overdueActions={actionStats?.overdue || 0}
       />
+
+      {/* Domain progress */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base font-semibold font-sans">Self-Evaluation Progress</CardTitle>
+            <span className="text-xs text-[#6b7280]">{judgements?.ratedCount || 0} / {judgements?.totalCount || 0} indicators rated</span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <DomainProgressBar domainJudgements={(judgements?.domains || {}) as Record<string, JudgementLevel>} />
+        </CardContent>
+      </Card>
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
