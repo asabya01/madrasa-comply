@@ -20,16 +20,23 @@ serve(async (req) => {
     const token = req.headers.get('Authorization')?.replace('Bearer ', '');
     if (!token) return json({ error: 'Missing authorization token' }, 401);
 
-    const supabaseUser = createClient(
+    // Use service-role client for all server-side auth and admin operations.
+    // auth.getUser(token) validates the JWT against the Auth API without
+    // relying on session storage (which doesn't exist in edge functions).
+    // The service-role client also bypasses RLS for the profile lookup.
+    const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
-      { global: { headers: { Authorization: `Bearer ${token}` } } }
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
+      { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
-    const { data: { user }, error: authErr } = await supabaseUser.auth.getUser(token);
-    if (authErr || !user) return json({ error: 'Invalid token' }, 401);
+    const { data: { user }, error: authErr } = await supabaseAdmin.auth.getUser(token);
+    if (authErr || !user) {
+      console.error('[admin-actions] Auth error:', authErr?.message);
+      return json({ error: 'Invalid token' }, 401);
+    }
 
-    const { data: callerProfile } = await supabaseUser
+    const { data: callerProfile } = await supabaseAdmin
       .from('profiles')
       .select('is_super_admin')
       .eq('id', user.id)
@@ -38,13 +45,6 @@ serve(async (req) => {
     if (!callerProfile?.is_super_admin) {
       return json({ error: 'Forbidden — super admin access required' }, 403);
     }
-
-    // ── Service-role client for admin operations ────────────────────────────
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
-      { auth: { autoRefreshToken: false, persistSession: false } }
-    );
 
     const body = await req.json();
     const { action } = body;
