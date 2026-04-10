@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, BookOpen, FileText, FolderOpen, ClipboardList,
   CheckSquare, BarChart3, Settings, LogOut, Shield, ShieldAlert,
-  ChevronDown, Building2,
+  ChevronDown, Building2, ClipboardCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { to: '/domains',          icon: BookOpen,         label: 'Domains & Standards' },
   { to: '/evidence',         icon: FolderOpen,       label: 'Evidence Library' },
   { to: '/self-evaluation',  icon: FileText,         label: 'Self-Evaluation' },
+  { to: '/observations',    icon: ClipboardCheck,   label: 'Observations' },
   { to: '/improvement-plan', icon: ClipboardList,    label: 'Improvement Plan' },
   { to: '/audit-prep',       icon: CheckSquare,      label: 'Audit Preparation' },
   { to: '/reports',          icon: BarChart3,        label: 'Reports' },

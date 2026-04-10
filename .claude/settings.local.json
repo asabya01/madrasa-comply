@@ -25,7 +25,11 @@
       "Bash(sed -n '1,6p' src/pages/SuperAdminPage.tsx)",
       "Bash(git:*)",
       "Bash(supabase functions:*)",
-      "Bash(supabase secrets:*)"
+      "Bash(supabase secrets:*)",
+      "Bash(curl -s https://madrasa-comply.vercel.app/assets/index-BM-wSg2p.js)",
+      "Bash(curl -s https://madrasa-comply.vercel.app/)",
+      "Bash(curl -s https://madrasa-comply.vercel.app/assets/index-BENhdlBb.js)",
+      "Bash(supabase migration:*)"
     ]
   }
 }
