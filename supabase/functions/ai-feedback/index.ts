@@ -30,7 +30,7 @@ serve(async (req) => {
     );
 
     // 3. Confirm the token is valid — getUser() will fail if JWT is expired/invalid
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
       console.error('[ai-feedback] Auth error:', authError?.message);
       return new Response(JSON.stringify({ error: 'Invalid or expired token' }), {

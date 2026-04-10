@@ -26,7 +26,7 @@ serve(async (req) => {
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     );
 
-    const { data: { user }, error: authErr } = await supabaseUser.auth.getUser();
+    const { data: { user }, error: authErr } = await supabaseUser.auth.getUser(token);
     if (authErr || !user) return json({ error: 'Invalid token' }, 401);
 
     const { data: callerProfile } = await supabaseUser
