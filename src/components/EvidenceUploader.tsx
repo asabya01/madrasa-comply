@@ -7,7 +7,7 @@
  * Signed URLs:   1-hour expiry, generated on mount and cached in component state.
  */
 
-import { useState, useEffect, useRef, useCallback, DragEvent, ChangeEvent } from 'react';
+import { useState, useEffect, useRef, useCallback, type DragEvent, type ChangeEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
@@ -354,7 +354,7 @@ export default function EvidenceUploader({
 interface DropZoneProps {
   dragOver: boolean;
   uploading: boolean;
-  inputRef: React.RefObject<HTMLInputElement>;
+  inputRef: React.RefObject<HTMLInputElement | null>;
   onDragOver: (e: DragEvent<HTMLDivElement>) => void;
   onDragLeave: () => void;
   onDrop: (e: DragEvent<HTMLDivElement>) => void;
