@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Sparkles, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { Button } from '../ui/button';
-import { useAIFeedback } from '../../hooks/useAIFeedback';
+import { useAIFeedback, type IndicatorFeedbackResult } from '../../hooks/useAIFeedback';
 import { JUDGEMENT_LABELS, type JudgementLevel } from '../../lib/judgement';
 import type { Indicator } from '../../types';
 
@@ -18,7 +18,7 @@ interface FeedbackPanelProps {
 export function FeedbackPanel({
   indicator, rating, strengths, improvementAreas, evidenceCount, domainName, standardName,
 }: FeedbackPanelProps) {
-  const [feedback, setFeedback] = useState<Record<string, unknown> | null>(null);
+  const [feedback, setFeedback] = useState<IndicatorFeedbackResult | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { mutateAsync, isPending } = useAIFeedback();
@@ -102,7 +102,7 @@ export function FeedbackPanel({
                 <div>
                   <p className="text-xs font-semibold text-[#da7101] uppercase mb-1">Recommendations</p>
                   <div className="space-y-1">
-                    {(feedback.recommendations as Array<{action: string; priority: string; timeframe: string}>).map((rec, i) => (
+                    {feedback.recommendations.map((rec, i) => (
                       <div key={i} className="flex items-start gap-2">
                         <AlertCircle className={`h-3 w-3 mt-0.5 shrink-0 ${priorityColor[rec.priority] || 'text-gray-500'}`} />
                         <p className="text-xs text-[#1a1a1a]">{rec.action}
