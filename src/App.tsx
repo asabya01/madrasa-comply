@@ -27,6 +27,8 @@ import TeacherHomePage from './pages/TeacherHomePage';
 import ClassroomObservationsPage from './pages/ClassroomObservationsPage';
 import JudgementsPage from './pages/JudgementsPage';
 import PerformanceDataPage from './pages/PerformanceDataPage';
+import SurveysPage from './pages/SurveysPage';
+import PublicSurveyPage from './pages/PublicSurveyPage';
 import { useSchool } from './hooks/useSchool';
 import { useSchoolStore } from './stores/schoolStore';
 import type { Session } from '@supabase/supabase-js';
@@ -89,6 +91,9 @@ function App() {
 
   return (
     <Routes>
+      {/* ── Public survey route (no auth) ── */}
+      <Route path="/survey/:shareToken" element={<PublicSurveyPage />} />
+
       {/* ── Public auth routes ── */}
       <Route path="/login"  element={session ? <Navigate to={postLoginPath} /> : <LoginPage />} />
       <Route path="/signup" element={session ? <Navigate to="/onboarding" />  : <SignupPage />} />
@@ -119,6 +124,7 @@ function App() {
         <Route path="/teacher-assessment"   element={<TeacherSelfAssessmentPage />} />
         <Route path="/observations"         element={<ClassroomObservationsPage />} />
         <Route path="/judgements"        element={<JudgementsPage />} />
+        <Route path="/surveys"           element={<SurveysPage />} />
         <Route path="/performance-data"  element={<PerformanceDataPage />} />
         <Route path="/improvement-plan" element={<ImprovementPlanPage />} />
         <Route path="/audit-prep"       element={<AuditPrepPage />} />
