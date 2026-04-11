@@ -29,6 +29,7 @@ import JudgementsPage from './pages/JudgementsPage';
 import PerformanceDataPage from './pages/PerformanceDataPage';
 import SurveysPage from './pages/SurveysPage';
 import PublicSurveyPage from './pages/PublicSurveyPage';
+import ReviewVisitsPage from './pages/ReviewVisitsPage';
 import { useSchool } from './hooks/useSchool';
 import { useSchoolStore } from './stores/schoolStore';
 import type { Session } from '@supabase/supabase-js';
@@ -128,6 +129,7 @@ function App() {
         <Route path="/performance-data"  element={<PerformanceDataPage />} />
         <Route path="/improvement-plan" element={<ImprovementPlanPage />} />
         <Route path="/audit-prep"       element={<AuditPrepPage />} />
+        <Route path="/review-visits"    element={<ReviewVisitsPage />} />
         <Route path="/reports"          element={<ReportsPage />} />
         <Route path="/settings"         element={<SchoolSettingsPage />} />
         <Route path="/school-users"     element={<SchoolUsersPage />} />
