@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Calendar, AlertTriangle, Clock, CheckCircle2,
-  FileText, RefreshCw, ChevronDown, ChevronUp,
+  FileText, RefreshCw, ChevronUp,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
@@ -79,7 +79,7 @@ function fmtDate(d: string) {
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function ReviewVisitsPage() {
-  const { school, academicYear } = useSchoolStore();
+  const { school } = useSchoolStore();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
 

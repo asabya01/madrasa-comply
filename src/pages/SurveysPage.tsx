@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
-  MessageSquare, Copy, Check, ToggleLeft, ToggleRight, BarChart2, ChevronDown,
+  MessageSquare, Copy, Check, ToggleLeft, ToggleRight, ChevronDown,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,

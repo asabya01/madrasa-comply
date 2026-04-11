@@ -39,7 +39,7 @@ export default function PublicSurveyPage() {
         .eq('share_token', shareToken!)
         .single();
       if (error) throw error;
-      return data as SurveyTemplate;
+      return data as unknown as SurveyTemplate;
     },
     enabled: !!shareToken,
     retry: false,
