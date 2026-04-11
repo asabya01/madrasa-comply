@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, TrendingDown } from 'lucide-react';
+import { AlertTriangle, TrendingDown, ClipboardList } from 'lucide-react';
+import { seedSurveyQuestions } from '../../seed/survey_questions';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
 import { JUDGEMENT_LABELS, JUDGEMENT_COLORS, type JudgementLevel } from '../lib/judgement';
@@ -1054,6 +1055,8 @@ function PlatformTab() {
   const [expandedDescId, setExpandedDescId] = useState<string | null>(null);
   const [descDraft, setDescDraft]   = useState<Record<string, string>>({});
   const [savingDescId, setSavingDescId] = useState<string | null>(null);
+  const [seedingSurveys, setSeedingSurveys] = useState(false);
+  const [surveyMsg, setSurveyMsg]   = useState<{ text: string; ok: boolean } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -1123,6 +1126,24 @@ function PlatformTab() {
     }
   }
 
+  async function handleSeedSurveys() {
+    if (!window.confirm('This will add default OAAAQA survey questions to all active survey templates. Continue?')) return;
+    setSeedingSurveys(true);
+    setSurveyMsg(null);
+    try {
+      const result = await seedSurveyQuestions(supabase);
+      if (result.errors.length > 0) {
+        setSurveyMsg({ text: `Seeded with errors: ${result.errors.join('; ')}`, ok: false });
+      } else {
+        setSurveyMsg({ text: `Default survey questions seeded (${result.created} created)`, ok: true });
+      }
+    } catch (e: unknown) {
+      setSurveyMsg({ text: e instanceof Error ? e.message : String(e), ok: false });
+    } finally {
+      setSeedingSurveys(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Reseed section */}
@@ -1141,6 +1162,28 @@ function PlatformTab() {
         {reseedMsg && (
           <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-blue-800 text-sm">
             {reseedMsg}
+          </div>
+        )}
+      </div>
+
+      {/* Seed Survey Questions */}
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <h3 className="text-sm font-semibold text-gray-800 mb-1">Survey Questions</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Seed the default OAAAQA survey questions for staff, parent, and student templates.
+          This operation is idempotent — it replaces platform-wide (school_id IS NULL) templates.
+        </p>
+        <button
+          onClick={() => void handleSeedSurveys()}
+          disabled={seedingSurveys}
+          className="flex items-center gap-2 px-4 py-2 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54] disabled:opacity-50 transition-colors"
+        >
+          <ClipboardList className="h-4 w-4" />
+          {seedingSurveys ? 'Seeding…' : 'Seed Default Survey Questions'}
+        </button>
+        {surveyMsg && (
+          <div className={`mt-3 p-3 rounded-lg text-sm border ${surveyMsg.ok ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+            {surveyMsg.text}
           </div>
         )}
       </div>

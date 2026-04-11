@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Copy } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
 import { usePermissions } from '../hooks/usePermissions';
@@ -330,6 +331,34 @@ export default function SchoolSettingsPage() {
                 </button>
               </div>
             </div>
+
+            {/* Public Summary Dashboard link (Standard 5.5.3) */}
+            {school && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Public Summary Dashboard
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${window.location.origin}/public/${school.id}`}
+                    className="flex-1 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-600 bg-gray-50 select-all"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void navigator.clipboard.writeText(`${window.location.origin}/public/${school.id}`)}
+                    className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 bg-white text-sm font-medium text-gray-700 rounded-lg hover:bg-gray-50 transition-colors shrink-0"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    Copy Link
+                  </button>
+                </div>
+                <p className="mt-1.5 text-xs text-gray-400">
+                  Share this link to demonstrate Standard 5.5.3 compliance — accessible without login
+                </p>
+              </div>
+            )}
 
             <div className="flex justify-end pt-2">
               <button
