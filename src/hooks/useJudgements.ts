@@ -55,17 +55,17 @@ export function useJudgements() {
     enabled: !!school,
   });
 
-  // ── 2. Framework — indicators with code column ─────────────────────────────
-  // Uses 'indicators-full' (not 'indicators-by-standard') because we need .code.
+  // ── 2. Framework — indicators (id is the OAAAQA code, e.g. '1.1.1') ─────────
+  // The indicators table has no separate 'code' column — id IS the code.
   // staleTime=1h: reference data never changes during a session.
   const indicatorsQuery = useQuery({
     queryKey: ['indicators-full'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('indicators')
-        .select('id, code, standard_id, domain_id');
+        .select('id, standard_id, domain_id');
       if (error) throw error;
-      return data as { id: string; code: string; standard_id: string; domain_id: string }[];
+      return data as { id: string; standard_id: string; domain_id: string }[];
     },
     staleTime: 1000 * 60 * 60,
   });
@@ -82,7 +82,7 @@ export function useJudgements() {
     const ratingByCode: Record<string, number> = {};
     for (const ind of indicatorsQuery.data) {
       const v = ratingById[ind.id];
-      if (v != null) ratingByCode[ind.code] = v;
+      if (v != null) ratingByCode[ind.id] = v;
     }
 
     // Standard judgements: worst (max) indicator per standard

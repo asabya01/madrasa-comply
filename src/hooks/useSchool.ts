@@ -21,7 +21,6 @@ export function useSchool() {
         console.warn('[useSchool] No authenticated user found');
         return null;
       }
-      console.log('[useSchool] Fetching profile for user:', user.id);
       const { data, error } = await supabase
         .from('profiles')
         .select('id, full_name, avatar_url, email, is_super_admin, created_at')
@@ -31,7 +30,6 @@ export function useSchool() {
         console.error('[useSchool] Profile fetch error:', error.code, error.message);
         throw error;
       }
-      console.log('[useSchool] Profile loaded — is_super_admin:', data?.is_super_admin);
       return data as Profile | null;
     },
     retry: 2,
@@ -45,7 +43,6 @@ export function useSchool() {
     queryFn: async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return [];
-      console.log('[useSchool] Fetching school memberships for user:', user.id);
       const { data, error } = await supabase
         .from('school_members')
         .select(`
@@ -62,7 +59,6 @@ export function useSchool() {
         console.error('[useSchool] Memberships fetch error:', error.code, error.message, error);
         throw error;
       }
-      console.log('[useSchool] Memberships loaded:', data?.length);
       // Supabase returns foreign-key joins as arrays; flatten school → single object
       const rows = (data ?? []) as unknown as (Omit<SchoolMember, 'school'> & { school: School | School[] | null | undefined })[];
       return rows.map((m) => ({
@@ -111,7 +107,6 @@ export function useSchool() {
 
   useEffect(() => {
     if (activeSchool) {
-      console.log('[useSchool] Active school:', activeSchool.id, activeSchool.name_en);
       setSchool(activeSchool);
     }
     if (activeMembership) {

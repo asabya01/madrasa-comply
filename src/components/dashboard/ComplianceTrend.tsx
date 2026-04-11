@@ -36,8 +36,8 @@ export function ComplianceTrend() {
   }));
 
   return (
-    <div className="h-48">
-      <ResponsiveContainer width="100%" height="100%">
+    <div style={{ height: 200, minHeight: 200 }}>
+      <ResponsiveContainer width="100%" height={200}>
         <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" />
           <XAxis dataKey="date" tick={{ fontSize: 11 }} />
