@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, BarChart2, PieChart, AlertCircle, ClipboardList, TrendingUp, ShieldCheck, Download, Loader2 } from 'lucide-react';
+import { FileText, BarChart2, PieChart, AlertCircle, ClipboardList, TrendingUp, ShieldCheck, Download, Loader2, FileSpreadsheet } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent } from '../components/ui/card';
@@ -8,6 +8,7 @@ import { Button } from '../components/ui/button';
 import { useJudgements } from '../hooks/useJudgements';
 import { useSchoolStore } from '../stores/schoolStore';
 import { JUDGEMENT_LABELS, JUDGEMENT_COLORS, ratingToPercent, type JudgementLevel } from '../lib/judgement';
+import { exportMinistryMasteryExcel } from '../lib/exportMinistryExcel';
 
 const DOMAIN_NAMES: Record<string, string> = {
   '1': 'Academic Achievement',
@@ -43,9 +44,10 @@ function addPageHeader(doc: jsPDF, schoolName: string, reportTitle: string) {
 }
 
 export function ReportsPage() {
-  const { school } = useSchoolStore();
+  const { school, academicYear } = useSchoolStore();
   const { judgements } = useJudgements();
   const [generating, setGenerating] = useState<string | null>(null);
+  const [ministrySemester, setMinistrySemester] = useState<'semester_1' | 'semester_2' | 'annual'>('semester_1');
 
   const { data: indicators } = useQuery({
     queryKey: ['indicators-report'],
@@ -317,13 +319,89 @@ export function ReportsPage() {
       if (reportId === 'executive') generateExecutive();
       else if (reportId === 'evidence-coverage') generateEvidenceCoverage();
       else if (reportId === 'improvement-status') generateImprovementPlan();
+      else if (reportId === 'ministry-mastery') await generateMinistryExcel();
     } finally {
       setGenerating(null);
     }
   };
 
+  const generateMinistryExcel = async () => {
+    if (!school) return;
+    const { data: years, error } = await supabase
+      .from('academic_years')
+      .select('id, label')
+      .eq('school_id', school.id)
+      .order('start_date', { ascending: false })
+      .limit(3);
+    if (error) throw error;
+    if (!years?.length) throw new Error('No academic years found');
+
+    const blob = await exportMinistryMasteryExcel(
+      school.id,
+      school.name_ar ?? school.name_en,
+      years as { id: string; label: string }[],
+      ministrySemester,
+      supabase,
+    );
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `نسب-الإتقان-${school.name_en.replace(/\s+/g, '-')}-${academicYear}.xlsx`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {/* Ministry Mastery Rate Report */}
+      <Card className="hover:border-[#01696f] transition-colors">
+        <CardContent className="p-5">
+          <div className="flex items-start gap-3 mb-4">
+            <div className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0 bg-[#01696f]/10">
+              <FileSpreadsheet className="h-5 w-5 text-[#01696f]" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-[#1a1a1a] font-sans">
+                Ministry Mastery Rate Report
+              </h3>
+              <p className="text-xs text-[#6b7280] mt-0.5 leading-relaxed">
+                نسب الإتقان — Ministry-format Excel workbook with 3-year data and cohort tracking
+              </p>
+            </div>
+          </div>
+          {/* Semester selector */}
+          <div className="flex gap-1 mb-3">
+            {(['semester_1', 'semester_2', 'annual'] as const).map((s) => (
+              <button
+                key={s}
+                onClick={() => setMinistrySemester(s)}
+                className={`px-2 py-1 text-xs rounded border transition-colors ${
+                  ministrySemester === s
+                    ? 'bg-[#01696f] text-white border-[#01696f]'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-[#01696f]'
+                }`}
+              >
+                {s === 'semester_1' ? 'Semester 1' : s === 'semester_2' ? 'Semester 2' : 'Annual'}
+              </button>
+            ))}
+          </div>
+          <Button
+            variant="default"
+            size="sm"
+            className="w-full gap-2"
+            disabled={generating === 'ministry-mastery'}
+            onClick={() => handleDownload('ministry-mastery')}
+          >
+            {generating === 'ministry-mastery' ? (
+              <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Generating...</>
+            ) : (
+              <><Download className="h-3.5 w-3.5" /> Download Excel</>
+            )}
+          </Button>
+        </CardContent>
+      </Card>
+
       {reports.map((report) => {
         const Icon = report.icon;
         const isImplemented = IMPLEMENTED.includes(report.id);

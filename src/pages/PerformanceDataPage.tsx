@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Save, TrendingUp, Users } from 'lucide-react';
+import { Plus, Trash2, Save, TrendingUp, Users, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { JudgementBadge } from '../components/ui/judgement-badge';
@@ -13,6 +13,7 @@ import {
   type JudgementLevel,
 } from '../lib/judgement';
 import { useToast } from '../components/ui/toast';
+import { exportMinistryMasteryExcel } from '../lib/exportMinistryExcel';
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -26,6 +27,13 @@ const SUBJECTS = [
 ] as const;
 
 type Subject = typeof SUBJECTS[number];
+type Semester = 'semester_1' | 'semester_2' | 'annual';
+
+const SEMESTER_LABELS: Record<Semester, string> = {
+  semester_1: 'Semester 1',
+  semester_2: 'Semester 2',
+  annual:     'Annual / Full Year',
+};
 
 // Default grade labels — users can also type their own
 const DEFAULT_GRADES = [
@@ -36,12 +44,12 @@ const DEFAULT_GRADES = [
 // ─── Types ───────────────────────────────────────────────────
 
 interface ProficiencyRow {
-  id?: string;               // UUID from DB (undefined = not yet saved)
+  id?: string;
   grade_label: string;
   subject: Subject;
   total_students: number | '';
   students_at_75: number | '';
-  proficiency_rate?: number; // computed by DB generated column
+  proficiency_rate?: number;
 }
 
 interface AttendanceRow {
@@ -49,7 +57,7 @@ interface AttendanceRow {
   grade_label: string;
   total_possible_days: number | '';
   total_attended_days: number | '';
-  attendance_rate?: number;  // computed by DB generated column
+  attendance_rate?: number;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -69,16 +77,58 @@ function fmt(n: number | null | undefined): string {
   return `${n.toFixed(1)}%`;
 }
 
+// ─── Semester selector ────────────────────────────────────────
+
+function SemesterSelector({
+  value,
+  onChange,
+  rows,
+}: {
+  value: Semester;
+  onChange: (s: Semester) => void;
+  rows: ProficiencyRow[];
+}) {
+  const tabs: Semester[] = ['semester_1', 'semester_2', 'annual'];
+
+  // Count unique subjects that have data for each semester (passed rows are already filtered)
+  const enteredCount = new Set(rows.filter((r) => r.total_students !== '').map((r) => r.subject)).size;
+  const total = SUBJECTS.length;
+
+  return (
+    <div className="flex items-center gap-2 flex-wrap">
+      {tabs.map((sem) => (
+        <button
+          key={sem}
+          onClick={() => onChange(sem)}
+          className={`relative px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+            value === sem
+              ? 'bg-[#01696f] text-white border-[#01696f]'
+              : 'bg-white text-gray-600 border-gray-200 hover:border-[#01696f] hover:text-[#01696f]'
+          }`}
+        >
+          {SEMESTER_LABELS[sem]}
+          {value === sem && (
+            <span className="ml-2 text-xs opacity-80">
+              {enteredCount}/{total} subjects
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // ─── Proficiency tab ─────────────────────────────────────────
 
-function ProficiencyTab() {
+function ProficiencyTab({ onExport }: { onExport: (semester: Semester) => void }) {
   const { school, academicYear, profile } = useSchoolStore();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
+  const [semester, setSemester] = useState<Semester>('semester_1');
+  const [exporting, setExporting] = useState(false);
 
-  // Fetch existing rows
   const { data: dbRows = [], isLoading } = useQuery({
-    queryKey: ['student-performance', school?.id, academicYear],
+    queryKey: ['student-performance', school?.id, academicYear, semester],
     queryFn: async () => {
       if (!school) return [];
       const { data, error } = await supabase
@@ -86,6 +136,7 @@ function ProficiencyTab() {
         .select('id, grade_label, subject, total_students, students_at_75, proficiency_rate')
         .eq('school_id', school.id)
         .eq('academic_year', academicYear)
+        .eq('semester', semester)
         .order('grade_label')
         .order('subject');
       if (error) throw error;
@@ -94,14 +145,11 @@ function ProficiencyTab() {
     enabled: !!school,
   });
 
-  // Local editable rows
   const [rows, setRows] = useState<ProficiencyRow[]>([]);
 
   useEffect(() => {
-    if (dbRows.length > 0) {
-      setRows(dbRows);
-    }
-  }, [dbRows]);
+    setRows(dbRows.length > 0 ? dbRows : []);
+  }, [dbRows, semester]);
 
   const addRow = () => {
     setRows((prev) => [
@@ -116,7 +164,6 @@ function ProficiencyTab() {
     setRows((prev) => prev.map((r, idx) => idx === i ? { ...r, [key]: value } : r));
   };
 
-  // Save / upsert
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!school) return;
@@ -131,6 +178,7 @@ function ProficiencyTab() {
         academic_year: academicYear,
         grade_label: r.grade_label.trim(),
         subject: r.subject,
+        semester,
         total_students: Number(r.total_students),
         students_at_75: Number(r.students_at_75),
         entered_by: profile?.id ?? null,
@@ -139,7 +187,7 @@ function ProficiencyTab() {
 
       const { error } = await supabase
         .from('student_performance')
-        .upsert(payload, { onConflict: 'school_id,academic_year,grade_label,subject' });
+        .upsert(payload, { onConflict: 'school_id,academic_year,grade_label,subject,semester' });
       if (error) throw error;
     },
     onSuccess: () => {
@@ -149,7 +197,15 @@ function ProficiencyTab() {
     onError: (e: Error) => showToast(e.message, 'error'),
   });
 
-  // Aggregate school-wide rate for summary banner
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      await onExport(semester);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const schoolRate = calcSchoolProficiencyRate(
     rows
       .filter((r) => r.proficiency_rate != null || calcProfRate(r.total_students, r.students_at_75) != null)
@@ -162,6 +218,22 @@ function ProficiencyTab() {
 
   return (
     <div className="space-y-4">
+      {/* Semester selector + export button */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <SemesterSelector value={semester} onChange={setSemester} rows={rows} />
+        <button
+          onClick={handleExport}
+          disabled={exporting}
+          className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:border-[#01696f] hover:text-[#01696f] bg-white transition-colors disabled:opacity-50"
+        >
+          {exporting ? (
+            <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
+          ) : (
+            <><FileSpreadsheet className="h-4 w-4" /> Export Ministry Format</>
+          )}
+        </button>
+      </div>
+
       {/* Summary banner */}
       {rows.length > 0 && (
         <div className="flex items-center gap-4 px-4 py-3 rounded-xl border border-gray-200 bg-white">
@@ -175,7 +247,7 @@ function ProficiencyTab() {
             <JudgementBadge level={schoolJudgement} size="md" />
           </div>
           <div className="ml-auto text-xs text-gray-400">
-            {rows.filter((r) => r.total_students !== '').length} entries · {academicYear}
+            {rows.filter((r) => r.total_students !== '').length} entries · {SEMESTER_LABELS[semester]} · {academicYear}
           </div>
         </div>
       )}
@@ -184,7 +256,7 @@ function ProficiencyTab() {
       <Card>
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
           <CardTitle className="text-sm font-semibold">
-            Proficiency Rates — students scoring ≥ 75%
+            Proficiency Rates — {SEMESTER_LABELS[semester]} — students scoring ≥ 75%
           </CardTitle>
           <div className="flex gap-2">
             <button
@@ -228,7 +300,7 @@ function ProficiencyTab() {
                   {rows.length === 0 && (
                     <tr>
                       <td colSpan={7} className="py-8 text-center text-sm text-gray-400">
-                        No data yet. Click "Add row" to start entering proficiency data.
+                        No data for {SEMESTER_LABELS[semester]}. Click "Add row" to start entering proficiency data.
                       </td>
                     </tr>
                   )}
@@ -242,7 +314,6 @@ function ProficiencyTab() {
 
                     return (
                       <tr key={i} className="border-b border-gray-50 hover:bg-gray-50/50">
-                        {/* Grade */}
                         <td className="py-1.5 pr-3">
                           <input
                             list="grade-options"
@@ -255,7 +326,6 @@ function ProficiencyTab() {
                             {DEFAULT_GRADES.map((g) => <option key={g} value={g} />)}
                           </datalist>
                         </td>
-                        {/* Subject */}
                         <td className="py-1.5 pr-3">
                           <select
                             value={row.subject}
@@ -265,7 +335,6 @@ function ProficiencyTab() {
                             {SUBJECTS.map((s) => <option key={s} value={s}>{s}</option>)}
                           </select>
                         </td>
-                        {/* Total students */}
                         <td className="py-1.5 pr-3">
                           <input
                             type="number"
@@ -275,7 +344,6 @@ function ProficiencyTab() {
                             className="w-full px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none focus:border-[#01696f] text-right"
                           />
                         </td>
-                        {/* Scoring ≥75 */}
                         <td className="py-1.5 pr-3">
                           <input
                             type="number"
@@ -287,17 +355,14 @@ function ProficiencyTab() {
                             }`}
                           />
                         </td>
-                        {/* Rate */}
                         <td className="py-1.5 pr-3 text-right tabular-nums text-gray-700 font-medium">
                           {fmt(rate)}
                         </td>
-                        {/* Judgement */}
                         <td className="py-1.5 pr-3 text-center">
                           {judgement ? <JudgementBadge level={judgement} size="sm" /> : (
                             <span className="text-xs text-gray-300">—</span>
                           )}
                         </td>
-                        {/* Delete */}
                         <td className="py-1.5">
                           <button
                             onClick={() => removeRow(i)}
@@ -316,7 +381,6 @@ function ProficiencyTab() {
         </CardContent>
       </Card>
 
-      {/* PSD formula note */}
       <p className="text-xs text-gray-400">
         <strong>Formula (PSD §4.3):</strong> PR = (students scoring ≥ 75 ÷ total students) × 100.
         School-wide rate = average of all subject/grade combinations.
@@ -366,7 +430,6 @@ function AttendanceTab() {
     []
   );
 
-  // School-wide aggregate
   const allRates = rows
     .map((r) => r.attendance_rate ?? calcAttRate(r.total_possible_days, r.total_attended_days))
     .filter((v): v is number => v != null);
@@ -406,7 +469,6 @@ function AttendanceTab() {
 
   return (
     <div className="space-y-4">
-      {/* Summary banner */}
       {rows.length > 0 && avgRate != null && (
         <div className="flex items-center gap-4 px-4 py-3 rounded-xl border border-gray-200 bg-white">
           <div>
@@ -426,9 +488,7 @@ function AttendanceTab() {
 
       <Card>
         <CardHeader className="pb-2 flex flex-row items-center justify-between">
-          <CardTitle className="text-sm font-semibold">
-            Attendance Rates — by grade
-          </CardTitle>
+          <CardTitle className="text-sm font-semibold">Attendance Rates — by grade</CardTitle>
           <div className="flex gap-2">
             <button
               onClick={addRow}
@@ -553,6 +613,40 @@ function AttendanceTab() {
 
 export default function PerformanceDataPage() {
   const { school, academicYear } = useSchoolStore();
+  const { showToast } = useToast();
+
+  const handleExport = async (semester: 'semester_1' | 'semester_2' | 'annual') => {
+    if (!school) return;
+    try {
+      // Fetch last 3 academic years
+      const { data: years, error } = await supabase
+        .from('academic_years')
+        .select('id, label')
+        .eq('school_id', school.id)
+        .order('start_date', { ascending: false })
+        .limit(3);
+      if (error) throw error;
+      if (!years?.length) throw new Error('No academic years found');
+
+      const blob = await exportMinistryMasteryExcel(
+        school.id,
+        school.name_ar ?? school.name_en,
+        years as { id: string; label: string }[],
+        semester,
+        supabase,
+      );
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `نسب-الإتقان-${school.name_en.replace(/\s+/g, '-')}-${academicYear}.xlsx`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('Ministry Mastery Rate export downloaded', 'success');
+    } catch (e) {
+      showToast((e as Error).message, 'error');
+    }
+  };
 
   if (!school) {
     return (
@@ -564,7 +658,6 @@ export default function PerformanceDataPage() {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-gray-900">Performance Data</h1>
         <p className="text-sm text-gray-500 mt-0.5">
@@ -585,7 +678,7 @@ export default function PerformanceDataPage() {
         </TabsList>
 
         <TabsContent value="proficiency" className="mt-4">
-          <ProficiencyTab />
+          <ProficiencyTab onExport={handleExport} />
         </TabsContent>
 
         <TabsContent value="attendance" className="mt-4">
