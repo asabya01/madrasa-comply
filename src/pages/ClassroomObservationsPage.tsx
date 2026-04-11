@@ -118,20 +118,29 @@ function useTeachers(schoolId: string | undefined) {
   return useQuery({
     queryKey: ['school-teachers', schoolId],
     queryFn: async () => {
+      // Fetch active school_members with role='teacher', join profiles for display fields
       const { data, error } = await supabase
         .from('school_members')
-        .select('user_id, profiles!inner(id, full_name, email)')
+        .select('user_id, profiles(full_name, email)')
         .eq('school_id', schoolId!)
         .eq('role', 'teacher')
-        .eq('status', 'active');
+        .eq('status', 'active')
+        .order('user_id');
       if (error) throw error;
-      return (data ?? []).map((m: any) => ({
-        user_id: m.user_id,
-        full_name: m.profiles?.full_name ?? null,
-        email: m.profiles?.email ?? null,
-      })) as TeacherOption[];
+      // Supabase returns the profiles FK join as an array (one-to-many inferred)
+      type Row = { user_id: string; profiles: { full_name: string | null; email: string | null }[] | null };
+      return (data ?? []).map((m) => {
+        const r = m as unknown as Row;
+        const p = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+        return {
+          user_id:   r.user_id,
+          full_name: p?.full_name ?? null,
+          email:     p?.email     ?? null,
+        } satisfies TeacherOption;
+      });
     },
     enabled: !!schoolId,
+    staleTime: 1000 * 60 * 5,
   });
 }
 
@@ -139,17 +148,17 @@ function useClasses(schoolId: string | undefined, teacherId: string) {
   return useQuery({
     queryKey: ['classes-for-teacher', schoolId, teacherId],
     queryFn: async () => {
-      let q = supabase
+      const { data, error } = await supabase
         .from('classes')
         .select('id, label, subject')
         .eq('school_id', schoolId!)
+        .eq('teacher_id', teacherId)
         .order('label');
-      if (teacherId) q = q.eq('teacher_id', teacherId);
-      const { data, error } = await q;
       if (error) throw error;
       return (data ?? []) as ClassOption[];
     },
-    enabled: !!schoolId,
+    // Only fetch once a teacher has been selected
+    enabled: !!schoolId && !!teacherId,
   });
 }
 
@@ -557,12 +566,18 @@ function ObservationForm({
             disabled={!form.teacher_id}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01696f] disabled:bg-gray-50 disabled:text-gray-400"
           >
-            <option value="">No class (general)</option>
-            {classes.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.label} — {c.subject}
-              </option>
-            ))}
+            {!form.teacher_id ? (
+              <option value="">Select a teacher first</option>
+            ) : (
+              <>
+                <option value="">No class (general)</option>
+                {classes.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.label} — {c.subject}
+                  </option>
+                ))}
+              </>
+            )}
           </select>
         </div>
 
