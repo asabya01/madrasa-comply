@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AlertTriangle, TrendingDown } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
 import { JUDGEMENT_LABELS, JUDGEMENT_COLORS, type JudgementLevel } from '../lib/judgement';
@@ -7,7 +8,7 @@ import type { School } from '../types';
 
 // ─── Types ────────────────────────────────────────────────────
 
-type Tab = 'schools' | 'users' | 'analytics' | 'platform';
+type Tab = 'schools' | 'users' | 'analytics' | 'followup' | 'platform';
 
 interface SchoolRow {
   id: string;
@@ -26,6 +27,7 @@ interface UserRow {
   full_name: string | null;
   email: string | null;
   is_super_admin: boolean;
+  is_sed_team: boolean;
   role: string;
   status: string;
   school_id: string;
@@ -53,15 +55,25 @@ interface IndicatorRow {
   domain_id: string;
   description_en: string;
   description_ar: string | null;
+  descriptor_outstanding_en: string | null;
+  descriptor_good_en: string | null;
+  descriptor_satisfactory_en: string | null;
+  descriptor_unsatisfactory_en: string | null;
+  descriptor_nui_en: string | null;
+  descriptor_outstanding_ar: string | null;
+  descriptor_good_ar: string | null;
+  descriptor_satisfactory_ar: string | null;
+  descriptor_unsatisfactory_ar: string | null;
+  descriptor_nui_ar: string | null;
 }
 
 // ─── Shared helper ────────────────────────────────────────────
 
 async function invokeAdmin(action: string, params: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
-  const { data: { session } } = await supabase.auth.getSession();
+  // Let supabase.functions.invoke inject Authorization automatically from the
+  // active session — avoids "Bearer undefined" when session hasn't resolved yet.
   const { data, error } = await supabase.functions.invoke('admin-actions', {
     body: { action, ...params },
-    headers: { Authorization: `Bearer ${session?.access_token}` },
   });
   if (error) throw new Error(error.message);
   const d = data as Record<string, unknown>;
@@ -108,10 +120,11 @@ export default function SuperAdminPage() {
 
       <div className="px-8 pt-6">
         <div className="flex gap-2 bg-white border border-gray-200 rounded-xl p-1.5 w-fit shadow-sm">
-          <TabBtn id="schools"   activeTab={tab} onSelect={setTab} label="Schools"   />
-          <TabBtn id="users"     activeTab={tab} onSelect={setTab} label="Users"     />
-          <TabBtn id="analytics" activeTab={tab} onSelect={setTab} label="Analytics" />
-          <TabBtn id="platform"  activeTab={tab} onSelect={setTab} label="Platform"  />
+          <TabBtn id="schools"   activeTab={tab} onSelect={setTab} label="Schools"         />
+          <TabBtn id="users"     activeTab={tab} onSelect={setTab} label="Users"           />
+          <TabBtn id="analytics" activeTab={tab} onSelect={setTab} label="Analytics"       />
+          <TabBtn id="followup"  activeTab={tab} onSelect={setTab} label="Follow-Up Watch" />
+          <TabBtn id="platform"  activeTab={tab} onSelect={setTab} label="Platform"        />
         </div>
       </div>
 
@@ -119,6 +132,7 @@ export default function SuperAdminPage() {
         {tab === 'schools'   && <SchoolsTab />}
         {tab === 'users'     && <UsersTab />}
         {tab === 'analytics' && <AnalyticsTab />}
+        {tab === 'followup'  && <FollowUpWatchTab />}
         {tab === 'platform'  && <PlatformTab />}
       </div>
     </div>
@@ -343,13 +357,14 @@ function UsersTab() {
   const [resetting, setResetting]   = useState(false);
   const [deactivating, setDeactivating] = useState<string | null>(null);
   const [filterText, setFilterText] = useState('');
+  const [sedTeamLoading, setSedTeamLoading] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     const [profilesRes, membershipsRes, schoolsRes] = await Promise.all([
       supabase.from('profiles')
-        .select('id, full_name, email, is_super_admin, created_at')
+        .select('id, full_name, email, is_super_admin, is_sed_team, created_at')
         .order('created_at', { ascending: false })
         .limit(500),
       supabase.from('school_members')
@@ -377,6 +392,7 @@ function UsersTab() {
           full_name:      p.full_name ?? null,
           email:          p.email     ?? null,
           is_super_admin: Boolean(p.is_super_admin),
+          is_sed_team:    Boolean((p as { is_sed_team?: boolean }).is_sed_team),
           role:           p.is_super_admin ? 'super_admin' : '—',
           status:         'active',
           school_id:      '',
@@ -389,6 +405,7 @@ function UsersTab() {
         full_name:      p.full_name ?? null,
         email:          p.email     ?? null,
         is_super_admin: Boolean(p.is_super_admin),
+        is_sed_team:    Boolean((p as { is_sed_team?: boolean }).is_sed_team),
         role:           m.role,
         status:         m.status,
         school_id:      m.school_id,
@@ -444,6 +461,18 @@ function UsersTab() {
     }
   }
 
+  async function handleSedToggle(u: UserRow) {
+    setSedTeamLoading(prev => new Set(prev).add(u.user_id));
+    const { error } = await supabase
+      .from('profiles')
+      .update({ is_sed_team: !u.is_sed_team })
+      .eq('id', u.user_id);
+    if (!error) {
+      setUsers(prev => prev.map(r => r.user_id === u.user_id ? { ...r, is_sed_team: !r.is_sed_team } : r));
+    }
+    setSedTeamLoading(prev => { const s = new Set(prev); s.delete(u.user_id); return s; });
+  }
+
   async function handleDeactivate(u: UserRow) {
     if (!window.confirm(`Suspend ${u.full_name ?? u.email} from ${u.school_name}?`)) return;
     setDeactivating(u.user_id + u.school_id);
@@ -480,12 +509,12 @@ function UsersTab() {
 
       {error && <ErrorBanner message={error} />}
 
-      {loading ? <SkeletonTable cols={6} /> : (
+      {loading ? <SkeletonTable cols={7} /> : (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {['Name / Email', 'Role', 'School', 'Status', 'Joined', ''].map(h => (
+                {['Name / Email', 'Role', 'School', 'Status', 'SED Team', 'Joined', ''].map(h => (
                   <th key={h} className="text-left px-5 py-3 text-xs font-medium text-gray-500">{h}</th>
                 ))}
               </tr>
@@ -512,6 +541,20 @@ function UsersTab() {
                       'bg-gray-100 text-gray-500'
                     }`}>{u.status}</span>
                   </td>
+                  <td className="px-5 py-3">
+                    <button
+                      onClick={() => handleSedToggle(u)}
+                      disabled={sedTeamLoading.has(u.user_id)}
+                      title="SED Team members appear on the cover page of the School Evaluation Document"
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 ${
+                        u.is_sed_team ? 'bg-[#01696f]' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+                        u.is_sed_team ? 'translate-x-4' : 'translate-x-0.5'
+                      }`} />
+                    </button>
+                  </td>
                   <td className="px-5 py-3 text-gray-400 text-xs">
                     {u.created_at ? new Date(u.created_at).toLocaleDateString('en-GB') : '—'}
                   </td>
@@ -528,7 +571,7 @@ function UsersTab() {
                 </tr>
               ))}
               {!filtered.length && (
-                <tr><td colSpan={6} className="px-5 py-10 text-center text-gray-400">No users found.</td></tr>
+                <tr><td colSpan={7} className="px-5 py-10 text-center text-gray-400">No users found.</td></tr>
               )}
             </tbody>
           </table>
@@ -649,6 +692,9 @@ function AnalyticsTab() {
         <KpiCard label="Schools Needing Attention" value={analytics.schools_needing_attention} icon="⚠️" danger />
       </div>
 
+      {/* Indicator Regressions */}
+      <RegressionCard />
+
       {/* School breakdown table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
@@ -706,6 +752,297 @@ function AnalyticsTab() {
   );
 }
 
+// ─── Regression Card (used inside AnalyticsTab) ───────────────
+
+interface RegressionRow {
+  school_id: string;
+  school_name: string;
+  indicator_id: string;
+  indicator_en: string;
+  prev_rating: JudgementLevel;
+  curr_rating: JudgementLevel;
+}
+
+function RegressionCard() {
+  const [regressions, setRegressions] = useState<RegressionRow[]>([]);
+  const [loading, setLoading]         = useState(true);
+  const [modalOpen, setModalOpen]     = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        // Fetch academic_years to identify current + prev per school
+        const [yearsRes, ratingsRes, indicatorsRes, schoolsRes] = await Promise.all([
+          supabase.from('academic_years').select('school_id, label, is_current').order('school_id').order('label', { ascending: false }),
+          supabase.from('indicator_ratings').select('school_id, indicator_id, academic_year, rating'),
+          supabase.from('indicators').select('id, description_en'),
+          supabase.from('schools').select('id, name_en'),
+        ]);
+
+        const years   = (yearsRes.data   ?? []) as Array<{ school_id: string; label: string; is_current: boolean }>;
+        const ratings = (ratingsRes.data ?? []) as Array<{ school_id: string; indicator_id: string; academic_year: string; rating: number }>;
+        const indMap  = Object.fromEntries((indicatorsRes.data ?? []).map((i: { id: string; description_en: string }) => [i.id, i.description_en]));
+        const schoolMap = Object.fromEntries((schoolsRes.data ?? []).map((s: { id: string; name_en: string }) => [s.id, s.name_en]));
+
+        // Build current + previous year per school
+        const yearsBySchool: Record<string, string[]> = {};
+        for (const y of years) {
+          if (!yearsBySchool[y.school_id]) yearsBySchool[y.school_id] = [];
+          yearsBySchool[y.school_id].push(y.label);
+        }
+
+        // Build rating lookup: school_id+indicator_id+academic_year → rating
+        const ratingMap: Record<string, number> = {};
+        for (const r of ratings) {
+          ratingMap[`${r.school_id}|${r.indicator_id}|${r.academic_year}`] = r.rating;
+        }
+
+        const found: RegressionRow[] = [];
+        for (const [schoolId, sortedYears] of Object.entries(yearsBySchool)) {
+          if (sortedYears.length < 2) continue;
+          const currYear = sortedYears[0];
+          const prevYear = sortedYears[1];
+
+          // Get all indicators rated for this school this year
+          const currRatings = ratings.filter(r => r.school_id === schoolId && r.academic_year === currYear);
+          for (const curr of currRatings) {
+            const prevKey = `${schoolId}|${curr.indicator_id}|${prevYear}`;
+            const prevRating = ratingMap[prevKey];
+            if (prevRating != null && curr.rating > prevRating) {
+              found.push({
+                school_id:    schoolId,
+                school_name:  schoolMap[schoolId] ?? schoolId,
+                indicator_id: curr.indicator_id,
+                indicator_en: indMap[curr.indicator_id] ?? curr.indicator_id,
+                prev_rating:  prevRating as JudgementLevel,
+                curr_rating:  curr.rating as JudgementLevel,
+              });
+            }
+          }
+        }
+        setRegressions(found);
+      } catch (e) {
+        console.error('[RegressionCard]', e);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  return (
+    <>
+      <div
+        className={`bg-white border rounded-xl p-5 cursor-pointer hover:shadow-sm transition-shadow ${regressions.length > 0 ? 'border-red-200' : 'border-gray-200'}`}
+        onClick={() => !loading && setModalOpen(true)}
+      >
+        <div className="flex items-center gap-3">
+          <TrendingDown className={`h-6 w-6 shrink-0 ${regressions.length > 0 ? 'text-red-500' : 'text-gray-300'}`} />
+          <div>
+            <p className="text-xs text-gray-500">Indicator Regressions This Year</p>
+            {loading
+              ? <div className="h-8 w-12 bg-gray-100 rounded animate-pulse mt-1" />
+              : <p className={`text-3xl font-bold mt-0.5 ${regressions.length > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                  {regressions.length}
+                </p>
+            }
+          </div>
+          {!loading && regressions.length > 0 && (
+            <span className="ml-auto text-xs text-red-500 underline">View details</span>
+          )}
+        </div>
+      </div>
+
+      {/* Regression modal */}
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/30" onClick={() => setModalOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col z-10">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+              <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
+                <TrendingDown className="h-5 w-5 text-red-500" />
+                Indicator Regressions This Year
+              </h3>
+              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
+            </div>
+            <div className="flex-1 overflow-y-auto">
+              {regressions.length === 0 ? (
+                <p className="px-6 py-8 text-center text-sm text-gray-400">No regressions found.</p>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      {['School', 'Indicator', 'Previous', '→', 'Current'].map(h => (
+                        <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-500">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {regressions.map((r, i) => (
+                      <tr key={i} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-xs font-medium text-gray-900">{r.school_name}</td>
+                        <td className="px-4 py-3">
+                          <p className="text-xs font-semibold text-gray-800">{r.indicator_id}</p>
+                          <p className="text-xs text-gray-400 truncate max-w-[180px]">{r.indicator_en}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: JUDGEMENT_COLORS[r.prev_rating] }}>
+                            {JUDGEMENT_LABELS[r.prev_rating]}
+                          </span>
+                        </td>
+                        <td className="px-2 py-3 text-gray-300">→</td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: JUDGEMENT_COLORS[r.curr_rating] }}>
+                            {JUDGEMENT_LABELS[r.curr_rating]}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// ─── Follow-Up Watch Tab ──────────────────────────────────────
+
+interface FollowUpRow {
+  id: string;
+  school_id: string;
+  school_name: string;
+  overall_judgement: JudgementLevel;
+  visit_date: string;
+  followup_deadline: string;
+}
+
+function FollowUpWatchTab() {
+  const navigate = useNavigate();
+  const { setImpersonating } = useSchoolStore();
+  const [rows, setRows]       = useState<FollowUpRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]     = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const { data, error: qErr } = await supabase
+          .from('review_visits')
+          .select('id, school_id, overall_judgement, visit_date, followup_deadline, schools(name_en)')
+          .not('followup_deadline', 'is', null)
+          .order('followup_deadline', { ascending: true });
+        if (qErr) throw qErr;
+        setRows(
+          ((data ?? []) as Array<{
+            id: string; school_id: string; overall_judgement: number;
+            visit_date: string; followup_deadline: string;
+            schools: { name_en: string } | Array<{ name_en: string }> | null;
+          }>).map((r) => ({
+            id:                r.id,
+            school_id:         r.school_id,
+            school_name:       (Array.isArray(r.schools) ? r.schools[0] : r.schools)?.name_en ?? r.school_id,
+            overall_judgement: r.overall_judgement as JudgementLevel,
+            visit_date:        r.visit_date,
+            followup_deadline: r.followup_deadline,
+          }))
+        );
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  function handleViewSchool(row: FollowUpRow) {
+    // Impersonate the school then navigate to its review visits page
+    setImpersonating({ id: row.school_id, name_en: row.school_name } as unknown as School);
+    navigate('/review-visits');
+  }
+
+  function daysRemaining(deadline: string): number {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const d = new Date(deadline); d.setHours(0, 0, 0, 0);
+    return Math.round((d.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  }
+
+  function fmtDate(d: string) {
+    return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  if (loading) return <SkeletonTable cols={6} />;
+  if (error)   return <ErrorBanner message={error} />;
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-2">
+        <AlertTriangle className="h-4 w-4 text-amber-500" />
+        <h3 className="text-sm font-semibold text-gray-800">Follow-Up Watch</h3>
+        <span className="ml-auto text-xs text-gray-400">{rows.length} school{rows.length !== 1 ? 's' : ''} with pending follow-up visit</span>
+      </div>
+      {rows.length === 0 ? (
+        <div className="px-5 py-10 text-center text-sm text-gray-400">
+          No pending follow-up visits.
+        </div>
+      ) : (
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              {['School', 'Original Judgement', 'Review Date', 'Follow-Up Deadline', 'Days Remaining', 'Action'].map(h => (
+                <th key={h} className="text-left px-5 py-3 text-xs font-medium text-gray-500">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {rows.map((row) => {
+              const days = daysRemaining(row.followup_deadline);
+              const overdue = days < 0;
+              return (
+                <tr key={row.id} className="hover:bg-gray-50">
+                  <td className="px-5 py-3 font-medium text-gray-900">{row.school_name}</td>
+                  <td className="px-5 py-3">
+                    <span
+                      className="text-xs font-semibold px-2.5 py-1 rounded-full text-white"
+                      style={{ backgroundColor: JUDGEMENT_COLORS[row.overall_judgement] }}
+                    >
+                      {JUDGEMENT_LABELS[row.overall_judgement]}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3 text-gray-600 text-xs">{fmtDate(row.visit_date)}</td>
+                  <td className="px-5 py-3 text-gray-600 text-xs">{fmtDate(row.followup_deadline)}</td>
+                  <td className="px-5 py-3">
+                    {overdue ? (
+                      <span className="text-xs font-bold text-red-600">OVERDUE</span>
+                    ) : (
+                      <span className={`text-xs font-semibold ${days < 30 ? 'text-red-500' : days < 90 ? 'text-amber-600' : 'text-green-600'}`}>
+                        {days}d
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-5 py-3">
+                    <button
+                      onClick={() => handleViewSchool(row)}
+                      className="text-xs text-[#01696f] hover:underline font-medium"
+                    >
+                      View School
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 // ─── Platform Tab ─────────────────────────────────────────────
 
 function PlatformTab() {
@@ -714,13 +1051,16 @@ function PlatformTab() {
   const [error, setError]           = useState<string | null>(null);
   const [reseeding, setReseeding]   = useState(false);
   const [reseedMsg, setReseedMsg]   = useState<string | null>(null);
+  const [expandedDescId, setExpandedDescId] = useState<string | null>(null);
+  const [descDraft, setDescDraft]   = useState<Record<string, string>>({});
+  const [savingDescId, setSavingDescId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
       const { data, error } = await supabase
         .from('indicators')
-        .select('id, standard_id, domain_id, description_en, description_ar')
+        .select('id, standard_id, domain_id, description_en, description_ar, descriptor_outstanding_en, descriptor_good_en, descriptor_satisfactory_en, descriptor_unsatisfactory_en, descriptor_nui_en, descriptor_outstanding_ar, descriptor_good_ar, descriptor_satisfactory_ar, descriptor_unsatisfactory_ar, descriptor_nui_ar')
         .order('domain_id')
         .order('id');
       if (error) setError(error.message);
@@ -728,6 +1068,47 @@ function PlatformTab() {
       setLoading(false);
     })();
   }, []);
+
+  function openDescEditor(ind: IndicatorRow) {
+    if (expandedDescId === ind.id) { setExpandedDescId(null); return; }
+    setExpandedDescId(ind.id);
+    setDescDraft({
+      outstanding_en:    ind.descriptor_outstanding_en    ?? '',
+      good_en:           ind.descriptor_good_en           ?? '',
+      satisfactory_en:   ind.descriptor_satisfactory_en   ?? '',
+      unsatisfactory_en: ind.descriptor_unsatisfactory_en ?? '',
+      nui_en:            ind.descriptor_nui_en            ?? '',
+      outstanding_ar:    ind.descriptor_outstanding_ar    ?? '',
+      good_ar:           ind.descriptor_good_ar           ?? '',
+      satisfactory_ar:   ind.descriptor_satisfactory_ar   ?? '',
+      unsatisfactory_ar: ind.descriptor_unsatisfactory_ar ?? '',
+      nui_ar:            ind.descriptor_nui_ar            ?? '',
+    });
+  }
+
+  async function saveDescriptors(ind: IndicatorRow) {
+    setSavingDescId(ind.id);
+    const patch = {
+      descriptor_outstanding_en:    descDraft['outstanding_en']    || null,
+      descriptor_good_en:           descDraft['good_en']           || null,
+      descriptor_satisfactory_en:   descDraft['satisfactory_en']   || null,
+      descriptor_unsatisfactory_en: descDraft['unsatisfactory_en'] || null,
+      descriptor_nui_en:            descDraft['nui_en']            || null,
+      descriptor_outstanding_ar:    descDraft['outstanding_ar']    || null,
+      descriptor_good_ar:           descDraft['good_ar']           || null,
+      descriptor_satisfactory_ar:   descDraft['satisfactory_ar']   || null,
+      descriptor_unsatisfactory_ar: descDraft['unsatisfactory_ar'] || null,
+      descriptor_nui_ar:            descDraft['nui_ar']            || null,
+    };
+    const { error: saveErr } = await supabase.from('indicators').update(patch).eq('id', ind.id);
+    if (saveErr) {
+      setError(saveErr.message);
+    } else {
+      setIndicators(prev => prev.map(i => i.id === ind.id ? { ...i, ...patch } : i));
+      setExpandedDescId(null);
+    }
+    setSavingDescId(null);
+  }
 
   async function handleReseed() {
     setReseeding(true);
@@ -767,32 +1148,97 @@ function PlatformTab() {
       {/* Indicators table */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-gray-800">All Indicators ({indicators.length} / 56)</h3>
+          <h3 className="text-sm font-semibold text-gray-800">All Indicators ({indicators.length})</h3>
         </div>
         {error && <ErrorBanner message={error} />}
-        {loading ? <SkeletonTable cols={4} /> : (
+        {loading ? <SkeletonTable cols={5} /> : (
           <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  {['Code', 'Domain', 'Standard', 'Description (EN)', 'Description (AR)'].map(h => (
+                  {['Code', 'Domain', 'Standard', 'Description (EN)', 'Description (AR)', 'Descriptors'].map(h => (
                     <th key={h} className="text-left px-4 py-3 text-xs font-medium text-gray-500">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {indicators.map(ind => (
-                  <tr key={ind.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-2.5 font-mono text-xs font-bold text-gray-600">{ind.id}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500">{ind.domain_id}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500">{ind.standard_id}</td>
-                    <td className="px-4 py-2.5 text-xs text-gray-700 max-w-xs">
-                      <p className="line-clamp-2">{ind.description_en}</p>
-                    </td>
-                    <td className="px-4 py-2.5 text-xs text-gray-500 max-w-xs" dir="rtl">
-                      <p className="line-clamp-2">{ind.description_ar ?? '—'}</p>
-                    </td>
-                  </tr>
+                  <>
+                    <tr key={ind.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5 font-mono text-xs font-bold text-gray-600">{ind.id}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500">{ind.domain_id}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500">{ind.standard_id}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-700 max-w-xs">
+                        <p className="line-clamp-2">{ind.description_en}</p>
+                      </td>
+                      <td className="px-4 py-2.5 text-xs text-gray-500 max-w-xs" dir="rtl">
+                        <p className="line-clamp-2">{ind.description_ar ?? '—'}</p>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <button
+                          onClick={() => openDescEditor(ind)}
+                          className="text-xs text-[#01696f] hover:underline font-medium flex items-center gap-1"
+                        >
+                          {expandedDescId === ind.id ? '▲ Close' : '▼ Edit'}
+                        </button>
+                      </td>
+                    </tr>
+                    {expandedDescId === ind.id && (
+                      <tr key={`${ind.id}-desc`} className="bg-gray-50">
+                        <td colSpan={6} className="px-4 py-4">
+                          <p className="text-xs font-semibold text-gray-700 mb-3">Grade Descriptors — {ind.id}</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            {([
+                              { key: 'outstanding',    label: 'Outstanding' },
+                              { key: 'good',           label: 'Good' },
+                              { key: 'satisfactory',   label: 'Satisfactory' },
+                              { key: 'unsatisfactory', label: 'Unsatisfactory' },
+                              { key: 'nui',            label: 'Needs Urgent Intervention' },
+                            ] as const).map(({ key, label }) => (
+                              <div key={key} className="contents">
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">{label} (EN)</label>
+                                  <textarea
+                                    value={descDraft[`${key}_en`] ?? ''}
+                                    onChange={e => setDescDraft(d => ({ ...d, [`${key}_en`]: e.target.value }))}
+                                    rows={2}
+                                    className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-[#01696f]"
+                                    placeholder={`What ${label} looks like for this indicator…`}
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-xs font-medium text-gray-600 mb-1">{label} (AR)</label>
+                                  <textarea
+                                    value={descDraft[`${key}_ar`] ?? ''}
+                                    onChange={e => setDescDraft(d => ({ ...d, [`${key}_ar`]: e.target.value }))}
+                                    rows={2}
+                                    dir="rtl"
+                                    className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-[#01696f]"
+                                    placeholder="…"
+                                  />
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              onClick={() => saveDescriptors(ind)}
+                              disabled={savingDescId === ind.id}
+                              className="px-4 py-1.5 bg-[#01696f] text-white text-xs font-medium rounded-lg hover:bg-[#0c4e54] disabled:opacity-50 transition-colors"
+                            >
+                              {savingDescId === ind.id ? 'Saving…' : 'Save Descriptors'}
+                            </button>
+                            <button
+                              onClick={() => setExpandedDescId(null)}
+                              className="px-4 py-1.5 border border-gray-200 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-100 transition-colors"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
                 ))}
               </tbody>
             </table>
