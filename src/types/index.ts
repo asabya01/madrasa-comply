@@ -51,6 +51,8 @@ export interface School {
   school_levels?: string[];
   vision_statement?: string;
   mission_statement?: string;
+  oaaaqa_code?: string;
+  education_cycle?: string;
 }
 
 export type SchoolMemberRole =
