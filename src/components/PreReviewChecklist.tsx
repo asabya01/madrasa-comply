@@ -137,6 +137,33 @@ function useChecklistData() {
     staleTime: 1000 * 60 * 60,
   });
 
+  // Count active survey templates that have at least 1 response
+  const { data: surveyCount = 0 } = useQuery({
+    queryKey: ['checklist-surveys', school?.id, academicYear],
+    queryFn: async () => {
+      if (!school) return 0;
+      const { data: templates } = await supabase
+        .from('survey_templates')
+        .select('id')
+        .eq('school_id', school.id)
+        .eq('is_active', true)
+        .eq('academic_year', academicYear);
+      if (!templates?.length) return 0;
+      let count = 0;
+      await Promise.all(
+        templates.map(async ({ id }: { id: string }) => {
+          const { count: c } = await supabase
+            .from('survey_responses')
+            .select('id', { count: 'exact', head: true })
+            .eq('template_id', id);
+          if ((c ?? 0) > 0) count++;
+        })
+      );
+      return count;
+    },
+    enabled: !!school,
+  });
+
   return {
     ratedCount,
     evidenceCount,
@@ -147,6 +174,7 @@ function useChecklistData() {
     sedCount,
     socialMediaSet,
     indicatorTotal,
+    surveyCount,
   };
 }
 
@@ -178,6 +206,7 @@ export function PreReviewChecklist() {
   const {
     ratedCount, evidenceCount, perfCount, attendanceCount,
     academicYearRow, latestVisit, sedCount, socialMediaSet, indicatorTotal,
+    surveyCount,
   } = useChecklistData();
 
   const toggleMode = useToggleReviewMode(academicYearRow?.id);
@@ -233,6 +262,11 @@ export function PreReviewChecklist() {
       label: 'SED generated and submitted',
       done: sedCount > 0,
       note: sedCount === 0 ? 'Generate from Self-Evaluation Document page' : `${sedCount} SED(s) generated`,
+    },
+    {
+      label: 'Survey questionnaires distributed (3 required)',
+      done: surveyCount >= 3,
+      note: surveyCount < 3 ? `${surveyCount}/3 surveys active with responses` : `${surveyCount} surveys completed`,
     },
   ];
 

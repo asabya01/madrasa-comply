@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Save, TrendingUp, Users, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Save, TrendingUp, Users, FileSpreadsheet, Loader2, LineChart as LineChartIcon } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { JudgementBadge } from '../components/ui/judgement-badge';
@@ -10,10 +10,12 @@ import {
   proficiencyRateToJudgement,
   attendanceRateToJudgement,
   calcSchoolProficiencyRate,
+  nationalComparisonLabel,
   type JudgementLevel,
 } from '../lib/judgement';
 import { useToast } from '../components/ui/toast';
 import { exportMinistryMasteryExcel } from '../lib/exportMinistryExcel';
+import { TrendTab } from '../components/TrendTab';
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -50,6 +52,7 @@ interface ProficiencyRow {
   total_students: number | '';
   students_at_75: number | '';
   proficiency_rate?: number;
+  national_average: number | '';
 }
 
 interface AttendanceRow {
@@ -133,7 +136,7 @@ function ProficiencyTab({ onExport }: { onExport: (semester: Semester) => void }
       if (!school) return [];
       const { data, error } = await supabase
         .from('student_performance')
-        .select('id, grade_label, subject, total_students, students_at_75, proficiency_rate')
+        .select('id, grade_label, subject, total_students, students_at_75, proficiency_rate, national_average')
         .eq('school_id', school.id)
         .eq('academic_year', academicYear)
         .eq('semester', semester)
@@ -148,13 +151,18 @@ function ProficiencyTab({ onExport }: { onExport: (semester: Semester) => void }
   const [rows, setRows] = useState<ProficiencyRow[]>([]);
 
   useEffect(() => {
-    setRows(dbRows.length > 0 ? dbRows : []);
+    setRows(dbRows.length > 0
+      ? (dbRows as (ProficiencyRow & { id: string })[]).map((r) => ({
+          ...r,
+          national_average: r.national_average ?? '',
+        }))
+      : []);
   }, [dbRows, semester]);
 
   const addRow = () => {
     setRows((prev) => [
       ...prev,
-      { grade_label: '', subject: 'Mathematics', total_students: '', students_at_75: '' },
+      { grade_label: '', subject: 'Mathematics', total_students: '', students_at_75: '', national_average: '' },
     ]);
   };
 
@@ -181,6 +189,7 @@ function ProficiencyTab({ onExport }: { onExport: (semester: Semester) => void }
         semester,
         total_students: Number(r.total_students),
         students_at_75: Number(r.students_at_75),
+        national_average: r.national_average !== '' ? Number(r.national_average) : null,
         entered_by: profile?.id ?? null,
         updated_at: new Date().toISOString(),
       }));
@@ -293,13 +302,15 @@ function ProficiencyTab({ onExport }: { onExport: (semester: Semester) => void }
                     <th className="text-right py-2 pr-3 text-xs font-medium text-gray-500 w-28">Scoring ≥ 75</th>
                     <th className="text-right py-2 pr-3 text-xs font-medium text-gray-500 w-24">Rate</th>
                     <th className="text-center py-2 text-xs font-medium text-gray-500 w-32">Judgement</th>
+                    <th className="text-right py-2 pr-3 text-xs font-medium text-gray-500 w-28">National Avg</th>
+                    <th className="py-2 text-xs font-medium text-gray-500 w-36">vs National</th>
                     <th className="w-8" />
                   </tr>
                 </thead>
                 <tbody>
                   {rows.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="py-8 text-center text-sm text-gray-400">
+                      <td colSpan={9} className="py-8 text-center text-sm text-gray-400">
                         No data for {SEMESTER_LABELS[semester]}. Click "Add row" to start entering proficiency data.
                       </td>
                     </tr>
@@ -362,6 +373,33 @@ function ProficiencyTab({ onExport }: { onExport: (semester: Semester) => void }
                           {judgement ? <JudgementBadge level={judgement} size="sm" /> : (
                             <span className="text-xs text-gray-300">—</span>
                           )}
+                        </td>
+                        {/* National average */}
+                        <td className="py-1.5 pr-3">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={0.1}
+                            value={row.national_average}
+                            onChange={(e) => updateRow(i, 'national_average', e.target.value === '' ? '' : Number(e.target.value))}
+                            placeholder="—"
+                            className="w-full px-2 py-1 text-sm rounded border border-gray-200 focus:outline-none focus:border-[#01696f] text-right"
+                          />
+                        </td>
+                        <td className="py-1.5 pr-2">
+                          {rate != null && row.national_average !== '' ? (() => {
+                            const delta = rate - Number(row.national_average);
+                            const cmp = nationalComparisonLabel(delta);
+                            return (
+                              <span
+                                className="text-[10px] font-medium px-1.5 py-0.5 rounded-full whitespace-nowrap"
+                                style={{ backgroundColor: `${cmp.colour}15`, color: cmp.colour, border: `1px solid ${cmp.colour}30` }}
+                              >
+                                {cmp.label}
+                              </span>
+                            );
+                          })() : <span className="text-xs text-gray-300">—</span>}
                         </td>
                         <td className="py-1.5">
                           <button
@@ -675,6 +713,10 @@ export default function PerformanceDataPage() {
             <Users className="h-3.5 w-3.5" />
             Attendance
           </TabsTrigger>
+          <TabsTrigger value="trend" className="flex items-center gap-1.5">
+            <LineChartIcon className="h-3.5 w-3.5" />
+            3-Year Trend
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="proficiency" className="mt-4">
@@ -683,6 +725,10 @@ export default function PerformanceDataPage() {
 
         <TabsContent value="attendance" className="mt-4">
           <AttendanceTab />
+        </TabsContent>
+
+        <TabsContent value="trend" className="mt-4">
+          <TrendTab />
         </TabsContent>
       </Tabs>
     </div>

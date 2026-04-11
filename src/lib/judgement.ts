@@ -93,7 +93,7 @@ export function calcSchoolProficiencyRate(records: Array<{ proficiency_rate: num
 // ─── PSD Section 4.4 — National Exam Comparison ──────────────
 
 /**
- * Table 7: Delta (school avg − national avg) → description.
+ * Table 7: Delta (school avg − national avg) → description string (legacy).
  */
 export function nationalExamDelta(schoolAvg: number, nationalAvg: number): string {
   const delta = schoolAvg - nationalAvg;
@@ -106,20 +106,33 @@ export function nationalExamDelta(schoolAvg: number, nationalAvg: number): strin
   return 'Significantly below the national average';
 }
 
+/**
+ * Table 7: delta = school_rate − national_avg → { label, colour } badge.
+ */
+export function nationalComparisonLabel(delta: number): { label: string; colour: string } {
+  if (delta > 1.5)   return { label: 'Significantly above national', colour: '#437a22' };
+  if (delta > 0.5)   return { label: 'Slightly above national',      colour: '#01696f' };
+  if (delta > 0)     return { label: 'Close to national',            colour: '#006494' };
+  if (delta === 0)   return { label: 'At national average',          colour: '#6b7280' };
+  if (delta > -0.5)  return { label: 'Slightly below national',      colour: '#d19900' };
+  if (delta > -1.5)  return { label: 'Below national',               colour: '#da7101' };
+  return               { label: 'Significantly below national',      colour: '#c0392b' };
+}
+
 // ─── PSD Section 4.5 — Cohort Progress ───────────────────────
 
 /**
- * Table 9: Change in average proficiency rate (percentage points) → description.
- * change = currentYearAvg − threeYearsAgoAvg
+ * Table 9: Change in average proficiency rate (percentage points) → { label, colour }.
+ * change = latestYearAvg − earliestYearAvg
  */
-export function cohortProgressDescription(changePct: number): string {
-  if (changePct > 15)  return 'Strong Progress';
-  if (changePct > 10)  return 'Significant Progress';
-  if (changePct > 5)   return 'Mild Progress';
-  if (changePct >= -5) return 'Stable';
-  if (changePct > -10) return 'Mild Decrease';
-  if (changePct > -15) return 'Significant Decrease';
-  return 'Sharp Drop';
+export function cohortProgressDescription(change: number): { label: string; colour: string } {
+  if (change > 15)  return { label: 'Strong Progress',        colour: '#437a22' };
+  if (change > 10)  return { label: 'Significant Progress',   colour: '#01696f' };
+  if (change > 5)   return { label: 'Mild Progress',          colour: '#006494' };
+  if (change >= -5) return { label: 'Stable',                 colour: '#6b7280' };
+  if (change > -10) return { label: 'Mild Decrease',          colour: '#d19900' };
+  if (change > -15) return { label: 'Significant Decrease',   colour: '#da7101' };
+  return              { label: 'Sharp Drop',                  colour: '#c0392b' };
 }
 
 // ─── PSD Section 4.6 — Attendance ────────────────────────────

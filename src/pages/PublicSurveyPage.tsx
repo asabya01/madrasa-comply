@@ -18,7 +18,7 @@ interface SurveyQuestion {
   id: string;
   question_en: string;
   question_ar: string | null;
-  question_type: 'scale5' | 'yesno' | 'text';
+  question_type: 'scale_1_5' | 'yes_no' | 'text';
   sort_order: number;
 }
 
@@ -154,13 +154,13 @@ export default function PublicSurveyPage() {
             {q.question_ar && (
               <p className="text-sm text-gray-400 mb-3 text-right" dir="rtl">{q.question_ar}</p>
             )}
-            {q.question_type === 'scale5' && (
+            {q.question_type === 'scale_1_5' && (
               <Scale5Input
                 value={answers[q.id] as number | undefined}
                 onChange={(v) => setAnswer(q.id, v)}
               />
             )}
-            {q.question_type === 'yesno' && (
+            {q.question_type === 'yes_no' && (
               <YesNoInput
                 value={answers[q.id] as string | undefined}
                 onChange={(v) => setAnswer(q.id, v)}
