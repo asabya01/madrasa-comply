@@ -121,7 +121,7 @@ function useTeachers(schoolId: string | undefined) {
       // Fetch active school_members with role='teacher', join profiles for display fields
       const { data, error } = await supabase
         .from('school_members')
-        .select('user_id, profiles(full_name, email)')
+        .select('user_id, profiles!school_members_user_id_fkey(full_name, email)')
         .eq('school_id', schoolId!)
         .eq('role', 'teacher')
         .eq('status', 'active')

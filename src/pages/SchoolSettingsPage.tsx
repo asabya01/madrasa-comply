@@ -598,7 +598,7 @@ function UsersPanel() {
     const [{ data: memberRows, error: membErr }, { data: classRows }] = await Promise.all([
       supabase
         .from('school_members')
-        .select('id, user_id, role, status, profiles(email, full_name, department)')
+        .select('id, user_id, role, status, profiles!school_members_user_id_fkey(email, full_name, department)')
         .eq('school_id', school.id)
         .order('role'),
       supabase
