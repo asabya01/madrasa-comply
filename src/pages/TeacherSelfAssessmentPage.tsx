@@ -5,6 +5,7 @@ import { useSchoolStore } from '../stores/schoolStore';
 import { usePermissions } from '../hooks/usePermissions';
 import { useToast } from '../components/ui/toast';
 import {
+  JUDGEMENT_LABELS,
   JUDGEMENT_LABELS_SHORT,
   JUDGEMENT_COLORS,
   type JudgementLevel,
@@ -129,10 +130,27 @@ function useTeacherRatings(
   });
 }
 
+function useOverallJudgement(schoolId: string | undefined, academicYear: string) {
+  return useQuery({
+    queryKey: ['overall-judgement-banner', schoolId, academicYear],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from('overall_judgements')
+        .select('judgement, calculated_at')
+        .eq('school_id', schoolId!)
+        .eq('academic_year', academicYear)
+        .maybeSingle();
+      return data as { judgement: number; calculated_at: string } | null;
+    },
+    enabled: !!schoolId,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function TeacherSelfAssessmentPage() {
-  const { school, profile } = useSchoolStore();
+  const { school, profile, academicYear } = useSchoolStore();
   const perms = usePermissions();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -152,6 +170,7 @@ export default function TeacherSelfAssessmentPage() {
     selectedClassId,
     selectedTerm
   );
+  const { data: overallJudgement } = useOverallJudgement(school?.id, academicYear);
 
   // Auto-select first class
   useEffect(() => {
@@ -290,6 +309,14 @@ export default function TeacherSelfAssessmentPage() {
         </p>
       </div>
 
+      {/* ── Read-only school overall judgement banner ── */}
+      {overallJudgement && (
+        <OverallJudgementBanner
+          judgement={overallJudgement.judgement as JudgementLevel}
+          calculatedAt={overallJudgement.calculated_at}
+        />
+      )}
+
       {loading ? (
         <div className="px-8 py-6">
           <SkeletonPage />
@@ -402,6 +429,48 @@ export default function TeacherSelfAssessmentPage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// ─── Overall judgement banner (read-only) ─────────────────────
+
+function OverallJudgementBanner({
+  judgement,
+  calculatedAt,
+}: {
+  judgement: JudgementLevel;
+  calculatedAt: string;
+}) {
+  const color = JUDGEMENT_COLORS[judgement];
+  const label = JUDGEMENT_LABELS[judgement];
+  const date  = new Date(calculatedAt).toLocaleDateString('en-GB', {
+    day: 'numeric', month: 'long', year: 'numeric',
+  });
+
+  return (
+    <div
+      className="mx-8 mt-5 flex items-center gap-4 px-5 py-3.5 rounded-xl border"
+      style={{ backgroundColor: `${color}12`, borderColor: `${color}40` }}
+    >
+      <div
+        className="w-10 h-10 rounded-xl flex items-center justify-center text-white text-base font-bold shrink-0 shadow-sm"
+        style={{ backgroundColor: color }}
+      >
+        {judgement}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-semibold text-gray-900">
+          School Overall Judgement:{' '}
+          <span style={{ color }}>{label}</span>
+        </p>
+        <p className="text-xs text-gray-500 mt-0.5">
+          Calculated {date} · Read-only — contact your school admin to update ratings
+        </p>
+      </div>
+      <span className="shrink-0 text-xs font-medium px-2.5 py-1 rounded-full text-white" style={{ backgroundColor: color }}>
+        {label}
+      </span>
     </div>
   );
 }
