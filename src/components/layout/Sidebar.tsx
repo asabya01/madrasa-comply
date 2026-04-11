@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, BookOpen, FileText, FolderOpen, ClipboardList,
   CheckSquare, BarChart3, Settings, LogOut, Shield, ShieldAlert,
-  ChevronDown, Building2, ClipboardCheck, Award, TrendingUp,
+  ChevronDown, Building2, ClipboardCheck, Award, TrendingUp, Users,
 } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -31,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/audit-prep',       icon: CheckSquare,      label: 'Audit Preparation',    roles: ['school_admin', 'super_admin'] },
   { to: '/reports',          icon: BarChart3,        label: 'Reports',              roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/settings',         icon: Settings,         label: 'Settings',             roles: ['school_admin', 'super_admin'] },
+  { to: '/school-users',     icon: Users,            label: 'School Users',         roles: ['hod', 'school_admin', 'super_admin'] },
 ];
 
 export function Sidebar() {

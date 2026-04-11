@@ -654,18 +654,17 @@ function UsersPanel() {
     setInviteSuccess(null);
 
     const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
-    if (!token) { setInviteError('Not authenticated'); setInviting(false); return; }
+    if (!session?.access_token) { setInviteError('Not authenticated'); setInviting(false); return; }
 
-    const res = await supabase.functions.invoke('admin-actions', {
+    const res = await supabase.functions.invoke('invite-user', {
       body: {
-        action:       'invite_school_user',
         email:        inviteForm.email.trim(),
         full_name:    inviteForm.full_name.trim() || undefined,
         role:         inviteForm.role,
         subject_area: inviteForm.subject_area.trim() || undefined,
         school_id:    school.id,
       },
+      headers: { Authorization: `Bearer ${session.access_token}` },
     });
 
     if (res.error || (res.data as { error?: string } | null)?.error) {

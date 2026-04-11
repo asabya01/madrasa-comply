@@ -29,7 +29,20 @@
       "Bash(curl -s https://madrasa-comply.vercel.app/assets/index-BM-wSg2p.js)",
       "Bash(curl -s https://madrasa-comply.vercel.app/)",
       "Bash(curl -s https://madrasa-comply.vercel.app/assets/index-BENhdlBb.js)",
-      "Bash(supabase migration:*)"
+      "Bash(supabase migration:*)",
+      "Bash(gh run:*)",
+      "Read(//c/Users/moust/.vercel/**)",
+      "Bash(curl -s \"https://api.vercel.com/v6/deployments?teamId=&limit=3\" -H \"Authorization: Bearer $\\(cat ~/.vercel/auth.json)",
+      "Read(//c/Users/moust/.supabase/**)",
+      "Read(//c/Users/moust/**)",
+      "Bash(supabase projects:*)",
+      "Bash(xargs ls:*)",
+      "Read(//c//**)",
+      "Bash(env)",
+      "Bash(grep:*)",
+      "Bash(cmd.exe:*)",
+      "Bash(npx vitest:*)",
+      "Bash(cat src/components/ui/judgement-badge.tsx grep -n \"Card\\\\|Collapsible\\\\|Accordion\" src/components/ui/*.tsx)"
     ]
   }
 }

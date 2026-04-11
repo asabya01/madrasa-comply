@@ -69,21 +69,35 @@ async function invokeAdmin(action: string, params: Record<string, unknown> = {})
   return d;
 }
 
-// ─── Page ─────────────────────────────────────────────────────
+// ─── Shared tab button (defined outside page to keep stable reference) ──────
 
-export default function SuperAdminPage() {
-  const [tab, setTab] = useState<Tab>('schools');
-
-  const TabBtn = ({ id, label }: { id: Tab; label: string }) => (
+function TabBtn({
+  id,
+  activeTab,
+  onSelect,
+  label,
+}: {
+  id: Tab;
+  activeTab: Tab;
+  onSelect: (t: Tab) => void;
+  label: string;
+}) {
+  return (
     <button
-      onClick={() => setTab(id)}
+      onClick={() => onSelect(id)}
       className={`px-5 py-2.5 text-sm font-medium rounded-lg transition-colors ${
-        tab === id ? 'bg-[#01696f] text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'
+        activeTab === id ? 'bg-[#01696f] text-white shadow-sm' : 'text-gray-600 hover:bg-gray-100'
       }`}
     >
       {label}
     </button>
   );
+}
+
+// ─── Page ─────────────────────────────────────────────────────
+
+export default function SuperAdminPage() {
+  const [tab, setTab] = useState<Tab>('schools');
 
   return (
     <div className="min-h-screen bg-[#f7f6f2]">
@@ -94,10 +108,10 @@ export default function SuperAdminPage() {
 
       <div className="px-8 pt-6">
         <div className="flex gap-2 bg-white border border-gray-200 rounded-xl p-1.5 w-fit shadow-sm">
-          <TabBtn id="schools"   label="Schools"   />
-          <TabBtn id="users"     label="Users"     />
-          <TabBtn id="analytics" label="Analytics" />
-          <TabBtn id="platform"  label="Platform"  />
+          <TabBtn id="schools"   activeTab={tab} onSelect={setTab} label="Schools"   />
+          <TabBtn id="users"     activeTab={tab} onSelect={setTab} label="Users"     />
+          <TabBtn id="analytics" activeTab={tab} onSelect={setTab} label="Analytics" />
+          <TabBtn id="platform"  activeTab={tab} onSelect={setTab} label="Platform"  />
         </div>
       </div>
 

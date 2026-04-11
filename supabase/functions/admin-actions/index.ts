@@ -17,13 +17,21 @@ serve(async (req) => {
 
   try {
     // ── Auth ──────────────────────────────────────────────────────────────────
+    // Verify the caller's JWT via the anon client (which calls auth.getUser()
+    // against Supabase Auth — proper server-side JWT validation, not manual decode).
     const token = req.headers.get('Authorization')?.replace('Bearer ', '');
     if (!token) return json({ error: 'Missing authorization token' }, 401);
 
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    const userId = payload.sub as string | undefined;
-    if (!userId) return json({ error: 'Invalid token' }, 401);
+    const supabaseUser = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: `Bearer ${token}` } } }
+    );
+    const { data: { user }, error: authErr } = await supabaseUser.auth.getUser();
+    if (authErr || !user) return json({ error: 'Invalid or expired token' }, 401);
+    const userId = user.id;
 
+    // Service role client — used ONLY for privileged DB operations below
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
@@ -179,9 +187,8 @@ serve(async (req) => {
       const { user_id, role, school_id, is_super_admin } = body as Record<string, unknown>;
       if (!user_id) return json({ error: 'user_id is required' }, 400);
 
-      // Update profile fields that were explicitly provided
       const profileFields: Record<string, unknown> = {};
-      if (role          !== undefined) profileFields.role          = role;
+      if (role           !== undefined) profileFields.role           = role;
       if (is_super_admin !== undefined) profileFields.is_super_admin = Boolean(is_super_admin);
       if (Object.keys(profileFields).length) {
         const { error } = await supabaseAdmin.from('profiles')
@@ -190,7 +197,6 @@ serve(async (req) => {
         if (error) return json({ error: error.message }, 400);
       }
 
-      // Update role on the specific school membership if school_id + role provided
       if (school_id && role) {
         const { error } = await supabaseAdmin.from('school_members')
           .update({ role })
@@ -291,7 +297,6 @@ serve(async (req) => {
             .select('school_id, domain_id, judgement'),
         ]);
 
-      // Latest overall judgement per school (data already ordered by calculated_at desc)
       const latestJudgement = new Map<string, number>();
       const latestCalcAt    = new Map<string, string>();
       for (const j of (judgementsRes.data ?? []) as Array<{ school_id: string; judgement: number; calculated_at: string }>) {
@@ -301,7 +306,6 @@ serve(async (req) => {
         }
       }
 
-      // Distinct rated domains per school
       const ratedDomains = new Map<string, Set<string>>();
       for (const dj of (domainJudgementsRes.data ?? []) as Array<{ school_id: string; domain_id: string; judgement: number | null }>) {
         if (dj.judgement != null) {

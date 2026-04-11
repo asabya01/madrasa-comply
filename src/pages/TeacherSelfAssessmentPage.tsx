@@ -398,6 +398,17 @@ export default function TeacherSelfAssessmentPage() {
             )}
           </div>
 
+          {/* ── My Results summary ── */}
+          {existingRatings && existingRatings.length > 0 && (
+            <div className="px-8 pb-6">
+              <MyResultsSummary
+                ratings={existingRatings}
+                indicators={framework?.indicators ?? []}
+                standards={framework?.standards ?? []}
+              />
+            </div>
+          )}
+
           {/* ── Bottom action bar ── */}
           {!isReadOnly && (
             <div className="fixed bottom-0 left-60 right-0 bg-white border-t border-gray-200 px-8 py-4 flex items-center justify-between shadow-lg z-10">
@@ -429,6 +440,87 @@ export default function TeacherSelfAssessmentPage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+// ─── My Results summary ───────────────────────────────────────
+
+function MyResultsSummary({
+  ratings,
+  indicators,
+  standards,
+}: {
+  ratings: TeacherRatingRow[];
+  indicators: IndicatorRow[];
+  standards: StandardRow[];
+}) {
+  const ratedRows = ratings.filter(r => r.rating != null);
+  if (!ratedRows.length) return null;
+
+  const stdMap = Object.fromEntries(standards.map(s => [s.id, s.name_en]));
+  const indMap = Object.fromEntries(indicators.map(i => [i.id, i]));
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+      <div className="px-5 py-3.5 bg-gray-50 border-b border-gray-200">
+        <h3 className="text-sm font-semibold text-gray-800">My Results</h3>
+        <p className="text-xs text-gray-500 mt-0.5">
+          {ratedRows.length} of {indicators.length} indicators rated
+        </p>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50 border-b border-gray-100">
+            <tr>
+              {['Standard', 'Indicator', 'Description', 'Rating', 'Self-Assessment'].map(h => (
+                <th key={h} className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {ratedRows.map(r => {
+              const ind = indMap[r.indicator_id];
+              const level = r.rating as JudgementLevel;
+              return (
+                <tr key={r.id} className="hover:bg-gray-50/50">
+                  <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">
+                    {ind ? stdMap[ind.standard_id] ?? ind.standard_id : '—'}
+                  </td>
+                  <td className="px-4 py-2.5 font-mono text-xs font-bold text-gray-400">
+                    {r.indicator_id}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-gray-700 max-w-xs">
+                    <p className="line-clamp-2">{ind?.description_en ?? '—'}</p>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    {r.rating != null ? (
+                      <div className="flex items-center gap-1.5">
+                        <div
+                          className="w-6 h-6 rounded text-white text-xs font-bold flex items-center justify-center"
+                          style={{ backgroundColor: JUDGEMENT_COLORS[level] }}
+                        >
+                          {r.rating}
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {JUDGEMENT_LABELS_SHORT[level]}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-2.5 text-xs text-gray-500 max-w-xs">
+                    {r.self_assessment
+                      ? <span className="italic line-clamp-2">"{r.self_assessment}"</span>
+                      : <span className="text-gray-300">—</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
