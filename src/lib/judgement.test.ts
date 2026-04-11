@@ -10,6 +10,11 @@ import {
   calculateDomain4Judgement,
   calculateDomain5Judgement,
   calculateOverallJudgement,
+  calcDomain1,
+  calcOverallJudgement,
+  proficiencyRateToJudgement,
+  cohortProgressDescription,
+  nationalComparisonLabel,
   type DomainResult,
 } from './judgement';
 
@@ -433,5 +438,77 @@ describe('Overall School Judgement', () => {
     expect(labels.some((l) => l.includes('Domain 1'))).toBe(true);
     expect(labels.some((l) => l.includes('Domain 3'))).toBe(true);
     expect(labels.some((l) => l.includes('Domain 5'))).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────
+// OAAAQA Guide — Exact scenario checks (PSD §8.11 and §10)
+// ─────────────────────────────────────────────────────────────
+
+describe('OAAAQA Guide: Domain 1 standard-level scenarios', () => {
+  it('1.1=Outstanding, 1.2=Outstanding, 1.3=Good → Outstanding', () => {
+    const { judgement } = calcDomain1(1, 1, 2);
+    expect(judgement).toBe(1);
+  });
+
+  it('1.1=Good, 1.2=Good, 1.3=Satisfactory → Good', () => {
+    const { judgement } = calcDomain1(2, 2, 3);
+    expect(judgement).toBe(2);
+  });
+
+  it('1.1=NUI, 1.2=Good → NUI', () => {
+    const { judgement } = calcDomain1(5, 2, 2);
+    expect(judgement).toBe(5);
+  });
+});
+
+describe('OAAAQA Guide: Overall judgement scenarios', () => {
+  it('D1=Outstanding, D2=Good, D3=Outstanding, D4=Good, D5=Outstanding → Outstanding', () => {
+    const { judgement } = calcOverallJudgement(1, 2, 1, 2, 1);
+    expect(judgement).toBe(1);
+  });
+
+  it('D1=Good, D3=Satisfactory, D5=Good (D2=Good, D4=Good) → Satisfactory', () => {
+    // maxHigh = max(2,3,2) = 3 → Satisfactory band; maxMedium=2 ≤ 4 → Satisfactory
+    const { judgement } = calcOverallJudgement(2, 2, 3, 2, 2);
+    expect(judgement).toBe(3);
+  });
+});
+
+describe('OAAAQA Guide: Proficiency rate table (PSD Table 8)', () => {
+  it('72% → Outstanding (1)', () => {
+    expect(proficiencyRateToJudgement(72)).toBe(1);
+  });
+
+  it('65% → Good (2)', () => {
+    expect(proficiencyRateToJudgement(65)).toBe(2);
+  });
+
+  it('38% → NUI (5)', () => {
+    expect(proficiencyRateToJudgement(38)).toBe(5);
+  });
+});
+
+describe('OAAAQA Guide: Cohort progress description (PSD Table 9)', () => {
+  it('+18pp → Strong Progress', () => {
+    expect(cohortProgressDescription(18).label).toBe('Strong Progress');
+  });
+
+  it('-3pp → Stable', () => {
+    expect(cohortProgressDescription(-3).label).toBe('Stable');
+  });
+
+  it('-16pp → Sharp Drop', () => {
+    expect(cohortProgressDescription(-16).label).toBe('Sharp Drop');
+  });
+});
+
+describe('OAAAQA Guide: National comparison label (PSD Table 7)', () => {
+  it('delta +2.0 → Significantly above national', () => {
+    expect(nationalComparisonLabel(2.0).label).toBe('Significantly above national');
+  });
+
+  it('delta -0.3 → Slightly below national', () => {
+    expect(nationalComparisonLabel(-0.3).label).toBe('Slightly below national');
   });
 });
