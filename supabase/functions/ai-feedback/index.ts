@@ -60,8 +60,41 @@ serve(async (req) => {
 
     // 3. Build the prompt
     const body = await req.json();
-    const { scope } = body;
+    const { scope, action } = body;
     let prompt = '';
+
+    // ── Language check action (lightweight, returns plain suggestion) ──
+    if (action === 'check_evaluative_language') {
+      const { indicatorId, indicatorDescription, rating, narrative } = body;
+      const ratingLabels: Record<number, string> = {
+        1: 'Outstanding', 2: 'Good', 3: 'Satisfactory', 4: 'Unsatisfactory', 5: 'Needs Urgent Intervention',
+      };
+      const langPrompt = `You are an OAAAQA school quality evaluator reviewing a school's self-evaluation narrative.
+
+Indicator: ${indicatorId} — ${indicatorDescription}
+School's self-rating: ${rating}/5 (${ratingLabels[rating] ?? rating})
+Current narrative: "${narrative}"
+
+Your task:
+1. Identify whether this narrative is DESCRIPTIVE ("we do X") or EVALUATIVE ("X is effective because Y impact"). Descriptive narratives only state what exists; evaluative narratives explain the impact and quality of evidence.
+2. Rewrite the narrative in evaluative language using OAAAQA terms where appropriate: effective, distinguished, highly efficient, model to emulate, notable, acceptable, appropriate, limited, non-existent.
+3. Keep the rewrite under 150 words.
+4. Respond in the same language as the input narrative (Arabic if Arabic, English if English).
+5. Return ONLY valid JSON: { "suggestion": "your rewritten narrative here" }`;
+
+      const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
+      const langResponse = await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 400,
+        messages: [{ role: 'user', content: langPrompt }],
+      });
+      const langContent = langResponse.content[0].type === 'text' ? langResponse.content[0].text : '{}';
+      const langJson = langContent.match(/\{[\s\S]*\}/);
+      const langResult = langJson ? JSON.parse(langJson[0]) : { suggestion: langContent.trim() };
+      return new Response(JSON.stringify(langResult), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     if (scope === 'indicator') {
       const {

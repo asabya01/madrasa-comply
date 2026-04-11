@@ -42,7 +42,13 @@
       "Bash(grep:*)",
       "Bash(cmd.exe:*)",
       "Bash(npx vitest:*)",
-      "Bash(cat src/components/ui/judgement-badge.tsx grep -n \"Card\\\\|Collapsible\\\\|Accordion\" src/components/ui/*.tsx)"
+      "Bash(cat src/components/ui/judgement-badge.tsx grep -n \"Card\\\\|Collapsible\\\\|Accordion\" src/components/ui/*.tsx)",
+      "Bash(ls:*)",
+      "Bash(ls -la *.sql *.tsx *.ts)",
+      "Bash(ls src/pages/)",
+      "Bash(ls supabase/functions/)",
+      "Bash(ls supabase/migrations/)",
+      "Bash(node -e ':*)"
     ]
   }
 }

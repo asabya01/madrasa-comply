@@ -126,6 +126,17 @@ function useChecklistData() {
     enabled: !!school,
   });
 
+  const { data: indicatorTotal = 0 } = useQuery({
+    queryKey: ['indicator-count'],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from('indicators')
+        .select('id', { count: 'exact', head: true });
+      return count ?? 0;
+    },
+    staleTime: 1000 * 60 * 60,
+  });
+
   return {
     ratedCount,
     evidenceCount,
@@ -135,6 +146,7 @@ function useChecklistData() {
     latestVisit,
     sedCount,
     socialMediaSet,
+    indicatorTotal,
   };
 }
 
@@ -165,7 +177,7 @@ export function PreReviewChecklist() {
   const [open, setOpen] = useState(false);
   const {
     ratedCount, evidenceCount, perfCount, attendanceCount,
-    academicYearRow, latestVisit, sedCount, socialMediaSet,
+    academicYearRow, latestVisit, sedCount, socialMediaSet, indicatorTotal,
   } = useChecklistData();
 
   const toggleMode = useToggleReviewMode(academicYearRow?.id);
@@ -193,9 +205,9 @@ export function PreReviewChecklist() {
 
   const items: Array<{ label: string; done: boolean; note?: string }> = [
     {
-      label: 'All 56 indicators rated',
-      done: ratedCount >= 56,
-      note: ratedCount < 56 ? `${56 - ratedCount} remaining` : undefined,
+      label: `All ${indicatorTotal} indicators rated`,
+      done: ratedCount >= indicatorTotal && indicatorTotal > 0,
+      note: ratedCount < indicatorTotal ? `${indicatorTotal - ratedCount} remaining` : undefined,
     },
     {
       label: 'Evidence files uploaded',

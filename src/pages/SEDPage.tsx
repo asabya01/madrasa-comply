@@ -1,11 +1,15 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FileText, Download, RefreshCw, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import {
+  FileText, Download, RefreshCw, AlertTriangle, CheckCircle2,
+  Clock, ChevronDown, ChevronUp,
+} from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
 import { usePermissions } from '../hooks/usePermissions';
+import { useToast } from '../components/ui/toast';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
-import { JUDGEMENT_LABELS, type JudgementLevel } from '../lib/judgement';
+import { JUDGEMENT_LABELS, JUDGEMENT_COLORS, type JudgementLevel } from '../lib/judgement';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -20,33 +24,22 @@ interface SEDDocument {
   file_size_bytes: number | null;
 }
 
-interface GenerateResult {
-  url: string;
-  filePath: string;
-  fileSizeBytes: number;
-  overallJudgement: number | null;
+interface DocOptions {
+  includePlan:         boolean;
+  includeQuantitative: boolean;
+  includeSurveys:      boolean;
+  includeObservations: boolean;
 }
 
 // ─── Readiness check ──────────────────────────────────────────
 
-interface ReadinessCheck {
-  rated: number;
-  total: number;
-  pct: number;
-  ready: boolean;
-}
-
-function useReadiness(): ReadinessCheck {
+function useReadiness() {
   const { school, academicYear } = useSchoolStore();
   const { data: ratings } = useQuery({
     queryKey: ['all-ratings-judgements', school?.id, academicYear],
     queryFn: async () => {
       if (!school) return [];
-      const { data } = await supabase
-        .from('indicator_ratings')
-        .select('indicator_id')
-        .eq('school_id', school.id)
-        .eq('academic_year', academicYear);
+      const { data } = await supabase.from('indicator_ratings').select('indicator_id').eq('school_id', school.id).eq('academic_year', academicYear);
       return data ?? [];
     },
     enabled: !!school,
@@ -59,10 +52,9 @@ function useReadiness(): ReadinessCheck {
     },
     staleTime: 1000 * 60 * 60,
   });
-
   const rated = ratings?.length ?? 0;
-  const total = indicators?.length ?? 56;
-  const pct = total > 0 ? Math.round((rated / total) * 100) : 0;
+  const total = indicators?.length ?? 0; /* TODO: remove fallback once indicators always loads */
+  const pct   = total > 0 ? Math.round((rated / total) * 100) : 0;
   return { rated, total, pct, ready: rated >= total && total > 0 };
 }
 
@@ -92,46 +84,56 @@ function useSEDHistory() {
 export default function SEDPage() {
   const { school, academicYear } = useSchoolStore();
   const { isSchoolAdmin, isSuperAdmin } = usePermissions();
+  const { showToast } = useToast();
   const readiness = useReadiness();
   const { data: history = [], refetch: refetchHistory } = useSEDHistory();
 
-  const [generating, setGenerating] = useState(false);
-  const [result, setResult] = useState<GenerateResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [generating, setGenerating]         = useState(false);
+  const [genError, setGenError]             = useState<string | null>(null);
+  const [optionsOpen, setOptionsOpen]       = useState(false);
+  const [options, setOptions]               = useState<DocOptions>({
+    includePlan:         true,
+    includeQuantitative: true,
+    includeSurveys:      true,
+    includeObservations: true,
+  });
+  const [downloadingId, setDownloadingId]   = useState<string | null>(null);
 
   const canGenerate = isSchoolAdmin || isSuperAdmin;
+
+  function toggleOption(key: keyof DocOptions) {
+    setOptions(o => ({ ...o, [key]: !o[key] }));
+  }
 
   async function handleGenerate() {
     if (!school || !canGenerate) return;
     setGenerating(true);
-    setResult(null);
-    setError(null);
-
+    setGenError(null);
     try {
       const { data, error: fnErr } = await supabase.functions.invoke('generate-sed', {
-        body: { schoolId: school.id, academicYear },
+        body: { schoolId: school.id, academicYearId: academicYear, options },
       });
       if (fnErr) throw fnErr;
-      if (data?.error) throw new Error(data.error);
-      setResult(data as GenerateResult);
+      if (data?.error) throw new Error(data.error as string);
+      const result = data as { signedUrl: string; fileName: string };
+      window.open(result.signedUrl, '_blank');
+      showToast('SED generated successfully', 'success');
       void refetchHistory();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : String(e));
+      setGenError(e instanceof Error ? e.message : String(e));
     } finally {
       setGenerating(false);
     }
   }
 
-  async function getSignedUrl(filePath: string): Promise<string | null> {
-    const { data } = await supabase.storage
-      .from('sed-documents')
-      .createSignedUrl(filePath, 3600);
-    return data?.signedUrl ?? null;
-  }
-
-  async function downloadHistoryFile(filePath: string) {
-    const url = await getSignedUrl(filePath);
-    if (url) window.open(url, '_blank');
+  async function downloadHistoryFile(doc: SEDDocument) {
+    setDownloadingId(doc.id);
+    try {
+      const { data } = await supabase.storage.from('sed-documents').createSignedUrl(doc.file_path, 3600);
+      if (data?.signedUrl) window.open(data.signedUrl, '_blank');
+    } finally {
+      setDownloadingId(null);
+    }
   }
 
   return (
@@ -192,9 +194,44 @@ export default function SEDPage() {
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-gray-900">Generate DOCX</p>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Produces a three-section Word document: School Profile, Domain-by-Domain Ratings &amp; Evidence, and Improvement Plan Summary.
+                    Produces a structured Word document: School Profile, Domain-by-Domain Ratings &amp; Evidence, Improvement Plan, and optional annexes.
                   </p>
                 </div>
+              </div>
+
+              {/* Document Options */}
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setOptionsOpen(o => !o)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors text-sm font-medium text-gray-700"
+                >
+                  Document Options
+                  {optionsOpen
+                    ? <ChevronUp className="h-4 w-4 text-gray-400" />
+                    : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                </button>
+                {optionsOpen && (
+                  <div className="px-4 py-3 space-y-2.5">
+                    {(
+                      [
+                        { key: 'includePlan',         label: 'Include Improvement Plan' },
+                        { key: 'includeQuantitative', label: 'Include Quantitative Annex (proficiency + attendance)' },
+                        { key: 'includeSurveys',      label: 'Include Survey Results Annex' },
+                        { key: 'includeObservations', label: 'Include Classroom Observations Summary' },
+                      ] as Array<{ key: keyof DocOptions; label: string }>
+                    ).map(({ key, label }) => (
+                      <label key={key} className="flex items-center gap-2.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={options[key]}
+                          onChange={() => toggleOption(key)}
+                          className="h-4 w-4 rounded border-gray-300 text-[#01696f] focus:ring-[#01696f]"
+                        />
+                        <span className="text-sm text-gray-700">{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <button
@@ -211,40 +248,18 @@ export default function SEDPage() {
 
               {generating && (
                 <p className="text-xs text-gray-400 text-center">
-                  Building document with all 56 indicators, domain judgements, and improvement plan…
+                  Building document with all {readiness.total} indicators, domain judgements
+                  {options.includePlan ? ', improvement plan' : ''}
+                  {options.includeQuantitative ? ', and quantitative data' : ''}…
                 </p>
               )}
 
-              {/* Success */}
-              {result && (
-                <div className="flex items-center gap-3 p-4 bg-green-50 border border-green-200 rounded-xl">
-                  <CheckCircle2 className="h-5 w-5 text-green-600 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-green-800">SED generated successfully</p>
-                    <p className="text-xs text-green-600 mt-0.5">
-                      {(result.fileSizeBytes / 1024).toFixed(0)} KB
-                      {result.overallJudgement != null && ` · Overall: ${JUDGEMENT_LABELS[result.overallJudgement as JudgementLevel]}`}
-                    </p>
-                  </div>
-                  <a
-                    href={result.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1.5 px-4 py-2 bg-green-700 text-white text-sm font-medium rounded-lg hover:bg-green-800 transition-colors shrink-0"
-                  >
-                    <Download className="h-4 w-4" />
-                    Download
-                  </a>
-                </div>
-              )}
-
-              {/* Error */}
-              {error && (
+              {genError && (
                 <div className="flex items-start gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
                   <AlertTriangle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
                   <div>
                     <p className="text-sm font-semibold text-red-800">Generation failed</p>
-                    <p className="text-xs text-red-600 mt-0.5">{error}</p>
+                    <p className="text-xs text-red-600 mt-0.5">{genError}</p>
                   </div>
                 </div>
               )}
@@ -253,10 +268,10 @@ export default function SEDPage() {
         </CardContent>
       </Card>
 
-      {/* ── History table ──────────────────────────────── */}
+      {/* ── Previously Generated SEDs ──────────────────── */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold font-sans">Generation History</CardTitle>
+          <CardTitle className="text-base font-semibold font-sans">Previously Generated SEDs</CardTitle>
         </CardHeader>
         <CardContent>
           {history.length === 0 ? (
@@ -266,32 +281,49 @@ export default function SEDPage() {
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
-              {history.map((doc) => (
-                <div key={doc.id} className="flex items-center gap-4 py-3">
-                  <FileText className="h-5 w-5 text-[#01696f] shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900">
-                      {new Date(doc.generated_at).toLocaleDateString('en-GB', {
-                        day: 'numeric', month: 'long', year: 'numeric',
-                        hour: '2-digit', minute: '2-digit',
-                      })}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {doc.overall_judgement_snapshot != null && (
-                        <>Overall: {JUDGEMENT_LABELS[doc.overall_judgement_snapshot as JudgementLevel]} · </>
-                      )}
-                      {doc.file_size_bytes != null && `${(doc.file_size_bytes / 1024).toFixed(0)} KB`}
-                    </p>
+              {history.map((doc) => {
+                const j = doc.overall_judgement_snapshot as JudgementLevel | null;
+                return (
+                  <div key={doc.id} className="flex items-center gap-4 py-3">
+                    <FileText className="h-5 w-5 text-[#01696f] shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900">
+                        {new Date(doc.generated_at).toLocaleDateString('en-GB', {
+                          day: 'numeric', month: 'long', year: 'numeric',
+                          hour: '2-digit', minute: '2-digit',
+                        })}
+                      </p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {j != null && (
+                          <span
+                            className="text-xs font-medium px-2 py-0.5 rounded-full"
+                            style={{
+                              backgroundColor: `${JUDGEMENT_COLORS[j]}15`,
+                              color: JUDGEMENT_COLORS[j],
+                              border: `1px solid ${JUDGEMENT_COLORS[j]}40`,
+                            }}
+                          >
+                            {JUDGEMENT_LABELS[j]}
+                          </span>
+                        )}
+                        {doc.file_size_bytes != null && (
+                          <span className="text-xs text-gray-400">{(doc.file_size_bytes / 1024).toFixed(0)} KB</span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => void downloadHistoryFile(doc)}
+                      disabled={downloadingId === doc.id}
+                      className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors shrink-0"
+                    >
+                      {downloadingId === doc.id
+                        ? <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                        : <Download className="h-3.5 w-3.5" />}
+                      Download
+                    </button>
                   </div>
-                  <button
-                    onClick={() => void downloadHistoryFile(doc.file_path)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50 transition-colors shrink-0"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                    Download
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>
@@ -302,16 +334,8 @@ export default function SEDPage() {
 
 // ─── Readiness row ────────────────────────────────────────────
 
-function ReadinessRow({
-  label,
-  value,
-  done,
-  note,
-}: {
-  label: string;
-  value: string;
-  done: boolean;
-  note?: string;
+function ReadinessRow({ label, value, done, note }: {
+  label: string; value: string; done: boolean; note?: string;
 }) {
   return (
     <div className="flex items-center gap-3">

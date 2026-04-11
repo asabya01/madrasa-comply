@@ -121,6 +121,7 @@ export default function ImprovementPlanPage() {
   const [activeTab, setActiveTab] = useState<Record<string, 'tasks' | 'notes'>>({});
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState<AFIForm>(EMPTY_FORM);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const { data: afis = [], isLoading } = useAFIs(showArchived);
   const { data: indicators = [] } = useFramework();
@@ -147,6 +148,7 @@ export default function ImprovementPlanPage() {
 
   function openCreate() {
     setForm(EMPTY_FORM);
+    setFormError(null);
     setShowForm(true);
   }
 
@@ -163,10 +165,12 @@ export default function ImprovementPlanPage() {
       status: afi.status,
       success_metric: afi.success_metric ?? '',
     });
+    setFormError(null);
     setShowForm(true);
   }
 
   async function saveForm() {
+    setFormError(null);
     const payload = {
       title: form.title.trim(),
       description: form.description.trim() || null,
@@ -178,13 +182,17 @@ export default function ImprovementPlanPage() {
       status: form.status,
       success_metric: form.success_metric.trim() || null,
     };
-    if (form.id) {
-      await updateAFI.mutateAsync({ id: form.id, ...payload });
-    } else {
-      await createAFI.mutateAsync(payload as Parameters<typeof createAFI.mutateAsync>[0]);
+    try {
+      if (form.id) {
+        await updateAFI.mutateAsync({ id: form.id, ...payload });
+      } else {
+        await createAFI.mutateAsync(payload as Parameters<typeof createAFI.mutateAsync>[0]);
+      }
+      setShowForm(false);
+      setForm(EMPTY_FORM);
+    } catch (e: unknown) {
+      setFormError(e instanceof Error ? e.message : String(e));
     }
-    setShowForm(false);
-    setForm(EMPTY_FORM);
   }
 
   function toggleExpand(id: string) {
@@ -307,8 +315,9 @@ export default function ImprovementPlanPage() {
           form={form}
           setForm={setForm}
           onSave={saveForm}
-          onClose={() => { setShowForm(false); setForm(EMPTY_FORM); }}
+          onClose={() => { setShowForm(false); setForm(EMPTY_FORM); setFormError(null); }}
           saving={saving}
+          saveError={formError}
           indicators={filteredIndicators}
           allIndicators={indicators}
           users={users}
@@ -703,13 +712,14 @@ interface AFIFormModalProps {
   onSave: () => Promise<void>;
   onClose: () => void;
   saving: boolean;
+  saveError?: string | null;
   indicators: FrameworkIndicator[];
   allIndicators: FrameworkIndicator[];
   users: SchoolUser[];
 }
 
 function AFIFormModal({
-  form, setForm, onSave, onClose, saving, indicators, allIndicators, users,
+  form, setForm, onSave, onClose, saving, saveError, indicators, allIndicators, users,
 }: AFIFormModalProps) {
   const isEdit = !!form.id;
 
@@ -845,20 +855,28 @@ function AFIFormModal({
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 px-6 py-4 border-t border-gray-100 shrink-0">
-          <button
-            onClick={onSave}
-            disabled={saving || !form.title.trim()}
-            className="flex-1 py-2.5 bg-[#01696f] text-white text-sm font-medium rounded-xl hover:bg-[#0c4e54] disabled:opacity-50 transition-colors"
-          >
-            {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create AFI'}
-          </button>
-          <button
-            onClick={onClose}
-            className="flex-1 py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
+        <div className="px-6 py-4 border-t border-gray-100 shrink-0 space-y-3">
+          {saveError && (
+            <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
+              <p className="text-sm text-red-700">{saveError}</p>
+            </div>
+          )}
+          <div className="flex gap-3">
+            <button
+              onClick={onSave}
+              disabled={saving || !form.title.trim()}
+              className="flex-1 py-2.5 bg-[#01696f] text-white text-sm font-medium rounded-xl hover:bg-[#0c4e54] disabled:opacity-50 transition-colors"
+            >
+              {saving ? 'Saving…' : isEdit ? 'Save Changes' : 'Create AFI'}
+            </button>
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 border border-gray-200 text-gray-700 text-sm font-medium rounded-xl hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       </div>
     </div>

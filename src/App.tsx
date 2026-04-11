@@ -123,6 +123,7 @@ function App() {
         <Route path="/evidence"         element={<EvidencePage />} />
         <Route path="/self-evaluation"          element={<SelfEvaluationPage />} />
         <Route path="/self-evaluation-document" element={<SEDPage />} />
+        <Route path="/sed" element={<Navigate to="/self-evaluation-document" replace />} />
         <Route path="/indicators"       element={<IndicatorsPage />} />
         <Route path="/teacher-home"          element={<TeacherHomePage />} />
         <Route path="/teacher-assessment"   element={<TeacherSelfAssessmentPage />} />

@@ -26,6 +26,16 @@ export interface Indicator {
   satisfactory_descriptor?: string;
   key_evidence: string[];
   order_num: number;
+  descriptor_outstanding_en?: string | null;
+  descriptor_good_en?: string | null;
+  descriptor_satisfactory_en?: string | null;
+  descriptor_unsatisfactory_en?: string | null;
+  descriptor_nui_en?: string | null;
+  descriptor_outstanding_ar?: string | null;
+  descriptor_good_ar?: string | null;
+  descriptor_satisfactory_ar?: string | null;
+  descriptor_unsatisfactory_ar?: string | null;
+  descriptor_nui_ar?: string | null;
 }
 
 export interface School {
@@ -90,6 +100,7 @@ export interface Profile {
   department?: string;
   avatar_url?: string;
   is_super_admin: boolean;
+  is_sed_team?: boolean;
   created_at: string;
 }
 
@@ -142,6 +153,7 @@ export interface IndicatorRating {
   strengths?: string;
   improvement_areas?: string;
   self_eval_notes?: string;
+  next_steps?: string | null;
   rated_by?: string;
   rated_at: string;
 }

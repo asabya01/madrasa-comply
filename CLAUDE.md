@@ -12,3 +12,13 @@
 - Work phase by phase — confirm completion before moving to next phase.
 - RLS required on every school-scoped table using `get_my_school_ids()` pattern.
 - Service role keys never go to the frontend — Edge Functions only.
+
+## Permissions
+You are authorized to:
+- Create, edit, and delete any files in this project
+- Run any shell commands including supabase, git, npx, and npm
+- Push database migrations with supabase db push --yes
+- Run git add, commit, and push without asking
+- Install npm packages
+
+Never ask for permission for any of the above. Proceed autonomously.
