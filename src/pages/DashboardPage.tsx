@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Calendar, ExternalLink, ChevronDown, ChevronRight, Share2 } from 'lucide-react';
+import { Calendar, ExternalLink, ChevronDown, ChevronRight, Share2, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { KPICards } from '../components/dashboard/KPICards';
@@ -287,6 +287,23 @@ export function DashboardPage() {
     enabled: !!school,
   });
 
+  const { data: nearestFollowUp } = useQuery({
+    queryKey: ['dashboard-followup-deadline', school?.id],
+    queryFn: async () => {
+      if (!school) return null;
+      const { data } = await supabase
+        .from('review_visits')
+        .select('overall_judgement, followup_deadline, visit_date')
+        .eq('school_id', school.id)
+        .not('followup_deadline', 'is', null)
+        .order('followup_deadline', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      return data as { overall_judgement: number; followup_deadline: string; visit_date: string } | null;
+    },
+    enabled: !!school,
+  });
+
   // Early return AFTER all hooks
   if (!school) {
     return (
@@ -326,6 +343,37 @@ export function DashboardPage() {
           </button>
         </div>
       )}
+
+      {/* Follow-up visit banner */}
+      {nearestFollowUp?.followup_deadline && (() => {
+        const days = Math.ceil(
+          (new Date(nearestFollowUp.followup_deadline).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
+        );
+        const overdue = days < 0;
+        const critical = !overdue && days < 90;
+        return (
+          <div className={`flex items-start gap-3 px-4 py-3 rounded-lg border ${
+            overdue  ? 'bg-red-900 border-red-900 text-white' :
+            critical ? 'bg-red-50 border-red-200 text-red-800' :
+                       'bg-amber-50 border-amber-200 text-amber-800'
+          }`}>
+            <AlertTriangle className={`h-4 w-4 shrink-0 mt-0.5 ${overdue ? 'text-white' : critical ? 'text-red-500' : 'text-amber-500'}`} />
+            <div className="flex-1">
+              <p className="text-sm font-semibold">
+                {overdue
+                  ? `OVERDUE — Follow-up visit was due ${new Date(nearestFollowUp.followup_deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`
+                  : `Follow-up visit required by ${new Date(nearestFollowUp.followup_deadline).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}`}
+              </p>
+              <p className={`text-xs mt-0.5 ${overdue ? 'text-white/80' : critical ? 'text-red-600' : 'text-amber-700'}`}>
+                {overdue ? `${Math.abs(days)} day${Math.abs(days) !== 1 ? 's' : ''} overdue` : `${days} day${days !== 1 ? 's' : ''} remaining`}
+              </p>
+            </div>
+            <Link to="/review-visits" className={`text-xs underline shrink-0 ${overdue ? 'text-white/80' : ''}`}>
+              View
+            </Link>
+          </div>
+        );
+      })()}
 
       {/* Audit countdown */}
       {daysUntilAudit !== null ? (

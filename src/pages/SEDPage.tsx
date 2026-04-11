@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   FileText, Download, RefreshCw, AlertTriangle, CheckCircle2,
-  Clock, ChevronDown, ChevronUp,
+  Clock, ChevronDown, ChevronUp, XCircle,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
@@ -31,31 +31,148 @@ interface DocOptions {
   includeObservations: boolean;
 }
 
-// ─── Readiness check ──────────────────────────────────────────
+// ─── Validation check (PSD §8.11 and §10) ────────────────────
 
-function useReadiness() {
+const CORE_SUBJECTS = [
+  'Islamic Education', 'Arabic Language', 'English Language',
+  'Mathematics', 'Science', 'Social Studies',
+] as const;
+
+interface ValidationCheck {
+  label: string;
+  pass: boolean;
+  message?: string;  // shown when failing
+}
+
+function useValidation() {
   const { school, academicYear } = useSchoolStore();
-  const { data: ratings } = useQuery({
-    queryKey: ['all-ratings-judgements', school?.id, academicYear],
-    queryFn: async () => {
-      if (!school) return [];
-      const { data } = await supabase.from('indicator_ratings').select('indicator_id').eq('school_id', school.id).eq('academic_year', academicYear);
-      return data ?? [];
-    },
-    enabled: !!school,
-  });
-  const { data: indicators } = useQuery({
+
+  // 1. All indicators
+  const { data: allIndicators = [], isLoading: loadingIndicators } = useQuery({
     queryKey: ['indicators-full'],
     queryFn: async () => {
-      const { data } = await supabase.from('indicators').select('id');
-      return data ?? [];
+      const { data } = await supabase.from('indicators').select('id, domain_id');
+      return (data ?? []) as { id: string; domain_id: string }[];
     },
     staleTime: 1000 * 60 * 60,
   });
-  const rated = ratings?.length ?? 0;
-  const total = indicators?.length ?? 0; /* TODO: remove fallback once indicators always loads */
-  const pct   = total > 0 ? Math.round((rated / total) * 100) : 0;
-  return { rated, total, pct, ready: rated >= total && total > 0 };
+
+  // 1. Rated indicators for this year
+  const { data: ratedIds = [], isLoading: loadingRated } = useQuery({
+    queryKey: ['all-ratings-judgements', school?.id, academicYear],
+    queryFn: async () => {
+      if (!school) return [] as { indicator_id: string }[];
+      const { data } = await supabase
+        .from('indicator_ratings')
+        .select('indicator_id')
+        .eq('school_id', school.id)
+        .eq('academic_year', academicYear);
+      return (data ?? []) as { indicator_id: string }[];
+    },
+    enabled: !!school,
+  });
+
+  // 2. Student performance subjects for this year
+  const { data: perfRows = [], isLoading: loadingPerf } = useQuery({
+    queryKey: ['perf-subjects-validation', school?.id, academicYear],
+    queryFn: async () => {
+      if (!school) return [] as { subject: string }[];
+      const { data } = await supabase
+        .from('student_performance')
+        .select('subject')
+        .eq('school_id', school.id)
+        .eq('academic_year', academicYear);
+      return (data ?? []) as { subject: string }[];
+    },
+    enabled: !!school,
+  });
+
+  // 3. Submitted teacher self-assessments (Domain 3 indicators)
+  const { data: submittedTeacherRows = [], isLoading: loadingTeacher } = useQuery({
+    queryKey: ['teacher-submitted-d3', school?.id],
+    queryFn: async () => {
+      if (!school) return [] as { indicator_id: string }[];
+      // RLS lets school admins see all teacher ratings for their school
+      const { data } = await supabase
+        .from('teacher_indicator_ratings')
+        .select('indicator_id')
+        .eq('status', 'submitted');
+      return (data ?? []) as { indicator_id: string }[];
+    },
+    enabled: !!school,
+  });
+
+  // 4. Evidence indicator links for this school
+  const { data: evidenceLinks = [], isLoading: loadingEvidence } = useQuery({
+    queryKey: ['evidence-links-validation', school?.id],
+    queryFn: async () => {
+      if (!school) return [] as { indicator_id: string | null }[];
+      const { data } = await supabase
+        .from('evidence_indicator_links')
+        .select('indicator_id')
+        .eq('school_id', school.id);
+      return (data ?? []) as { indicator_id: string | null }[];
+    },
+    enabled: !!school,
+  });
+
+  const isLoading = loadingIndicators || loadingRated || loadingPerf || loadingTeacher || loadingEvidence;
+
+  // ── Derived checks ────────────────────────────────────────────
+
+  // 1. Indicator ratings
+  const totalIndicators = allIndicators.length;
+  const ratedCount = new Set(ratedIds.map((r) => r.indicator_id)).size;
+  const unratedCount = totalIndicators - ratedCount;
+
+  // 2. Core subjects with proficiency data
+  const coveredSubjects = new Set(perfRows.map((r) => r.subject));
+  const missingSubjects = CORE_SUBJECTS.filter((s) => !coveredSubjects.has(s));
+
+  // 3. Domain 3 indicators covered by submitted teacher self-assessments
+  const domain3Ids = new Set(allIndicators.filter((i) => i.domain_id === '3').map((i) => i.id));
+  const submittedD3Set = new Set(
+    submittedTeacherRows.map((r) => r.indicator_id).filter((id) => domain3Ids.has(id))
+  );
+  const uncoveredD3Count = [...domain3Ids].filter((id) => !submittedD3Set.has(id)).length;
+
+  // 4. Indicators covered by at least 1 evidence file
+  const indicatorsWithEvidence = new Set(
+    evidenceLinks.map((l) => l.indicator_id).filter((id): id is string => id != null)
+  );
+  const indicatorsWithoutEvidenceCount = totalIndicators > 0
+    ? allIndicators.filter((i) => !indicatorsWithEvidence.has(i.id)).length
+    : 0;
+
+  const checks: ValidationCheck[] = [
+    {
+      label: 'All indicators rated',
+      pass: totalIndicators > 0 && unratedCount === 0,
+      message: unratedCount > 0 ? `${unratedCount} indicator${unratedCount !== 1 ? 's' : ''} still unrated` : undefined,
+    },
+    {
+      label: 'All 6 core subjects have proficiency data for current year',
+      pass: missingSubjects.length === 0,
+      message: missingSubjects.length > 0 ? `Missing: ${missingSubjects.join(', ')}` : undefined,
+    },
+    {
+      label: 'Each Domain 3 indicator has a submitted teacher self-assessment',
+      pass: domain3Ids.size > 0 && uncoveredD3Count === 0,
+      message: uncoveredD3Count > 0 ? `${uncoveredD3Count} Domain 3 indicator${uncoveredD3Count !== 1 ? 's have' : ' has'} no teacher submissions` : undefined,
+    },
+    {
+      label: 'Each indicator has at least 1 evidence file',
+      pass: totalIndicators > 0 && indicatorsWithoutEvidenceCount === 0,
+      message: indicatorsWithoutEvidenceCount > 0 ? `${indicatorsWithoutEvidenceCount} indicator${indicatorsWithoutEvidenceCount !== 1 ? 's have' : ' has'} no linked evidence` : undefined,
+    },
+  ];
+
+  const allPass = checks.every((c) => c.pass);
+  const rated = ratedCount;
+  const total = totalIndicators;
+  const pct = total > 0 ? Math.round((rated / total) * 100) : 0;
+
+  return { checks, allPass, rated, total, pct, isLoading };
 }
 
 // ─── History hook ─────────────────────────────────────────────
@@ -85,7 +202,7 @@ export default function SEDPage() {
   const { school, academicYear } = useSchoolStore();
   const { isSchoolAdmin, isSuperAdmin } = usePermissions();
   const { showToast } = useToast();
-  const readiness = useReadiness();
+  const validation = useValidation();
   const { data: history = [], refetch: refetchHistory } = useSEDHistory();
 
   const [generating, setGenerating]         = useState(false);
@@ -98,8 +215,10 @@ export default function SEDPage() {
     includeObservations: true,
   });
   const [downloadingId, setDownloadingId]   = useState<string | null>(null);
+  const [overrideGenerate, setOverrideGenerate] = useState(false);
 
   const canGenerate = isSchoolAdmin || isSuperAdmin;
+  const generateEnabled = validation.allPass || overrideGenerate;
 
   function toggleOption(key: keyof DocOptions) {
     setOptions(o => ({ ...o, [key]: !o[key] }));
@@ -146,32 +265,84 @@ export default function SEDPage() {
         </p>
       </div>
 
-      {/* ── Readiness card ─────────────────────────────── */}
+      {/* ── Validation Checklist ───────────────────────── */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold font-sans">Generation Readiness</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base font-semibold font-sans">Pre-Generation Validation</CardTitle>
+            {!validation.isLoading && (
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                validation.allPass
+                  ? 'bg-green-100 text-green-700'
+                  : 'bg-red-100 text-red-700'
+              }`}>
+                {validation.checks.filter((c) => c.pass).length}/{validation.checks.length} passed
+              </span>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="space-y-3">
-          <ReadinessRow
-            label="Indicator ratings entered"
-            value={`${readiness.rated} / ${readiness.total}`}
-            done={readiness.ready}
-            note={!readiness.ready ? `${readiness.total - readiness.rated} indicators still unrated` : undefined}
-          />
-          <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${readiness.pct}%`,
-                backgroundColor: readiness.ready ? '#437a22' : readiness.pct >= 50 ? '#d19900' : '#da7101',
-              }}
-            />
-          </div>
-          <p className="text-xs text-gray-400">
-            {readiness.ready
-              ? 'All indicators rated — the SED will include complete evaluation data.'
-              : 'You can still generate the SED with partial data; unrated indicators will show "Not rated".'}
-          </p>
+          {validation.isLoading ? (
+            <div className="space-y-2">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-5 bg-gray-100 rounded animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <>
+              {/* Rating progress bar */}
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>Indicators rated</span>
+                  <span className="font-medium">{validation.rated} / {validation.total}</span>
+                </div>
+                <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${validation.pct}%`,
+                      backgroundColor: validation.pct === 100 ? '#437a22' : validation.pct >= 50 ? '#d19900' : '#da7101',
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* 4 checks */}
+              <div className="divide-y divide-gray-100">
+                {validation.checks.map((check) => (
+                  <div key={check.label} className="flex items-start gap-3 py-2.5">
+                    {check.pass
+                      ? <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0 mt-0.5" />
+                      : <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />}
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm ${check.pass ? 'text-gray-700' : 'text-gray-900 font-medium'}`}>
+                        {check.label}
+                      </p>
+                      {!check.pass && check.message && (
+                        <p className="text-xs text-red-600 mt-0.5">{check.message}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Override for school admin */}
+              {!validation.allPass && canGenerate && (
+                <label className="flex items-start gap-2.5 cursor-pointer select-none pt-1 border-t border-gray-100">
+                  <input
+                    type="checkbox"
+                    checked={overrideGenerate}
+                    onChange={(e) => setOverrideGenerate(e.target.checked)}
+                    className="h-4 w-4 mt-0.5 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-amber-700">Generate anyway (incomplete data)</p>
+                    <p className="text-xs text-gray-400">Unmet conditions will be noted in the SED document</p>
+                  </div>
+                </label>
+              )}
+            </>
+          )}
         </CardContent>
       </Card>
 
@@ -234,9 +405,18 @@ export default function SEDPage() {
                 )}
               </div>
 
+              {overrideGenerate && (
+                <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700 font-medium">
+                    Generating with incomplete data. The SED will include a note that validation conditions were not fully met.
+                  </p>
+                </div>
+              )}
+
               <button
                 onClick={handleGenerate}
-                disabled={generating}
+                disabled={generating || !generateEnabled}
                 className="w-full flex items-center justify-center gap-2 py-3 bg-[#01696f] text-white text-sm font-semibold rounded-xl hover:bg-[#0c4e54] disabled:opacity-60 transition-colors"
               >
                 {generating ? (
@@ -248,7 +428,7 @@ export default function SEDPage() {
 
               {generating && (
                 <p className="text-xs text-gray-400 text-center">
-                  Building document with all {readiness.total} indicators, domain judgements
+                  Building document with all {validation.total} indicators, domain judgements
                   {options.includePlan ? ', improvement plan' : ''}
                   {options.includeQuantitative ? ', and quantitative data' : ''}…
                 </p>
@@ -332,19 +512,3 @@ export default function SEDPage() {
   );
 }
 
-// ─── Readiness row ────────────────────────────────────────────
-
-function ReadinessRow({ label, value, done, note }: {
-  label: string; value: string; done: boolean; note?: string;
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      {done
-        ? <CheckCircle2 className="h-4 w-4 text-green-600 shrink-0" />
-        : <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />}
-      <span className="text-sm text-gray-700 flex-1">{label}</span>
-      <span className={`text-sm font-medium ${done ? 'text-green-700' : 'text-amber-700'}`}>{value}</span>
-      {note && <span className="text-xs text-gray-400 ml-1">({note})</span>}
-    </div>
-  );
-}

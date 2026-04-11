@@ -3,7 +3,7 @@ import {
   LayoutDashboard, BookOpen, FileText, FolderOpen, ClipboardList,
   CheckSquare, BarChart3, Settings, LogOut, Shield, ShieldAlert,
   ChevronDown, Building2, ClipboardCheck, Award, TrendingUp, Users, Home,
-  MessageSquare, Calendar,
+  MessageSquare, Calendar, CalendarCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -35,7 +35,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/evidence',           icon: FolderOpen,      label: 'Evidence Library',     roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/improvement-plan',   icon: ClipboardList,   label: 'Improvement Plan',     roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/audit-prep',         icon: CheckSquare,     label: 'Audit Preparation',    roles: ['school_admin', 'super_admin'] },
-  { to: '/review-visits',      icon: Calendar,        label: 'Review Visits',         roles: ['school_admin', 'super_admin'] },
+  { to: '/review-visits',      icon: CalendarCheck,   label: 'Review Visits',         roles: ['school_admin', 'super_admin'] },
   { to: '/governance',         icon: Shield,          label: 'Governance',            roles: ['school_admin', 'super_admin'] },
   { to: '/reports',            icon: BarChart3,       label: 'Reports',              roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/settings',           icon: Settings,        label: 'Settings',             roles: ['school_admin', 'super_admin'] },
