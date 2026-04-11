@@ -31,6 +31,70 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     );
 
+    const body = await req.json();
+    const { action } = body;
+
+    // ── invite_school_user — school admins only, no super_admin required ───
+    if (action === 'invite_school_user') {
+      const { email, full_name, role, subject_area, school_id } = body;
+      if (!email || !role || !school_id) {
+        return json({ error: 'email, role and school_id are required' }, 400);
+      }
+
+      // Verify caller is school_admin (or principal) for this school
+      const { data: membership } = await supabaseAdmin
+        .from('school_members')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('school_id', school_id)
+        .maybeSingle();
+
+      const adminRoles = ['school_admin', 'principal', 'vice_principal'];
+      if (!membership || !adminRoles.includes(membership.role)) {
+        return json({ error: 'Forbidden — school admin access required' }, 403);
+      }
+
+      // Map UI role keys to DB values
+      const roleMap: Record<string, string> = {
+        school_admin: 'school_admin',
+        hod:          'head_of_department',
+        teacher:      'teacher',
+        viewer:       'auditor',
+      };
+      const dbRole    = roleMap[role] ?? 'teacher';
+      const memberRole = dbRole; // school_members uses same values
+
+      // Invite via Supabase Auth (sends email with magic link)
+      const { data: inviteData, error: inviteErr } =
+        await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+          data: { full_name, school_id, role: dbRole },
+        });
+      if (inviteErr) return json({ error: inviteErr.message }, 400);
+
+      const newUserId = inviteData.user.id;
+
+      // Create profile immediately (user may not accept invite right away)
+      await supabaseAdmin.from('profiles').upsert({
+        id:         newUserId,
+        email,
+        full_name:  full_name ?? null,
+        role:       dbRole,
+        department: subject_area ?? null,
+      }, { onConflict: 'id' });
+
+      // Create school_members entry
+      await supabaseAdmin.from('school_members').upsert({
+        school_id,
+        user_id:    newUserId,
+        role:       memberRole,
+        status:     'pending',
+        invited_by: userId,
+      }, { onConflict: 'school_id,user_id' });
+
+      return json({ success: true, user_id: newUserId });
+    }
+
+    // ── All other actions require super_admin ──────────────────────────────
     const { data: callerProfile } = await supabaseAdmin
       .from('profiles')
       .select('is_super_admin')
@@ -41,8 +105,7 @@ serve(async (req) => {
       return json({ error: 'Forbidden — super admin access required' }, 403);
     }
 
-    const body = await req.json();
-    const { action } = body;
+    const { action: _action } = body; // already read, just for clarity
 
     // ── create_user ─────────────────────────────────────────────────────────
     if (action === 'create_user') {

@@ -18,7 +18,7 @@ import SelfEvaluationPage from './pages/SelfEvaluationPage';
 import ImprovementPlanPage from './pages/ImprovementPlanPage';
 import { AuditPrepPage } from './pages/AuditPrepPage';
 import { ReportsPage } from './pages/ReportsPage';
-import SettingsPage from './pages/SettingsPage';
+import SchoolSettingsPage from './pages/SchoolSettingsPage';
 import IndicatorsPage from './pages/IndicatorsPage';
 import TeacherSelfAssessmentPage from './pages/TeacherSelfAssessmentPage';
 import ClassroomObservationsPage from './pages/ClassroomObservationsPage';
@@ -118,7 +118,7 @@ function App() {
         <Route path="/improvement-plan" element={<ImprovementPlanPage />} />
         <Route path="/audit-prep"       element={<AuditPrepPage />} />
         <Route path="/reports"          element={<ReportsPage />} />
-        <Route path="/settings"         element={<SettingsPage />} />
+        <Route path="/settings"         element={<SchoolSettingsPage />} />
         <Route path="/admin"            element={<AdminPage />} />
       </Route>
 
