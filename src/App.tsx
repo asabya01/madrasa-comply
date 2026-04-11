@@ -31,6 +31,7 @@ import SurveysPage from './pages/SurveysPage';
 import PublicSurveyPage from './pages/PublicSurveyPage';
 import ReviewVisitsPage from './pages/ReviewVisitsPage';
 import GovernancePage from './pages/GovernancePage';
+import PublicDashboardPage from './pages/PublicDashboardPage';
 import { useSchool } from './hooks/useSchool';
 import { useSchoolStore } from './stores/schoolStore';
 import type { Session } from '@supabase/supabase-js';
@@ -93,8 +94,9 @@ function App() {
 
   return (
     <Routes>
-      {/* ── Public survey route (no auth) ── */}
+      {/* ── Public routes (no auth) ── */}
       <Route path="/survey/:shareToken" element={<PublicSurveyPage />} />
+      <Route path="/public/:schoolId"   element={<PublicDashboardPage />} />
 
       {/* ── Public auth routes ── */}
       <Route path="/login"  element={session ? <Navigate to={postLoginPath} /> : <LoginPage />} />

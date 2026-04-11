@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Calendar, ExternalLink, ChevronDown, ChevronRight } from 'lucide-react';
+import { Calendar, ExternalLink, ChevronDown, ChevronRight, Share2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { KPICards } from '../components/dashboard/KPICards';
@@ -230,6 +230,16 @@ export function DashboardPage() {
   const { school, profile } = useSchoolStore();
   const { judgements, isLoading } = useJudgements();
   const { isSchoolAdmin, isSuperAdmin, isHOD } = usePermissions();
+  const [shareCopied, setShareCopied] = useState(false);
+
+  function handleSharePublic() {
+    if (!school) return;
+    const url = `${window.location.origin}/public/${school.id}`;
+    void navigator.clipboard.writeText(url).then(() => {
+      setShareCopied(true);
+      setTimeout(() => setShareCopied(false), 2500);
+    });
+  }
 
   // All hooks must be declared before any early return (Rules of Hooks)
   const { data: evidenceCount } = useQuery({
@@ -304,6 +314,19 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Share Public Summary — school admin only */}
+      {(isSchoolAdmin || isSuperAdmin) && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleSharePublic}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#01696f] border border-[#01696f]/30 rounded-lg hover:bg-[#01696f]/5 transition-colors"
+          >
+            <Share2 className="h-3.5 w-3.5" />
+            {shareCopied ? 'Public link copied!' : 'Share Public Summary'}
+          </button>
+        </div>
+      )}
+
       {/* Audit countdown */}
       {daysUntilAudit !== null ? (
         <div className={`flex items-center gap-3 px-4 py-3 rounded-lg border ${
