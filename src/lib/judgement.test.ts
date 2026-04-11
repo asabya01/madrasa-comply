@@ -15,7 +15,7 @@ import {
 
 // ─── helpers ─────────────────────────────────────────────────
 /** Set all listed indicator codes to a single value. */
-function r(codes: string[], value: number): Record<string, number> {
+function r(codes: readonly string[], value: number): Record<string, number> {
   return Object.fromEntries(codes.map((c) => [c, value]));
 }
 
