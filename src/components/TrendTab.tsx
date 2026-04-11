@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  ReferenceLine, Dot,
+  ReferenceLine,
 } from 'recharts';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
@@ -43,13 +43,6 @@ interface AcademicYear {
 }
 
 // ─── Helpers ─────────────────────────────────────────────────
-
-function calcRate(row: PerfRow): number | null {
-  if (row.proficiency_rate != null) return row.proficiency_rate;
-  if (row.total_students && row.students_at_75)
-    return Math.round((row.students_at_75 / row.total_students) * 10000) / 100;
-  return null;
-}
 
 function fmt(n: number | null): string {
   return n == null ? '—' : `${n.toFixed(1)}%`;
@@ -118,7 +111,10 @@ function SubjectTrendCard({ subject, yearLabels, yearData }: {
             width={38}
           />
           <Tooltip
-            formatter={(value: number | null) => [value != null ? `${value.toFixed(1)}%` : '—', subject]}
+            formatter={(value) => {
+              const v = value as number | null | undefined;
+              return [v != null ? `${(v as number).toFixed(1)}%` : '—', subject] as [string, string];
+            }}
             contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
           />
           <ReferenceLine y={70} stroke="#6b7280" strokeDasharray="4 3" label={{ value: 'Outstanding', position: 'right', fontSize: 10, fill: '#6b7280' }} />

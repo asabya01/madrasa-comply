@@ -387,7 +387,6 @@ function PoliciesTab() {
       let fileName: string | null = null;
 
       if (addingNewFile) {
-        const ext = addingNewFile.name.split('.').pop() ?? '';
         const storagePath = `${school.id}/${Date.now()}-${addingNewFile.name}`;
         const { error: upErr } = await supabase.storage
           .from('policies')

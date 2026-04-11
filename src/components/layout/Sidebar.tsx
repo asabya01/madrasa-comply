@@ -3,7 +3,7 @@ import {
   LayoutDashboard, BookOpen, FileText, FolderOpen, ClipboardList,
   CheckSquare, BarChart3, Settings, LogOut, Shield, ShieldAlert,
   ChevronDown, Building2, ClipboardCheck, Award, TrendingUp, Users, Home,
-  MessageSquare, Calendar, CalendarCheck,
+  MessageSquare, CalendarCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
