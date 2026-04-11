@@ -8,29 +8,51 @@ import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useSchoolStore } from '../../stores/schoolStore';
 import { useSchool } from '../../hooks/useSchool';
+import { usePermissions } from '../../hooks/usePermissions';
 import { cn } from '../../lib/utils';
 
-const NAV_ITEMS = [
+interface NavItem {
+  to: string;
+  icon: React.ElementType;
+  label: string;
+  /** Roles allowed to see this item. Omit = everyone (school-level users) */
+  roles?: ('teacher' | 'hod' | 'school_admin' | 'super_admin')[];
+}
+
+const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard',        icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/domains',          icon: BookOpen,         label: 'Domains & Standards' },
-  { to: '/evidence',         icon: FolderOpen,       label: 'Evidence Library' },
+  { to: '/domains',          icon: BookOpen,         label: 'Domains & Standards', roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/self-evaluation',  icon: FileText,         label: 'Self-Evaluation' },
-  { to: '/observations',    icon: ClipboardCheck,   label: 'Observations' },
-  { to: '/judgements',      icon: Award,            label: 'Judgements' },
-  { to: '/performance-data', icon: TrendingUp,       label: 'Performance Data' },
-  { to: '/improvement-plan', icon: ClipboardList,    label: 'Improvement Plan' },
-  { to: '/audit-prep',       icon: CheckSquare,      label: 'Audit Preparation' },
-  { to: '/reports',          icon: BarChart3,        label: 'Reports' },
-  { to: '/settings',         icon: Settings,         label: 'Settings' },
+  { to: '/observations',     icon: ClipboardCheck,   label: 'Observations',         roles: ['hod', 'school_admin', 'super_admin'] },
+  { to: '/judgements',       icon: Award,            label: 'Judgements',           roles: ['hod', 'school_admin', 'super_admin'] },
+  { to: '/performance-data', icon: TrendingUp,       label: 'Performance Data',     roles: ['school_admin', 'super_admin'] },
+  { to: '/evidence',         icon: FolderOpen,       label: 'Evidence Library',     roles: ['hod', 'school_admin', 'super_admin'] },
+  { to: '/improvement-plan', icon: ClipboardList,    label: 'Improvement Plan',     roles: ['hod', 'school_admin', 'super_admin'] },
+  { to: '/audit-prep',       icon: CheckSquare,      label: 'Audit Preparation',    roles: ['school_admin', 'super_admin'] },
+  { to: '/reports',          icon: BarChart3,        label: 'Reports',              roles: ['hod', 'school_admin', 'super_admin'] },
+  { to: '/settings',         icon: Settings,         label: 'Settings',             roles: ['school_admin', 'super_admin'] },
 ];
 
 export function Sidebar() {
   const { school, profile } = useSchoolStore();
   const { allMemberships, switchSchool } = useSchool();
+  const { isSuperAdmin, isSchoolAdmin, isHOD, isTeacher } = usePermissions();
   const [schoolMenuOpen, setSchoolMenuOpen] = useState(false);
 
-  const isSuperAdmin = profile?.is_super_admin ?? false;
-  const multiSchool  = allMemberships.length > 1;
+  const multiSchool = allMemberships.length > 1;
+
+  // Derive which abstract role bucket this user falls into
+  const roleBucket: 'super_admin' | 'school_admin' | 'hod' | 'teacher' =
+    isSuperAdmin  ? 'super_admin'  :
+    isSchoolAdmin ? 'school_admin' :
+    isHOD         ? 'hod'          :
+    isTeacher     ? 'teacher'      :
+    'school_admin'; // fallback — show everything rather than nothing
+
+  function canSee(item: NavItem): boolean {
+    if (!item.roles) return true; // no restriction = everyone
+    return item.roles.includes(roleBucket);
+  }
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -108,7 +130,8 @@ export function Sidebar() {
           </NavLink>
         )}
 
-        {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+        {/* Role-filtered nav items */}
+        {NAV_ITEMS.filter(canSee).map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
@@ -127,8 +150,11 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Logout */}
+      {/* User info + logout */}
       <div className="p-4 border-t border-white/10">
+        {profile?.full_name && (
+          <div className="text-xs text-white/50 truncate mb-2 px-2">{profile.full_name}</div>
+        )}
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 w-full px-2 py-2 text-sm text-white/70 hover:text-white transition-colors"

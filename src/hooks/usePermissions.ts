@@ -168,14 +168,36 @@ function roleToPermissions(role: string | null | undefined, isSuperAdmin: boolea
   }
 }
 
+// ─── Extended return type with boolean role flags ────────────
+
+export interface PermissionsResult extends Permissions {
+  /** True if profiles.is_super_admin = true */
+  isSuperAdmin: boolean;
+  /** True if role is school_admin, principal, vice_principal, or quality_coordinator */
+  isSchoolAdmin: boolean;
+  /** True if role is head_of_department or senior_management */
+  isHOD: boolean;
+  /** True if role is teacher */
+  isTeacher: boolean;
+}
+
 // ─── Hook ─────────────────────────────────────────────────────
 
-export function usePermissions(): Permissions {
+export function usePermissions(): PermissionsResult {
   const { profile, userRole } = useSchoolStore();
 
-  const isSuperAdmin = Boolean(profile?.is_super_admin);
+  const isSuperAdmin  = Boolean(profile?.is_super_admin);
+  const isSchoolAdmin = ['school_admin', 'principal', 'vice_principal', 'quality_coordinator'].includes(userRole ?? '');
+  const isHOD         = ['head_of_department', 'senior_management'].includes(userRole ?? '');
+  const isTeacher     = userRole === 'teacher';
 
-  return roleToPermissions(userRole, isSuperAdmin);
+  return {
+    ...roleToPermissions(userRole, isSuperAdmin),
+    isSuperAdmin,
+    isSchoolAdmin,
+    isHOD,
+    isTeacher,
+  };
 }
 
 // ─── Standalone helper (useful outside React components) ──────
