@@ -17,6 +17,8 @@ export interface IndicatorFeedbackPayload {
   keyEvidence?: string[];
   domainName: string;
   standardName: string;
+  schoolId?: string;
+  academicYear?: string;
 }
 
 export interface OverallFeedbackPayload {
@@ -27,11 +29,13 @@ export interface OverallFeedbackPayload {
   domainScores: Record<string, number>;
   indicators_rated: number;
   indicators_total: number;
+  schoolId?: string;
 }
 
 export type FeedbackPayload = IndicatorFeedbackPayload | OverallFeedbackPayload;
 
 export interface IndicatorFeedbackResult {
+  feedbackId?: string | null;
   assessment: string;
   gap_analysis: string;
   recommendations: Array<{
@@ -45,6 +49,7 @@ export interface IndicatorFeedbackResult {
 }
 
 export interface OverallFeedbackResult {
+  feedbackId?: string | null;
   executive_summary: string;
   highest_risk_areas: string[];
   strengths_to_build_on: string[];
@@ -59,17 +64,8 @@ export interface OverallFeedbackResult {
 
 export type FeedbackResult = IndicatorFeedbackResult | OverallFeedbackResult;
 
-// ─── Hook ────────────────────────────────────────────────────
+// ─── useAIFeedback ───────────────────────────────────────────
 
-/**
- * useAIFeedback
- *
- * Calls the `ai-feedback` Supabase Edge Function via
- * `supabase.functions.invoke()`. This method automatically
- * attaches the current user's JWT in the Authorization header,
- * fixing the 401 Unauthorized error that occurs when using
- * raw fetch() without manual token injection.
- */
 export function useAIFeedback() {
   return useMutation<FeedbackResult, Error, FeedbackPayload>({
     mutationFn: async (payload: FeedbackPayload) => {
@@ -79,7 +75,6 @@ export function useAIFeedback() {
       );
 
       if (error) {
-        // Surface the edge function error message if available
         throw new Error(
           (error as any).message ||
           (error as any).context?.message ||
@@ -87,16 +82,28 @@ export function useAIFeedback() {
         );
       }
 
-      if (!data) {
-        throw new Error('No response received from AI feedback function');
-      }
+      if (!data) throw new Error('No response received from AI feedback function');
 
       return data;
     },
   });
 }
 
-// ─── Typed helper to narrow result ───────────────────────────
+// ─── useAcceptFeedback ───────────────────────────────────────
+
+export function useAcceptFeedback() {
+  return useMutation<void, Error, string>({
+    mutationFn: async (feedbackId: string) => {
+      const { error } = await supabase
+        .from('ai_feedback')
+        .update({ accepted: true })
+        .eq('id', feedbackId);
+      if (error) throw new Error(error.message);
+    },
+  });
+}
+
+// ─── Typed helpers ───────────────────────────────────────────
 
 export function isIndicatorFeedback(
   result: FeedbackResult

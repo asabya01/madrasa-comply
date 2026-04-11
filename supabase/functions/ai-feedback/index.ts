@@ -7,44 +7,60 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const RATE_LIMIT = 20; // requests per 24 h per user
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    // 1. Extract JWT from Authorization header
+    // 1. Verify JWT
     const authHeader = req.headers.get('Authorization');
     const token = authHeader?.replace('Bearer ', '');
-
     if (!token) {
       return new Response(JSON.stringify({ error: 'Missing authorization token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // 2. Create Supabase client using the user's token (validates JWT via Supabase Auth)
-    const supabase = createClient(
+    const userClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_ANON_KEY')!,
       { global: { headers: { Authorization: `Bearer ${token}` } } }
     );
 
-    // 3. Confirm the token is valid — getUser() will fail if JWT is expired/invalid
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const { data: { user }, error: authError } = await userClient.auth.getUser(token);
     if (authError || !user) {
-      console.error('[ai-feedback] Auth error:', authError?.message);
       return new Response(JSON.stringify({ error: 'Invalid or expired token' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('[ai-feedback] Authenticated user:', user.id);
+    // Service-role client for rate-limit check + DB writes
+    const serviceClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
 
-    // 4. Build the prompt
+    // 2. Rate limit — max RATE_LIMIT requests per rolling 24 h (FR-AI-04)
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count, error: countErr } = await serviceClient
+      .from('ai_feedback')
+      .select('id', { count: 'exact', head: true })
+      .eq('created_by', user.id)
+      .gte('generated_at', since);
+
+    if (countErr) console.error('[ai-feedback] rate-limit count error:', countErr.message);
+
+    if ((count ?? 0) >= RATE_LIMIT) {
+      return new Response(
+        JSON.stringify({ error: `Daily AI feedback limit reached (${RATE_LIMIT}/day). Try again tomorrow.` }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // 3. Build the prompt
     const body = await req.json();
     const { scope } = body;
-
     let prompt = '';
 
     if (scope === 'indicator') {
@@ -116,14 +132,12 @@ Provide a JSON response:
 
     if (!prompt) {
       return new Response(JSON.stringify({ error: `Unknown scope: ${scope}` }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // 5. Call Anthropic Claude
+    // 4. Call Anthropic
     const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
-
     const response = await anthropic.messages.create({
       model: 'claude-3-5-sonnet-20241022',
       max_tokens: 1500,
@@ -134,15 +148,34 @@ Provide a JSON response:
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     const feedback = jsonMatch ? JSON.parse(jsonMatch[0]) : { error: 'Parse failed', raw: content };
 
-    return new Response(JSON.stringify(feedback), {
+    // 5. Persist to ai_feedback (non-blocking — don't fail the request if this errors)
+    const schoolId = body.schoolId ?? null;
+    const academicYear = body.academicYear ?? null;
+    const indicatorId = scope === 'indicator' ? (body.indicatorId ?? null) : null;
+
+    const { data: inserted } = await serviceClient
+      .from('ai_feedback')
+      .insert({
+        school_id: schoolId,
+        feedback_scope: scope,
+        scope_id: indicatorId,
+        academic_year: academicYear,
+        prompt_text: prompt,
+        response_text: content,
+        accepted: false,
+        created_by: user.id,
+      })
+      .select('id')
+      .single();
+
+    return new Response(JSON.stringify({ ...feedback, feedbackId: inserted?.id ?? null }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
     console.error('[ai-feedback] Unhandled error:', error);
     return new Response(JSON.stringify({ error: String(error) }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });

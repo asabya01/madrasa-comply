@@ -10,6 +10,7 @@ import { ActionItemsWidget } from '../components/dashboard/ActionItemsWidget';
 import { ComplianceTrend } from '../components/dashboard/ComplianceTrend';
 import { DomainProgressBar } from '../components/dashboard/DomainProgressBar';
 import { JudgementBadge } from '../components/ui/judgement-badge';
+import { PreReviewChecklist } from '../components/PreReviewChecklist';
 import { useJudgements } from '../hooks/useJudgements';
 import { useSchoolStore } from '../stores/schoolStore';
 import { usePermissions } from '../hooks/usePermissions';
@@ -228,7 +229,7 @@ function StaffPerformanceOverview({ schoolId, subjectFilter }: { schoolId: strin
 export function DashboardPage() {
   const { school, profile } = useSchoolStore();
   const { judgements, isLoading } = useJudgements();
-  const { isSchoolAdmin, isHOD } = usePermissions();
+  const { isSchoolAdmin, isSuperAdmin, isHOD } = usePermissions();
 
   // All hooks must be declared before any early return (Rules of Hooks)
   const { data: evidenceCount } = useQuery({
@@ -353,6 +354,9 @@ export function DashboardPage() {
           <DomainProgressBar domainJudgements={(judgements?.domains || {}) as Record<string, JudgementLevel>} />
         </CardContent>
       </Card>
+
+      {/* Pre-Review Readiness Checklist — school admin + super admin only */}
+      {(isSchoolAdmin || isSuperAdmin) && <PreReviewChecklist />}
 
       {/* Charts row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

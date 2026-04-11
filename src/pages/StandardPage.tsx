@@ -196,6 +196,11 @@ function IndicatorRatingCard({
             evidenceCount={evidenceFiles?.length || 0}
             domainName={domainName}
             standardName={standardName}
+            onAppendToNarrative={(text) => {
+              const updated = improvements ? `${improvements}\n${text}` : text;
+              setImprovements(updated);
+              scheduleTextSave(rating, strengths, updated);
+            }}
           />
         )}
       </CardContent>

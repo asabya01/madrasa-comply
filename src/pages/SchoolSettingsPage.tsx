@@ -91,6 +91,7 @@ export default function SchoolSettingsPage() {
     vision_statement: '',
     mission_statement: '',
   });
+  const [socialUrls, setSocialUrls] = useState<string[]>(['']);
 
   useEffect(() => {
     if (school) {
@@ -107,6 +108,8 @@ export default function SchoolSettingsPage() {
         vision_statement:      school.vision_statement || '',
         mission_statement:     school.mission_statement || '',
       });
+      const urls = (school as any).social_media_urls as string[] | null;
+      setSocialUrls(Array.isArray(urls) && urls.length > 0 ? urls : ['']);
     }
   }, [school?.id]);
 
@@ -114,9 +117,10 @@ export default function SchoolSettingsPage() {
     if (!school?.id) return;
     setSaving(true);
     setError(null);
+    const cleanedUrls = socialUrls.filter(u => u.trim().length > 0);
     const { data, error } = await supabase
       .from('schools')
-      .update(form)
+      .update({ ...form, social_media_urls: cleanedUrls.length > 0 ? cleanedUrls : null })
       .eq('id', school.id)
       .select()
       .single();
@@ -285,6 +289,47 @@ export default function SchoolSettingsPage() {
                 placeholder="The school's mission..."
               />
             </Field>
+
+            {/* Social media URLs (FR-GOV-04) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Official Social Media Accounts
+                <span className="ml-1 text-xs text-gray-400 font-normal">(required by OAAAQA review team)</span>
+              </label>
+              <div className="space-y-2">
+                {socialUrls.map((url, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      type="url"
+                      value={url}
+                      onChange={e => {
+                        const updated = [...socialUrls];
+                        updated[i] = e.target.value;
+                        setSocialUrls(updated);
+                      }}
+                      placeholder="https://twitter.com/school or https://instagram.com/school"
+                      className={`${inputCls} flex-1`}
+                    />
+                    {socialUrls.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => setSocialUrls(socialUrls.filter((_, idx) => idx !== i))}
+                        className="text-xs text-red-500 hover:text-red-700 px-2 py-1 shrink-0"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => setSocialUrls([...socialUrls, ''])}
+                  className="text-xs text-[#01696f] hover:underline font-medium"
+                >
+                  + Add another account
+                </button>
+              </div>
+            </div>
 
             <div className="flex justify-end pt-2">
               <button
