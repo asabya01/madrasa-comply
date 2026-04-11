@@ -22,6 +22,7 @@ import SettingsPage from './pages/SettingsPage';
 import IndicatorsPage from './pages/IndicatorsPage';
 import TeacherSelfAssessmentPage from './pages/TeacherSelfAssessmentPage';
 import ClassroomObservationsPage from './pages/ClassroomObservationsPage';
+import JudgementsPage from './pages/JudgementsPage';
 import { useSchool } from './hooks/useSchool';
 import { useSchoolStore } from './stores/schoolStore';
 import type { Session } from '@supabase/supabase-js';
@@ -111,6 +112,7 @@ function App() {
         <Route path="/indicators"       element={<IndicatorsPage />} />
         <Route path="/teacher-assessment"   element={<TeacherSelfAssessmentPage />} />
         <Route path="/observations"         element={<ClassroomObservationsPage />} />
+        <Route path="/judgements"        element={<JudgementsPage />} />
         <Route path="/improvement-plan" element={<ImprovementPlanPage />} />
         <Route path="/audit-prep"       element={<AuditPrepPage />} />
         <Route path="/reports"          element={<ReportsPage />} />

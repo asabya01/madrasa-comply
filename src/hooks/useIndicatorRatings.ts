@@ -90,6 +90,8 @@ export function useSaveRating() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['indicator-ratings'] });
       queryClient.invalidateQueries({ queryKey: ['all-ratings'] });
+      // Invalidate judgements so useJudgements recomputes and repersists
+      queryClient.invalidateQueries({ queryKey: ['all-ratings-judgements'] });
       showToast('Rating saved', 'success');
     },
     onError: (error: Error) => {
