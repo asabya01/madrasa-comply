@@ -8,6 +8,7 @@ import {
   calculateDomain4Judgement,
   calculateDomain5Judgement,
   calculateOverallJudgement,
+  ratingToPercent,
   type JudgementLevel,
   type DomainResult,
   type OverallResult,
@@ -174,6 +175,42 @@ export function useJudgements() {
           .upsert(standardRows, { onConflict: 'school_id,academic_year,standard_id' });
         if (stdErr) throw stdErr;
       }
+
+      // kpi_snapshots: one row per school per day — drives the ComplianceTrend chart
+      const today = new Date().toISOString().split('T')[0];
+      const [evidenceRes, actionsRes] = await Promise.all([
+        supabase.from('evidence_files').select('id', { count: 'exact', head: true }).eq('school_id', school.id),
+        supabase.from('action_items').select('status').eq('school_id', school.id),
+      ]);
+      const evidenceCount  = evidenceRes.count ?? 0;
+      const allActions     = (actionsRes.data ?? []) as Array<{ status: string }>;
+      const actionsCompleted = allActions.filter(a => a.status === 'completed').length;
+      const domainScores     = Object.fromEntries(
+        payload.domainResults.map((d, i) => [String(i + 1), ratingToPercent(d.judgement)])
+      );
+      const domainJudgementsObj = Object.fromEntries(
+        payload.domainResults.map((d, i) => [String(i + 1), d.judgement])
+      );
+      // overall_score: NUMERIC(3,2) stored as 0–1 fraction
+      const overallScore = parseFloat((ratingToPercent(payload.overallResult.judgement) / 100).toFixed(2));
+
+      await supabase.from('kpi_snapshots').upsert(
+        {
+          school_id:        school.id,
+          snapshot_date:    today,
+          academic_year:    academicYear,
+          domain_scores:    domainScores,
+          domain_judgements: domainJudgementsObj,
+          overall_score:    overallScore,
+          overall_judgement: String(payload.overallResult.judgement),
+          indicators_rated:  payload.ratedCount,
+          indicators_total:  payload.totalCount,
+          evidence_count:    evidenceCount,
+          actions_completed: actionsCompleted,
+          actions_total:     allActions.length,
+        },
+        { onConflict: 'school_id,snapshot_date' }
+      );
     },
     onSuccess: () => {
       // Invalidate any query that reads stored judgements from the DB

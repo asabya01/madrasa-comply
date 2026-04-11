@@ -22,6 +22,7 @@ import SchoolSettingsPage from './pages/SchoolSettingsPage';
 import SchoolUsersPage from './pages/SchoolUsersPage';
 import IndicatorsPage from './pages/IndicatorsPage';
 import TeacherSelfAssessmentPage from './pages/TeacherSelfAssessmentPage';
+import TeacherHomePage from './pages/TeacherHomePage';
 import ClassroomObservationsPage from './pages/ClassroomObservationsPage';
 import JudgementsPage from './pages/JudgementsPage';
 import PerformanceDataPage from './pages/PerformanceDataPage';
@@ -112,6 +113,7 @@ function App() {
         <Route path="/evidence"         element={<EvidencePage />} />
         <Route path="/self-evaluation"  element={<SelfEvaluationPage />} />
         <Route path="/indicators"       element={<IndicatorsPage />} />
+        <Route path="/teacher-home"          element={<TeacherHomePage />} />
         <Route path="/teacher-assessment"   element={<TeacherSelfAssessmentPage />} />
         <Route path="/observations"         element={<ClassroomObservationsPage />} />
         <Route path="/judgements"        element={<JudgementsPage />} />

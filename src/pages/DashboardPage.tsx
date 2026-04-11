@@ -37,11 +37,17 @@ interface TeacherStat {
   last_submission: string | null;
 }
 
-function useStaffPerformance(schoolId: string | undefined, enabled: boolean) {
+function useStaffPerformance(schoolId: string | undefined, enabled: boolean, subjectFilter?: string | null) {
   return useQuery({
-    queryKey: ['staff-performance', schoolId],
+    queryKey: ['staff-performance', schoolId, subjectFilter],
     queryFn: async () => {
       if (!schoolId) return [] as TeacherStat[];
+
+      let classesQuery = supabase
+        .from('classes')
+        .select('id, label, subject, teacher_id')
+        .eq('school_id', schoolId);
+      if (subjectFilter) classesQuery = classesQuery.eq('subject', subjectFilter);
 
       const [teachersRes, classesRes] = await Promise.all([
         supabase
@@ -50,10 +56,7 @@ function useStaffPerformance(schoolId: string | undefined, enabled: boolean) {
           .eq('school_id', schoolId)
           .eq('role', 'teacher')
           .eq('status', 'active'),
-        supabase
-          .from('classes')
-          .select('id, label, subject, teacher_id')
-          .eq('school_id', schoolId),
+        classesQuery,
       ]);
 
       const classes = (classesRes.data ?? []) as Array<{ id: string; label: string; subject: string; teacher_id: string | null }>;
@@ -115,8 +118,8 @@ function RatingPill({ rating }: { rating: number | null }) {
   );
 }
 
-function StaffPerformanceOverview({ schoolId }: { schoolId: string }) {
-  const { data: staff, isLoading } = useStaffPerformance(schoolId, true);
+function StaffPerformanceOverview({ schoolId, subjectFilter }: { schoolId: string; subjectFilter?: string | null }) {
+  const { data: staff, isLoading } = useStaffPerformance(schoolId, true, subjectFilter);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const [d3Indicators, setD3Indicators] = useState<Array<{ id: string; description_en: string }>>([]);
@@ -223,7 +226,7 @@ function StaffPerformanceOverview({ schoolId }: { schoolId: string }) {
 // ─── Page ─────────────────────────────────────────────────────
 
 export function DashboardPage() {
-  const { school } = useSchoolStore();
+  const { school, profile } = useSchoolStore();
   const { judgements, isLoading } = useJudgements();
   const { isSchoolAdmin, isHOD } = usePermissions();
 
@@ -427,7 +430,10 @@ export function DashboardPage() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-semibold font-sans">Staff Performance Overview</CardTitle>
-              <span className="text-xs text-gray-400">Domain 3 — Teaching & Assessment</span>
+              <span className="text-xs text-gray-400">
+                Domain 3 — Teaching & Assessment
+                {isHOD && profile?.department ? ` · ${profile.department}` : ''}
+              </span>
             </div>
             {/* Column headers */}
             <div className="flex items-center gap-3 px-5 pt-2 text-xs font-medium text-gray-400">
@@ -438,7 +444,10 @@ export function DashboardPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <StaffPerformanceOverview schoolId={school.id} />
+            <StaffPerformanceOverview
+              schoolId={school.id}
+              subjectFilter={isHOD && !isSchoolAdmin ? profile?.department : null}
+            />
           </CardContent>
         </Card>
       )}

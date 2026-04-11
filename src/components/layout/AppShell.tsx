@@ -1,13 +1,14 @@
 import { useEffect } from 'react';
 import { Outlet, useLocation, useNavigate, Navigate } from 'react-router-dom';
+import { Eye, X } from 'lucide-react';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { useSchool } from '../../hooks/useSchool';
 import { useSchoolStore } from '../../stores/schoolStore';
-import { Eye, X } from 'lucide-react';
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard':        'Dashboard',
+  '/teacher-home':     'Home',
   '/domains':          'Domains & Standards',
   '/evidence':         'Evidence Library',
   '/self-evaluation':  'Self-Evaluation Document',
@@ -38,14 +39,20 @@ export function AppShell() {
   const location  = useLocation();
   const navigate  = useNavigate();
   const { isLoading, school, profile, error, needsOnboarding } = useSchool();
-  const { impersonating, exitImpersonation } = useSchoolStore();
+  const { impersonating, exitImpersonation, userRole } = useSchoolStore();
 
   useEffect(() => {
     if (needsOnboarding) {
-      console.log('[AppShell] No active school membership — redirecting to onboarding');
       navigate('/onboarding', { replace: true });
     }
   }, [needsOnboarding, navigate]);
+
+  // Teachers always land on their personalised homepage, not the admin dashboard
+  useEffect(() => {
+    if (!isLoading && userRole === 'teacher' && location.pathname === '/dashboard') {
+      navigate('/teacher-home', { replace: true });
+    }
+  }, [isLoading, userRole, location.pathname, navigate]);
 
   // 1. Queries still in flight
   if (isLoading) return <Spinner />;

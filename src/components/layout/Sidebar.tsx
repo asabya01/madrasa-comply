@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, BookOpen, FileText, FolderOpen, ClipboardList,
   CheckSquare, BarChart3, Settings, LogOut, Shield, ShieldAlert,
-  ChevronDown, Building2, ClipboardCheck, Award, TrendingUp, Users,
+  ChevronDown, Building2, ClipboardCheck, Award, TrendingUp, Users, Home,
 } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -20,18 +20,22 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/dashboard',        icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/domains',          icon: BookOpen,         label: 'Domains & Standards', roles: ['hod', 'school_admin', 'super_admin'] },
-  { to: '/self-evaluation',  icon: FileText,         label: 'Self-Evaluation' },
-  { to: '/observations',     icon: ClipboardCheck,   label: 'Observations',         roles: ['hod', 'school_admin', 'super_admin'] },
-  { to: '/judgements',       icon: Award,            label: 'Judgements',           roles: ['hod', 'school_admin', 'super_admin'] },
-  { to: '/performance-data', icon: TrendingUp,       label: 'Performance Data',     roles: ['school_admin', 'super_admin'] },
-  { to: '/evidence',         icon: FolderOpen,       label: 'Evidence Library',     roles: ['hod', 'school_admin', 'super_admin'] },
-  { to: '/improvement-plan', icon: ClipboardList,    label: 'Improvement Plan',     roles: ['hod', 'school_admin', 'super_admin'] },
-  { to: '/audit-prep',       icon: CheckSquare,      label: 'Audit Preparation',    roles: ['school_admin', 'super_admin'] },
-  { to: '/reports',          icon: BarChart3,        label: 'Reports',              roles: ['hod', 'school_admin', 'super_admin'] },
-  { to: '/settings',         icon: Settings,         label: 'Settings',             roles: ['school_admin', 'super_admin'] },
-  { to: '/school-users',     icon: Users,            label: 'School Users',         roles: ['hod', 'school_admin', 'super_admin'] },
+  // Teacher-specific nav
+  { to: '/teacher-home',       icon: Home,            label: 'Home',                 roles: ['teacher'] },
+  { to: '/teacher-assessment', icon: ClipboardCheck,  label: 'Self-Assessment',      roles: ['teacher'] },
+  // Admin / HOD nav
+  { to: '/dashboard',          icon: LayoutDashboard, label: 'Dashboard',            roles: ['hod', 'school_admin', 'super_admin'] },
+  { to: '/domains',            icon: BookOpen,        label: 'Domains & Standards',  roles: ['hod', 'school_admin', 'super_admin'] },
+  { to: '/self-evaluation',    icon: FileText,        label: 'Self-Evaluation',      roles: ['hod', 'school_admin', 'super_admin'] },
+  { to: '/observations',       icon: ClipboardCheck,  label: 'Observations',         roles: ['hod', 'school_admin', 'super_admin'] },
+  { to: '/judgements',         icon: Award,           label: 'Judgements',           roles: ['hod', 'school_admin', 'super_admin'] },
+  { to: '/performance-data',   icon: TrendingUp,      label: 'Performance Data',     roles: ['school_admin', 'super_admin'] },
+  { to: '/evidence',           icon: FolderOpen,      label: 'Evidence Library',     roles: ['hod', 'school_admin', 'super_admin'] },
+  { to: '/improvement-plan',   icon: ClipboardList,   label: 'Improvement Plan',     roles: ['hod', 'school_admin', 'super_admin'] },
+  { to: '/audit-prep',         icon: CheckSquare,     label: 'Audit Preparation',    roles: ['school_admin', 'super_admin'] },
+  { to: '/reports',            icon: BarChart3,       label: 'Reports',              roles: ['hod', 'school_admin', 'super_admin'] },
+  { to: '/settings',           icon: Settings,        label: 'Settings',             roles: ['school_admin', 'super_admin'] },
+  { to: '/school-users',       icon: Users,           label: 'School Users',         roles: ['hod', 'school_admin', 'super_admin'] },
 ];
 
 export function Sidebar() {

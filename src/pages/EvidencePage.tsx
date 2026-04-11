@@ -1,10 +1,10 @@
 import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { FolderOpen, Search, Upload, FileText, Image, Table, File, Trash2 } from 'lucide-react';
+import { FolderOpen, Search, Upload, FileText, Image, Table, File, Trash2, Link2, X, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent } from '../components/ui/card';
 import { Input } from '../components/ui/input';
-import { useEvidence, useUploadEvidence } from '../hooks/useEvidence';
+import { useEvidence, useUploadEvidence, useLinkEvidence, useEvidenceLinks } from '../hooks/useEvidence';
 import { useSchoolStore } from '../stores/schoolStore';
 import { formatDate } from '../lib/utils';
 import type { EvidenceFile } from '../types';
@@ -16,6 +16,151 @@ const FILE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   spreadsheet: Table,
   other: File,
 };
+
+// ─── Link-to-indicator modal ──────────────────────────────────
+
+interface LinkModalProps {
+  file: EvidenceFile;
+  onClose: () => void;
+}
+
+function useFramework() {
+  return useQuery({
+    queryKey: ['framework-tree'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('indicators')
+        .select('id, description_en, standard_id, domain_id')
+        .order('id');
+      if (error) throw error;
+      const all = data as Array<{ id: string; description_en: string; standard_id: string; domain_id: string }>;
+      const domainMap: Record<string, Record<string, typeof all>> = {};
+      for (const ind of all) {
+        (domainMap[ind.domain_id] ??= {})[ind.standard_id] ??= [];
+        domainMap[ind.domain_id][ind.standard_id].push(ind);
+      }
+      return domainMap;
+    },
+    staleTime: 1000 * 60 * 60,
+  });
+}
+
+const DOMAIN_NAMES: Record<string, string> = {
+  '1': 'Academic Achievement', '2': 'Personal Development',
+  '3': 'Teaching & Assessment', '4': 'School Climate', '5': 'Leadership & Governance',
+};
+
+function LinkIndicatorModal({ file, onClose }: LinkModalProps) {
+  const { data: tree, isLoading } = useFramework();
+  const linkEvidence = useLinkEvidence();
+  const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
+  const [selectedStandard, setSelectedStandard] = useState<string | null>(null);
+
+  async function handleLink(indicatorId: string) {
+    if (!selectedDomain || !selectedStandard) return;
+    await linkEvidence.mutateAsync({
+      evidenceFileId: file.id,
+      indicatorId,
+      standardId: selectedStandard,
+      domainId: selectedDomain,
+    });
+    onClose();
+  }
+
+  const standards = selectedDomain ? Object.keys(tree?.[selectedDomain] ?? {}).sort() : [];
+  const indicators = selectedDomain && selectedStandard ? (tree?.[selectedDomain]?.[selectedStandard] ?? []) : [];
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Link to Indicator</p>
+            <p className="text-xs text-gray-400 truncate max-w-xs mt-0.5">{file.file_name}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-4">
+          {isLoading ? (
+            <p className="text-sm text-gray-400 text-center py-8">Loading framework…</p>
+          ) : (
+            <>
+              {/* Step 1: Domain */}
+              <div>
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">1. Select Domain</p>
+                <div className="grid grid-cols-5 gap-1.5">
+                  {['1', '2', '3', '4', '5'].map(d => (
+                    <button
+                      key={d}
+                      onClick={() => { setSelectedDomain(d); setSelectedStandard(null); }}
+                      className={`p-2 rounded-lg border text-xs font-medium transition-colors text-center ${
+                        selectedDomain === d
+                          ? 'bg-[#01696f] text-white border-[#01696f]'
+                          : 'border-gray-200 text-gray-600 hover:border-[#01696f] hover:text-[#01696f]'
+                      }`}
+                    >
+                      <span className="block text-base font-bold">{d}</span>
+                      <span className="block leading-tight mt-0.5" style={{ fontSize: '9px' }}>
+                        {DOMAIN_NAMES[d].split(' ')[0]}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Step 2: Standard */}
+              {selectedDomain && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">2. Select Standard</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {standards.map(s => (
+                      <button
+                        key={s}
+                        onClick={() => setSelectedStandard(s)}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-medium transition-colors ${
+                          selectedStandard === s
+                            ? 'bg-[#01696f] text-white border-[#01696f]'
+                            : 'border-gray-200 text-gray-600 hover:border-[#01696f] hover:text-[#01696f]'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: Indicator */}
+              {selectedStandard && indicators.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">3. Select Indicator</p>
+                  <div className="space-y-1">
+                    {indicators.map(ind => (
+                      <button
+                        key={ind.id}
+                        onClick={() => handleLink(ind.id)}
+                        disabled={linkEvidence.isPending}
+                        className="w-full flex items-start gap-3 px-3 py-2.5 rounded-lg border border-gray-200 hover:border-[#01696f] hover:bg-[#01696f]/5 transition-colors text-left group"
+                      >
+                        <span className="shrink-0 text-xs font-mono font-bold text-gray-400 pt-0.5">{ind.id}</span>
+                        <span className="flex-1 text-xs text-gray-600 leading-snug">{ind.description_en}</span>
+                        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-gray-300 group-hover:text-[#01696f] mt-0.5 transition-colors" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function CoverageWidget() {
   const { school } = useSchoolStore();
@@ -69,8 +214,16 @@ function CoverageWidget() {
 export function EvidencePage() {
   const [search, setSearch] = useState('');
   const [dragOver, setDragOver] = useState(false);
+  const [linkingFile, setLinkingFile] = useState<EvidenceFile | null>(null);
   const { data: evidenceFiles, isLoading } = useEvidence();
+  const { data: allLinks } = useEvidenceLinks();
   const uploadEvidence = useUploadEvidence();
+
+  // Build a map: evidenceFileId → linked indicator count
+  const linkCountByFile: Record<string, number> = {};
+  for (const l of allLinks ?? []) {
+    linkCountByFile[l.evidence_file_id] = (linkCountByFile[l.evidence_file_id] ?? 0) + 1;
+  }
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
     e.preventDefault();
@@ -152,6 +305,7 @@ export function EvidencePage() {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
             {filtered.map((file) => {
               const Icon = FILE_ICONS[file.file_type || 'other'] || File;
+              const linkedCount = linkCountByFile[file.id] ?? 0;
               return (
                 <Card key={file.id} className="group hover:border-[#01696f] transition-colors">
                   <CardContent className="p-4">
@@ -177,6 +331,14 @@ export function EvidencePage() {
                         {(file.file_size_bytes / 1024).toFixed(0)} KB
                       </p>
                     )}
+                    {/* Link indicator button */}
+                    <button
+                      onClick={() => setLinkingFile(file)}
+                      className="mt-2 flex items-center gap-1 text-xs text-[#01696f] hover:underline"
+                    >
+                      <Link2 className="h-3 w-3" />
+                      {linkedCount > 0 ? `${linkedCount} indicator${linkedCount > 1 ? 's' : ''} linked` : 'Link to indicator'}
+                    </button>
                   </CardContent>
                 </Card>
               );
@@ -194,6 +356,11 @@ export function EvidencePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Link-to-indicator modal */}
+      {linkingFile && (
+        <LinkIndicatorModal file={linkingFile} onClose={() => setLinkingFile(null)} />
+      )}
     </div>
   );
 }
