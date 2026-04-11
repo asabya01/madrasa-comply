@@ -15,6 +15,7 @@ import { DomainDetailPage } from './pages/DomainDetailPage';
 import { StandardPage } from './pages/StandardPage';
 import { EvidencePage } from './pages/EvidencePage';
 import SelfEvaluationPage from './pages/SelfEvaluationPage';
+import SEDPage from './pages/SEDPage';
 import ImprovementPlanPage from './pages/ImprovementPlanPage';
 import { AuditPrepPage } from './pages/AuditPrepPage';
 import { ReportsPage } from './pages/ReportsPage';
@@ -111,7 +112,8 @@ function App() {
         <Route path="/domains/:domainId" element={<DomainDetailPage />} />
         <Route path="/domains/:domainId/:standardId" element={<StandardPage />} />
         <Route path="/evidence"         element={<EvidencePage />} />
-        <Route path="/self-evaluation"  element={<SelfEvaluationPage />} />
+        <Route path="/self-evaluation"          element={<SelfEvaluationPage />} />
+        <Route path="/self-evaluation-document" element={<SEDPage />} />
         <Route path="/indicators"       element={<IndicatorsPage />} />
         <Route path="/teacher-home"          element={<TeacherHomePage />} />
         <Route path="/teacher-assessment"   element={<TeacherSelfAssessmentPage />} />
