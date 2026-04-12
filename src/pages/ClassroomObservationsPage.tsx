@@ -1,6 +1,6 @@
-import { useState, useRef, useCallback, useMemo } from 'react';
+import { useState, useRef, useCallback, useMemo, Fragment } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { List, CalendarDays } from 'lucide-react';
+import { List, CalendarDays, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
 import { usePermissions } from '../hooks/usePermissions';
@@ -52,10 +52,15 @@ interface Observation {
   qualitative_notes: string | null;
   evidence_files: string[] | null;
   created_at: string;
-  // scheduling fields (added migration 038)
+  // scheduling fields (migration 038)
   scheduled_date: string | null;
-  assigned_observer: string | null;   // UUID referencing profiles
+  assigned_observer: string | null;
   obs_status: 'scheduled' | 'completed' | 'cancelled';
+  // coaching fields (migration 039)
+  coaching_notes: string | null;
+  teacher_response: string | null;
+  reobserve_date: string | null;
+  coaching_status: 'none' | 'feedback_given' | 'teacher_responded' | 'closed';
   // joined
   teacher:  { id: string; full_name: string | null } | null;
   observer: { id: string; full_name: string | null } | null;
@@ -67,7 +72,7 @@ interface ObsForm {
   class_id: string;
   observed_at: string;
   scheduled_date: string;
-  assigned_observer: string;          // UUID
+  assigned_observer: string;
   ratings: Record<string, number | null>;
   qualitative_notes: string;
   attachPaths: string[];
@@ -106,6 +111,20 @@ const OBS_STATUS_STYLES: Record<string, { bg: string; text: string; label: strin
   completed: { bg: 'bg-green-50', text: 'text-green-700', label: 'Completed' },
   cancelled: { bg: 'bg-red-50',   text: 'text-red-600',   label: 'Cancelled' },
 };
+
+const COACHING_STATUS_STYLES: Record<string, { bg: string; text: string; border: string; label: string }> = {
+  none:              { bg: 'bg-gray-50',   text: 'text-gray-500',   border: 'border-gray-200', label: 'No Feedback' },
+  feedback_given:    { bg: 'bg-blue-50',   text: 'text-blue-700',   border: 'border-blue-200', label: 'Awaiting Response' },
+  teacher_responded: { bg: 'bg-amber-50',  text: 'text-amber-700',  border: 'border-amber-200', label: 'Teacher Responded' },
+  closed:            { bg: 'bg-green-50',  text: 'text-green-700',  border: 'border-green-200', label: 'Closed' },
+};
+
+const COACHING_FILTER_CHIPS = [
+  { value: 'all',              label: 'All' },
+  { value: 'feedback_given',   label: 'Awaiting Feedback' },
+  { value: 'teacher_responded',label: 'Teacher Responded' },
+  { value: 'closed',           label: 'Closed' },
+];
 
 // ─── Queries ─────────────────────────────────────────────────
 
@@ -231,6 +250,8 @@ export default function ClassroomObservationsPage() {
   const [activeObs, setActiveObs] = useState<Observation | null>(null);
   const [form, setForm] = useState<ObsForm>(EMPTY_FORM);
   const [filterTeacher, setFilterTeacher] = useState<string>('all');
+  const [filterCoaching, setFilterCoaching] = useState<string>('all');
+  const [expandedCoachingId, setExpandedCoachingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [attachUploading, setAttachUploading] = useState(false);
   const attachInputRef = useRef<HTMLInputElement>(null);
@@ -318,7 +339,6 @@ export default function ClassroomObservationsPage() {
       if (v != null) cleanRatings[k] = v;
     }
 
-    // Auto-determine status: if ratings filled → completed, else scheduled (or default completed)
     const obs_status: 'scheduled' | 'completed' =
       ratedCount(cleanRatings) > 0 ? 'completed' : 'scheduled';
 
@@ -395,9 +415,12 @@ export default function ClassroomObservationsPage() {
   }
 
   // ── Filtered list ────────────────────────────────────────────
-  const filtered = filterTeacher === 'all'
-    ? observations
-    : observations.filter(o => o.teacher_id === filterTeacher);
+  const filtered = observations
+    .filter(o => filterTeacher === 'all' || o.teacher_id === filterTeacher)
+    .filter(o => {
+      if (filterCoaching === 'all') return true;
+      return (o.coaching_status ?? 'none') === filterCoaching;
+    });
 
   const totalD3 = framework?.indicators.length ?? 0;
 
@@ -452,25 +475,46 @@ export default function ClassroomObservationsPage() {
       {viewMode === 'list' ? (
         <>
           {/* ── Filter bar ── */}
-          <div className="px-8 pt-5 flex items-center gap-3">
-            <label className="text-xs font-medium text-gray-500">Filter by teacher:</label>
-            <select
-              value={filterTeacher}
-              onChange={e => setFilterTeacher(e.target.value)}
-              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#01696f]"
-            >
-              <option value="all">All teachers</option>
-              {teachers.map(t => (
-                <option key={t.user_id} value={t.user_id}>
-                  {t.full_name ?? t.email ?? t.user_id}
-                </option>
+          <div className="px-8 pt-5 space-y-3">
+            {/* Teacher filter */}
+            <div className="flex items-center gap-3">
+              <label className="text-xs font-medium text-gray-500">Filter by teacher:</label>
+              <select
+                value={filterTeacher}
+                onChange={e => setFilterTeacher(e.target.value)}
+                className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#01696f]"
+              >
+                <option value="all">All teachers</option>
+                {teachers.map(t => (
+                  <option key={t.user_id} value={t.user_id}>
+                    {t.full_name ?? t.email ?? t.user_id}
+                  </option>
+                ))}
+              </select>
+              {filterTeacher !== 'all' && (
+                <button onClick={() => setFilterTeacher('all')} className="text-xs text-gray-400 hover:text-gray-600">
+                  ✕ Clear
+                </button>
+              )}
+            </div>
+
+            {/* Coaching status filter chips */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-gray-500 mr-1">Coaching:</span>
+              {COACHING_FILTER_CHIPS.map(chip => (
+                <button
+                  key={chip.value}
+                  onClick={() => setFilterCoaching(chip.value)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                    filterCoaching === chip.value
+                      ? 'bg-[#01696f] text-white border-[#01696f]'
+                      : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  {chip.label}
+                </button>
               ))}
-            </select>
-            {filterTeacher !== 'all' && (
-              <button onClick={() => setFilterTeacher('all')} className="text-xs text-gray-400 hover:text-gray-600">
-                ✕ Clear
-              </button>
-            )}
+            </div>
           </div>
 
           {/* ── Observations list ── */}
@@ -488,10 +532,10 @@ export default function ClassroomObservationsPage() {
                       <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Teacher</th>
                       <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Class</th>
                       <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Status</th>
+                      <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Coaching</th>
                       <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Indicators</th>
                       <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Avg Rating</th>
                       <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Observer</th>
-                      <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Notes</th>
                       <th className="px-5 py-3" />
                     </tr>
                   </thead>
@@ -500,71 +544,101 @@ export default function ClassroomObservationsPage() {
                       const rated  = Object.values(obs.domain3_ratings ?? {}).filter(v => v != null).length;
                       const avg    = avgRating(obs.domain3_ratings ?? {});
                       const avgNum = parseFloat(avg);
-                      const statusStyle = OBS_STATUS_STYLES[obs.obs_status ?? 'completed'];
+                      const statusStyle   = OBS_STATUS_STYLES[obs.obs_status ?? 'completed'];
+                      const coachStyle    = COACHING_STATUS_STYLES[obs.coaching_status ?? 'none'];
+                      const isExpanded    = expandedCoachingId === obs.id;
+                      const showCoaching  = obs.obs_status === 'completed';
                       return (
-                        <tr key={obs.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => openView(obs)}>
-                          <td className="px-5 py-3 whitespace-nowrap text-gray-700 font-medium">
-                            {obs.scheduled_date
-                              ? <><span className="text-blue-600">{obs.scheduled_date}</span><br/><span className="text-[10px] text-gray-400">scheduled</span></>
-                              : formatDate(obs.observed_at)
-                            }
-                          </td>
-                          <td className="px-5 py-3 text-gray-700">
-                            {obs.teacher?.full_name ?? '—'}
-                          </td>
-                          <td className="px-5 py-3 text-gray-500">
-                            {obs.class ? `${obs.class.label} · ${obs.class.subject}` : '—'}
-                          </td>
-                          <td className="px-5 py-3">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${statusStyle.bg} ${statusStyle.text}`}>
-                              {statusStyle.label}
-                            </span>
-                          </td>
-                          <td className="px-5 py-3">
-                            <span className="text-xs text-gray-500">{rated}/{totalD3}</span>
-                            <div className="mt-1 h-1.5 w-20 bg-gray-100 rounded-full overflow-hidden">
-                              <div
-                                className="h-full rounded-full"
-                                style={{
-                                  width: `${totalD3 ? (rated / totalD3) * 100 : 0}%`,
-                                  backgroundColor: totalD3 && rated / totalD3 >= 0.8 ? '#437a22' : '#d19900',
-                                }}
-                              />
-                            </div>
-                          </td>
-                          <td className="px-5 py-3">
-                            {!isNaN(avgNum) ? (
-                              <span
-                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold text-white"
-                                style={{ backgroundColor: JUDGEMENT_COLORS[Math.round(avgNum) as JudgementLevel] }}
-                              >
-                                {avg}
+                        <Fragment key={obs.id}>
+                          <tr
+                            className="hover:bg-gray-50 cursor-pointer"
+                            onClick={() => openView(obs)}
+                          >
+                            <td className="px-5 py-3 whitespace-nowrap text-gray-700 font-medium">
+                              {obs.scheduled_date
+                                ? <><span className="text-blue-600">{obs.scheduled_date}</span><br/><span className="text-[10px] text-gray-400">scheduled</span></>
+                                : formatDate(obs.observed_at)
+                              }
+                            </td>
+                            <td className="px-5 py-3 text-gray-700">
+                              {obs.teacher?.full_name ?? '—'}
+                            </td>
+                            <td className="px-5 py-3 text-gray-500">
+                              {obs.class ? `${obs.class.label} · ${obs.class.subject}` : '—'}
+                            </td>
+                            <td className="px-5 py-3">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${statusStyle.bg} ${statusStyle.text}`}>
+                                {statusStyle.label}
                               </span>
-                            ) : (
-                              <span className="text-xs text-gray-400">—</span>
-                            )}
-                          </td>
-                          <td className="px-5 py-3 text-gray-500 text-xs">
-                            {obs.observer?.full_name ?? '—'}
-                          </td>
-                          <td className="px-5 py-3 max-w-xs">
-                            {obs.qualitative_notes ? (
-                              <p className="text-xs text-gray-500 line-clamp-2">{obs.qualitative_notes}</p>
-                            ) : (
-                              <span className="text-xs text-gray-300">—</span>
-                            )}
-                          </td>
-                          <td className="px-5 py-3" onClick={e => e.stopPropagation()}>
-                            <div className="flex items-center gap-2">
-                              <button onClick={() => openEdit(obs)} className="text-xs text-[#01696f] hover:underline">
-                                Edit
-                              </button>
-                              <button onClick={() => handleDelete(obs)} className="text-xs text-red-400 hover:text-red-600 hover:underline">
-                                Delete
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                            </td>
+                            <td className="px-5 py-3">
+                              {showCoaching ? (
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${coachStyle.bg} ${coachStyle.text} ${coachStyle.border}`}>
+                                  {coachStyle.label}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-300">—</span>
+                              )}
+                            </td>
+                            <td className="px-5 py-3">
+                              <span className="text-xs text-gray-500">{rated}/{totalD3}</span>
+                              <div className="mt-1 h-1.5 w-20 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full rounded-full"
+                                  style={{
+                                    width: `${totalD3 ? (rated / totalD3) * 100 : 0}%`,
+                                    backgroundColor: totalD3 && rated / totalD3 >= 0.8 ? '#437a22' : '#d19900',
+                                  }}
+                                />
+                              </div>
+                            </td>
+                            <td className="px-5 py-3">
+                              {!isNaN(avgNum) ? (
+                                <span
+                                  className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold text-white"
+                                  style={{ backgroundColor: JUDGEMENT_COLORS[Math.round(avgNum) as JudgementLevel] }}
+                                >
+                                  {avg}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-400">—</span>
+                              )}
+                            </td>
+                            <td className="px-5 py-3 text-gray-500 text-xs">
+                              {obs.observer?.full_name ?? '—'}
+                            </td>
+                            <td className="px-5 py-3" onClick={e => e.stopPropagation()}>
+                              <div className="flex items-center gap-2">
+                                {showCoaching && (
+                                  <button
+                                    onClick={() => setExpandedCoachingId(isExpanded ? null : obs.id)}
+                                    className="text-xs text-amber-600 hover:text-amber-800 flex items-center gap-0.5"
+                                    title="Open coaching panel"
+                                  >
+                                    Coaching
+                                    {isExpanded
+                                      ? <ChevronUp className="h-3 w-3" />
+                                      : <ChevronDown className="h-3 w-3" />
+                                    }
+                                  </button>
+                                )}
+                                <button onClick={() => openEdit(obs)} className="text-xs text-[#01696f] hover:underline">
+                                  Edit
+                                </button>
+                                <button onClick={() => handleDelete(obs)} className="text-xs text-red-400 hover:text-red-600 hover:underline">
+                                  Delete
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          {isExpanded && showCoaching && (
+                            <CoachingPanel
+                              obs={obs}
+                              profileId={profile?.id ?? null}
+                              schoolId={school?.id ?? ''}
+                            />
+                          )}
+                        </Fragment>
                       );
                     })}
                   </tbody>
@@ -628,6 +702,137 @@ export default function ClassroomObservationsPage() {
         </Modal>
       )}
     </div>
+  );
+}
+
+// ─── Coaching Panel ───────────────────────────────────────────
+
+function CoachingPanel({
+  obs,
+  profileId,
+  schoolId,
+}: {
+  obs: Observation;
+  profileId: string | null;
+  schoolId: string;
+}) {
+  const queryClient = useQueryClient();
+  const { showToast } = useToast();
+
+  const [notes,         setNotes]         = useState(obs.coaching_notes ?? '');
+  const [response,      setResponse]      = useState(obs.teacher_response ?? '');
+  const [reobserveDate, setReobserveDate] = useState(obs.reobserve_date ?? '');
+  const [status,        setStatus]        = useState<string>(obs.coaching_status ?? 'none');
+  const [saving,        setSaving]        = useState(false);
+
+  const isTeacher = profileId === obs.teacher_id;
+
+  async function save() {
+    setSaving(true);
+    const patch: Record<string, string | null> = { coaching_status: status };
+    if (!isTeacher) {
+      patch.coaching_notes  = notes || null;
+      patch.reobserve_date  = reobserveDate || null;
+    } else {
+      patch.teacher_response = response || null;
+    }
+    const { error } = await supabase
+      .from('classroom_observations')
+      .update(patch)
+      .eq('id', obs.id);
+    setSaving(false);
+    if (error) { showToast(`Save failed: ${error.message}`, 'error'); return; }
+    showToast('Coaching saved', 'success');
+    queryClient.invalidateQueries({ queryKey: ['observations', schoolId] });
+  }
+
+  return (
+    <tr>
+      <td colSpan={9} className="px-5 pb-4 pt-0 bg-amber-50/20">
+        <div className="border border-amber-200 rounded-xl p-4 space-y-4 bg-white shadow-sm">
+          {/* Panel header */}
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+              Post-Observation Coaching
+            </p>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-500">Status:</label>
+              <select
+                value={status}
+                onChange={e => setStatus(e.target.value)}
+                className="border border-gray-200 rounded-lg px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-[#01696f]"
+              >
+                <option value="none">No Feedback</option>
+                <option value="feedback_given">Awaiting Response</option>
+                <option value="teacher_responded">Teacher Responded</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Notes + Response */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Observer Coaching Notes
+                {isTeacher && <span className="text-gray-400 font-normal ml-1">(read-only)</span>}
+              </label>
+              <textarea
+                value={notes}
+                onChange={e => setNotes(e.target.value)}
+                disabled={isTeacher}
+                rows={5}
+                placeholder="Post-observation coaching feedback for the teacher…"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#01696f] disabled:bg-gray-50 disabled:text-gray-500 placeholder-gray-300"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Teacher Response
+                {!isTeacher && <span className="text-gray-400 font-normal ml-1">(teacher only)</span>}
+              </label>
+              <textarea
+                value={response}
+                onChange={e => setResponse(e.target.value)}
+                disabled={!isTeacher}
+                rows={5}
+                placeholder="Teacher's reflection and response to the feedback…"
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#01696f] disabled:bg-gray-50 disabled:text-gray-500 placeholder-gray-300"
+              />
+            </div>
+          </div>
+
+          {/* Re-observe date + save */}
+          <div className="flex items-end gap-4">
+            {!isTeacher && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Re-Observe Date</label>
+                <input
+                  type="date"
+                  value={reobserveDate}
+                  onChange={e => setReobserveDate(e.target.value)}
+                  className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#01696f]"
+                />
+                {obs.reobserve_date && obs.reobserve_date !== reobserveDate && (
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    Current: {obs.reobserve_date}
+                  </p>
+                )}
+              </div>
+            )}
+            <div className="flex-1" />
+            <button
+              onClick={save}
+              disabled={saving}
+              className="px-4 py-2 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54] disabled:opacity-50 flex items-center gap-2"
+            >
+              {saving ? <InlineSpinner /> : null}
+              {isTeacher ? 'Save Response' : 'Save Coaching'}
+            </button>
+          </div>
+        </div>
+      </td>
+    </tr>
   );
 }
 
@@ -885,7 +1090,8 @@ function ObservationDetail({
   onDelete: () => void;
   onOpenPath: (path: string) => void;
 }) {
-  const statusStyle = OBS_STATUS_STYLES[obs.obs_status ?? 'completed'];
+  const statusStyle  = OBS_STATUS_STYLES[obs.obs_status ?? 'completed'];
+  const coachStyle   = COACHING_STATUS_STYLES[obs.coaching_status ?? 'none'];
   return (
     <div className="space-y-5">
       {/* Meta */}
@@ -908,7 +1114,41 @@ function ObservationDetail({
             {statusStyle.label}
           </span>
         </div>
+        {obs.obs_status === 'completed' && (
+          <div>
+            <p className="text-xs text-gray-400 mb-0.5">Coaching</p>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${coachStyle.bg} ${coachStyle.text} ${coachStyle.border}`}>
+              {coachStyle.label}
+            </span>
+          </div>
+        )}
+        {obs.reobserve_date && (
+          <MetaField label="Re-Observe Date" value={obs.reobserve_date} />
+        )}
       </div>
+
+      {/* Coaching notes + teacher response (if any) */}
+      {(obs.coaching_notes || obs.teacher_response) && (
+        <div className="border border-amber-200 rounded-xl p-4 space-y-3 bg-amber-50/30">
+          <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Coaching</p>
+          {obs.coaching_notes && (
+            <div>
+              <p className="text-xs text-gray-400 mb-1">Observer Notes</p>
+              <p className="text-sm text-gray-700 bg-white rounded-lg px-3 py-2.5 border border-amber-100 leading-relaxed whitespace-pre-wrap">
+                {obs.coaching_notes}
+              </p>
+            </div>
+          )}
+          {obs.teacher_response && (
+            <div>
+              <p className="text-xs text-gray-400 mb-1">Teacher Response</p>
+              <p className="text-sm text-gray-700 bg-white rounded-lg px-3 py-2.5 border border-amber-100 leading-relaxed whitespace-pre-wrap">
+                {obs.teacher_response}
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Domain 3 ratings */}
       {framework && Object.keys(obs.domain3_ratings ?? {}).length > 0 && (
@@ -1085,13 +1325,13 @@ function SkeletonTable() {
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden animate-pulse">
       <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex gap-6">
-        {[80, 100, 80, 60, 60, 60, 80, 120].map((w, i) => (
+        {[80, 100, 80, 60, 80, 60, 60, 80].map((w, i) => (
           <div key={i} className="h-3 bg-gray-200 rounded" style={{ width: w }} />
         ))}
       </div>
       {[1, 2, 3, 4].map(i => (
         <div key={i} className="px-5 py-4 border-b border-gray-100 flex gap-6">
-          {[80, 100, 80, 60, 60, 60, 80, 120].map((w, j) => (
+          {[80, 100, 80, 60, 80, 60, 60, 80].map((w, j) => (
             <div key={j} className="h-3.5 bg-gray-100 rounded" style={{ width: w }} />
           ))}
         </div>
