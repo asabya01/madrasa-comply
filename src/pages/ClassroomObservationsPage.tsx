@@ -1,5 +1,6 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { List, CalendarDays } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
 import { usePermissions } from '../hooks/usePermissions';
@@ -10,6 +11,7 @@ import {
   type JudgementLevel,
 } from '../lib/judgement';
 import { formatDate } from '../lib/utils';
+import { ObservationCalendar, type CalObservation } from '../components/ObservationCalendar';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -50,25 +52,33 @@ interface Observation {
   qualitative_notes: string | null;
   evidence_files: string[] | null;
   created_at: string;
+  // scheduling fields (added migration 038)
+  scheduled_date: string | null;
+  assigned_observer: string | null;   // UUID referencing profiles
+  obs_status: 'scheduled' | 'completed' | 'cancelled';
   // joined
-  teacher: { id: string; full_name: string | null } | null;
+  teacher:  { id: string; full_name: string | null } | null;
   observer: { id: string; full_name: string | null } | null;
-  class: { id: string; label: string; subject: string } | null;
+  class:    { id: string; label: string; subject: string } | null;
 }
 
 interface ObsForm {
   teacher_id: string;
   class_id: string;
-  observed_at: string;          // ISO datetime string for <input type="datetime-local">
+  observed_at: string;
+  scheduled_date: string;
+  assigned_observer: string;          // UUID
   ratings: Record<string, number | null>;
   qualitative_notes: string;
-  attachPaths: string[];         // storage paths for observation evidence
+  attachPaths: string[];
 }
 
 const EMPTY_FORM: ObsForm = {
   teacher_id: '',
   class_id: '',
   observed_at: toLocalDatetimeValue(new Date()),
+  scheduled_date: '',
+  assigned_observer: '',
   ratings: {},
   qualitative_notes: '',
   attachPaths: [],
@@ -90,6 +100,12 @@ function avgRating(ratings: Record<string, number | null>): string {
   if (!vals.length) return '—';
   return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
 }
+
+const OBS_STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
+  scheduled: { bg: 'bg-blue-50',  text: 'text-blue-700',  label: 'Scheduled' },
+  completed: { bg: 'bg-green-50', text: 'text-green-700', label: 'Completed' },
+  cancelled: { bg: 'bg-red-50',   text: 'text-red-600',   label: 'Cancelled' },
+};
 
 // ─── Queries ─────────────────────────────────────────────────
 
@@ -118,7 +134,6 @@ function useTeachers(schoolId: string | undefined) {
   return useQuery({
     queryKey: ['school-teachers', schoolId],
     queryFn: async () => {
-      // Fetch active school_members with role='teacher', join profiles for display fields
       const { data, error } = await supabase
         .from('school_members')
         .select('user_id, profiles!school_members_user_id_fkey(full_name, email)')
@@ -127,7 +142,34 @@ function useTeachers(schoolId: string | undefined) {
         .eq('status', 'active')
         .order('user_id');
       if (error) throw error;
-      // Supabase returns the profiles FK join as an array (one-to-many inferred)
+      type Row = { user_id: string; profiles: { full_name: string | null; email: string | null }[] | null };
+      return (data ?? []).map((m) => {
+        const r = m as unknown as Row;
+        const p = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+        return {
+          user_id:   r.user_id,
+          full_name: p?.full_name ?? null,
+          email:     p?.email     ?? null,
+        } satisfies TeacherOption;
+      });
+    },
+    enabled: !!schoolId,
+    staleTime: 1000 * 60 * 5,
+  });
+}
+
+function useObservers(schoolId: string | undefined) {
+  return useQuery({
+    queryKey: ['school-observers', schoolId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('school_members')
+        .select('user_id, profiles!school_members_user_id_fkey(full_name, email)')
+        .eq('school_id', schoolId!)
+        .in('role', ['school_admin', 'principal', 'vice_principal', 'head_of_department', 'quality_coordinator'])
+        .eq('status', 'active')
+        .order('user_id');
+      if (error) throw error;
       type Row = { user_id: string; profiles: { full_name: string | null; email: string | null }[] | null };
       return (data ?? []).map((m) => {
         const r = m as unknown as Row;
@@ -157,7 +199,6 @@ function useClasses(schoolId: string | undefined, teacherId: string) {
       if (error) throw error;
       return (data ?? []) as ClassOption[];
     },
-    // Only fetch once a teacher has been selected
     enabled: !!schoolId && !!teacherId,
   });
 }
@@ -194,10 +235,30 @@ export default function ClassroomObservationsPage() {
   const [attachUploading, setAttachUploading] = useState(false);
   const attachInputRef = useRef<HTMLInputElement>(null);
 
+  // Calendar state
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  const [calendarMonth, setCalendarMonth] = useState<Date>(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+
   const { data: observations = [], isLoading } = useObservations(school?.id);
   const { data: teachers = [] } = useTeachers(school?.id);
+  const { data: observers = [] } = useObservers(school?.id);
   const { data: classes = [] } = useClasses(school?.id, form.teacher_id);
   const { data: framework } = useDomain3Framework();
+
+  // Calendar data derived from observations
+  const calendarObs = useMemo<CalObservation[]>(() =>
+    observations.map((obs) => ({
+      id:           obs.id,
+      date:         obs.scheduled_date ?? obs.observed_at.slice(0, 10),
+      teacher_name: obs.teacher?.full_name ?? '—',
+      subject:      obs.class?.subject ?? 'General',
+      obs_status:   obs.obs_status ?? 'completed',
+    })),
+    [observations],
+  );
 
   // ── Permission guard ─────────────────────────────────────────
   if (!perms.canRecordObservations) {
@@ -224,12 +285,14 @@ export default function ClassroomObservationsPage() {
   function openEdit(obs: Observation) {
     setActiveObs(obs);
     setForm({
-      teacher_id: obs.teacher_id,
-      class_id: obs.class_id ?? '',
-      observed_at: toLocalDatetimeValue(new Date(obs.observed_at)),
-      ratings: { ...obs.domain3_ratings },
+      teacher_id:        obs.teacher_id,
+      class_id:          obs.class_id ?? '',
+      observed_at:       toLocalDatetimeValue(new Date(obs.observed_at)),
+      scheduled_date:    obs.scheduled_date ?? '',
+      assigned_observer: obs.assigned_observer ?? '',
+      ratings:           { ...obs.domain3_ratings },
       qualitative_notes: obs.qualitative_notes ?? '',
-      attachPaths: obs.evidence_files ?? [],
+      attachPaths:       obs.evidence_files ?? [],
     });
     setModalMode('edit');
   }
@@ -255,15 +318,22 @@ export default function ClassroomObservationsPage() {
       if (v != null) cleanRatings[k] = v;
     }
 
+    // Auto-determine status: if ratings filled → completed, else scheduled (or default completed)
+    const obs_status: 'scheduled' | 'completed' =
+      ratedCount(cleanRatings) > 0 ? 'completed' : 'scheduled';
+
     const payload = {
-      school_id: school.id,
-      observer_id: profile.id,
-      teacher_id: form.teacher_id,
-      class_id: form.class_id || null,
-      observed_at: new Date(form.observed_at).toISOString(),
-      domain3_ratings: cleanRatings,
+      school_id:         school.id,
+      observer_id:       profile.id,
+      teacher_id:        form.teacher_id,
+      class_id:          form.class_id || null,
+      observed_at:       new Date(form.observed_at).toISOString(),
+      domain3_ratings:   cleanRatings,
       qualitative_notes: form.qualitative_notes || null,
-      evidence_files: form.attachPaths.length ? form.attachPaths : null,
+      evidence_files:    form.attachPaths.length ? form.attachPaths : null,
+      scheduled_date:    form.scheduled_date || null,
+      assigned_observer: form.assigned_observer || null,
+      obs_status,
     };
 
     setSaving(true);
@@ -342,132 +412,182 @@ export default function ClassroomObservationsPage() {
               Domain 3 — {observations.length} observation{observations.length !== 1 ? 's' : ''} recorded
             </p>
           </div>
-          <button
-            onClick={openCreate}
-            className="flex items-center gap-2 px-4 py-2.5 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54] transition-colors"
-          >
-            + Record Observation
-          </button>
+          <div className="flex items-center gap-3">
+            {/* List / Calendar toggle */}
+            <div className="flex items-center bg-gray-100 rounded-lg p-0.5">
+              <button
+                onClick={() => setViewMode('list')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  viewMode === 'list'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <List className="h-3.5 w-3.5" />
+                List
+              </button>
+              <button
+                onClick={() => setViewMode('calendar')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  viewMode === 'calendar'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <CalendarDays className="h-3.5 w-3.5" />
+                Calendar
+              </button>
+            </div>
+
+            <button
+              onClick={openCreate}
+              className="flex items-center gap-2 px-4 py-2.5 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54] transition-colors"
+            >
+              + Record Observation
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* ── Filter bar ── */}
-      <div className="px-8 pt-5 flex items-center gap-3">
-        <label className="text-xs font-medium text-gray-500">Filter by teacher:</label>
-        <select
-          value={filterTeacher}
-          onChange={e => setFilterTeacher(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#01696f]"
-        >
-          <option value="all">All teachers</option>
-          {teachers.map(t => (
-            <option key={t.user_id} value={t.user_id}>
-              {t.full_name ?? t.email ?? t.user_id}
-            </option>
-          ))}
-        </select>
-        {filterTeacher !== 'all' && (
-          <button onClick={() => setFilterTeacher('all')} className="text-xs text-gray-400 hover:text-gray-600">
-            ✕ Clear
-          </button>
-        )}
-      </div>
-
-      {/* ── Observations list ── */}
-      <div className="px-8 py-5">
-        {isLoading ? (
-          <SkeletonTable />
-        ) : filtered.length === 0 ? (
-          <EmptyState onRecord={openCreate} />
-        ) : (
-          <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Date</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Teacher</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Class</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Indicators</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Avg Rating</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Observer</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Notes</th>
-                  <th className="px-5 py-3" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {filtered.map(obs => {
-                  const rated = Object.values(obs.domain3_ratings ?? {}).filter(v => v != null).length;
-                  const avg   = avgRating(obs.domain3_ratings ?? {});
-                  const avgNum = parseFloat(avg);
-                  return (
-                    <tr key={obs.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => openView(obs)}>
-                      <td className="px-5 py-3 whitespace-nowrap text-gray-700 font-medium">
-                        {formatDate(obs.observed_at)}
-                      </td>
-                      <td className="px-5 py-3 text-gray-700">
-                        {obs.teacher?.full_name ?? '—'}
-                      </td>
-                      <td className="px-5 py-3 text-gray-500">
-                        {obs.class ? `${obs.class.label} · ${obs.class.subject}` : '—'}
-                      </td>
-                      <td className="px-5 py-3">
-                        <span className="text-xs text-gray-500">{rated}/{totalD3}</span>
-                        <div className="mt-1 h-1.5 w-20 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className="h-full rounded-full"
-                            style={{
-                              width: `${totalD3 ? (rated / totalD3) * 100 : 0}%`,
-                              backgroundColor: totalD3 && rated / totalD3 >= 0.8 ? '#437a22' : '#d19900',
-                            }}
-                          />
-                        </div>
-                      </td>
-                      <td className="px-5 py-3">
-                        {!isNaN(avgNum) ? (
-                          <span
-                            className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold text-white"
-                            style={{ backgroundColor: JUDGEMENT_COLORS[Math.round(avgNum) as JudgementLevel] }}
-                          >
-                            {avg}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3 text-gray-500 text-xs">
-                        {obs.observer?.full_name ?? '—'}
-                      </td>
-                      <td className="px-5 py-3 max-w-xs">
-                        {obs.qualitative_notes ? (
-                          <p className="text-xs text-gray-500 line-clamp-2">{obs.qualitative_notes}</p>
-                        ) : (
-                          <span className="text-xs text-gray-300">—</span>
-                        )}
-                      </td>
-                      <td className="px-5 py-3" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => openEdit(obs)}
-                            className="text-xs text-[#01696f] hover:underline"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDelete(obs)}
-                            className="text-xs text-red-400 hover:text-red-600 hover:underline"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      {viewMode === 'list' ? (
+        <>
+          {/* ── Filter bar ── */}
+          <div className="px-8 pt-5 flex items-center gap-3">
+            <label className="text-xs font-medium text-gray-500">Filter by teacher:</label>
+            <select
+              value={filterTeacher}
+              onChange={e => setFilterTeacher(e.target.value)}
+              className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-[#01696f]"
+            >
+              <option value="all">All teachers</option>
+              {teachers.map(t => (
+                <option key={t.user_id} value={t.user_id}>
+                  {t.full_name ?? t.email ?? t.user_id}
+                </option>
+              ))}
+            </select>
+            {filterTeacher !== 'all' && (
+              <button onClick={() => setFilterTeacher('all')} className="text-xs text-gray-400 hover:text-gray-600">
+                ✕ Clear
+              </button>
+            )}
           </div>
-        )}
-      </div>
+
+          {/* ── Observations list ── */}
+          <div className="px-8 py-5">
+            {isLoading ? (
+              <SkeletonTable />
+            ) : filtered.length === 0 ? (
+              <EmptyState onRecord={openCreate} />
+            ) : (
+              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Date</th>
+                      <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Teacher</th>
+                      <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Class</th>
+                      <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Status</th>
+                      <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Indicators</th>
+                      <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Avg Rating</th>
+                      <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Observer</th>
+                      <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Notes</th>
+                      <th className="px-5 py-3" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {filtered.map(obs => {
+                      const rated  = Object.values(obs.domain3_ratings ?? {}).filter(v => v != null).length;
+                      const avg    = avgRating(obs.domain3_ratings ?? {});
+                      const avgNum = parseFloat(avg);
+                      const statusStyle = OBS_STATUS_STYLES[obs.obs_status ?? 'completed'];
+                      return (
+                        <tr key={obs.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => openView(obs)}>
+                          <td className="px-5 py-3 whitespace-nowrap text-gray-700 font-medium">
+                            {obs.scheduled_date
+                              ? <><span className="text-blue-600">{obs.scheduled_date}</span><br/><span className="text-[10px] text-gray-400">scheduled</span></>
+                              : formatDate(obs.observed_at)
+                            }
+                          </td>
+                          <td className="px-5 py-3 text-gray-700">
+                            {obs.teacher?.full_name ?? '—'}
+                          </td>
+                          <td className="px-5 py-3 text-gray-500">
+                            {obs.class ? `${obs.class.label} · ${obs.class.subject}` : '—'}
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${statusStyle.bg} ${statusStyle.text}`}>
+                              {statusStyle.label}
+                            </span>
+                          </td>
+                          <td className="px-5 py-3">
+                            <span className="text-xs text-gray-500">{rated}/{totalD3}</span>
+                            <div className="mt-1 h-1.5 w-20 bg-gray-100 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full"
+                                style={{
+                                  width: `${totalD3 ? (rated / totalD3) * 100 : 0}%`,
+                                  backgroundColor: totalD3 && rated / totalD3 >= 0.8 ? '#437a22' : '#d19900',
+                                }}
+                              />
+                            </div>
+                          </td>
+                          <td className="px-5 py-3">
+                            {!isNaN(avgNum) ? (
+                              <span
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold text-white"
+                                style={{ backgroundColor: JUDGEMENT_COLORS[Math.round(avgNum) as JudgementLevel] }}
+                              >
+                                {avg}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3 text-gray-500 text-xs">
+                            {obs.observer?.full_name ?? '—'}
+                          </td>
+                          <td className="px-5 py-3 max-w-xs">
+                            {obs.qualitative_notes ? (
+                              <p className="text-xs text-gray-500 line-clamp-2">{obs.qualitative_notes}</p>
+                            ) : (
+                              <span className="text-xs text-gray-300">—</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center gap-2">
+                              <button onClick={() => openEdit(obs)} className="text-xs text-[#01696f] hover:underline">
+                                Edit
+                              </button>
+                              <button onClick={() => handleDelete(obs)} className="text-xs text-red-400 hover:text-red-600 hover:underline">
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      ) : (
+        /* ── Calendar view ── */
+        <div className="px-8 py-5">
+          {isLoading ? (
+            <div className="h-96 bg-white rounded-xl border border-gray-200 animate-pulse" />
+          ) : (
+            <ObservationCalendar
+              observations={calendarObs}
+              month={calendarMonth}
+              onMonthChange={setCalendarMonth}
+              onDayClick={() => {/* popover handled inside the component */}}
+            />
+          )}
+        </div>
+      )}
 
       {/* ── Create / Edit Modal ── */}
       {(modalMode === 'create' || modalMode === 'edit') && (
@@ -480,6 +600,7 @@ export default function ClassroomObservationsPage() {
             form={form}
             setForm={setForm}
             teachers={teachers}
+            observers={observers}
             classes={classes}
             framework={framework}
             attachInputRef={attachInputRef}
@@ -513,13 +634,14 @@ export default function ClassroomObservationsPage() {
 // ─── Observation Form ─────────────────────────────────────────
 
 function ObservationForm({
-  form, setForm, teachers, classes, framework,
+  form, setForm, teachers, observers, classes, framework,
   attachInputRef, attachUploading, saving,
   onAttach, onRemoveAttach, onOpenPath, onSave, onCancel,
 }: {
   form: ObsForm;
   setForm: React.Dispatch<React.SetStateAction<ObsForm>>;
   teachers: TeacherOption[];
+  observers: TeacherOption[];
   classes: ClassOption[];
   framework: { standards: StandardRow[]; indicators: IndicatorRow[] } | undefined;
   attachInputRef: React.RefObject<HTMLInputElement | null>;
@@ -536,7 +658,7 @@ function ObservationForm({
 
   return (
     <div className="space-y-6">
-      {/* Teacher + Class + Date row */}
+      {/* Row 1: Teacher + Class + Observed At */}
       <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
@@ -591,6 +713,38 @@ function ObservationForm({
             onChange={e => setForm(f => ({ ...f, observed_at: e.target.value }))}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01696f]"
           />
+        </div>
+      </div>
+
+      {/* Row 2: Scheduled Date + Assigned Observer */}
+      <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50/40 border border-blue-100 rounded-xl">
+        <div>
+          <label className="block text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">
+            Schedule Date <span className="text-blue-400 font-normal">(optional — plan ahead)</span>
+          </label>
+          <input
+            type="date"
+            value={form.scheduled_date}
+            onChange={e => setForm(f => ({ ...f, scheduled_date: e.target.value }))}
+            className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">
+            Assigned Observer <span className="text-blue-400 font-normal">(optional)</span>
+          </label>
+          <select
+            value={form.assigned_observer}
+            onChange={e => setForm(f => ({ ...f, assigned_observer: e.target.value }))}
+            className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
+          >
+            <option value="">Unassigned</option>
+            {observers.map(o => (
+              <option key={o.user_id} value={o.user_id}>
+                {o.full_name ?? o.email ?? o.user_id}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
@@ -692,15 +846,9 @@ function ObservationForm({
               onChange={onAttach}
             />
             {attachUploading ? (
-              <>
-                <InlineSpinner />
-                <span className="text-xs text-[#01696f]">Uploading…</span>
-              </>
+              <><InlineSpinner /><span className="text-xs text-[#01696f]">Uploading…</span></>
             ) : (
-              <>
-                <span className="text-base">📁</span>
-                <span className="text-xs text-gray-400">Attach files (PDF, DOCX, XLSX, JPG, PNG)</span>
-              </>
+              <><span className="text-base">📁</span><span className="text-xs text-gray-400">Attach files (PDF, DOCX, XLSX, JPG, PNG)</span></>
             )}
           </div>
         </div>
@@ -737,22 +885,29 @@ function ObservationDetail({
   onDelete: () => void;
   onOpenPath: (path: string) => void;
 }) {
+  const statusStyle = OBS_STATUS_STYLES[obs.obs_status ?? 'completed'];
   return (
     <div className="space-y-5">
       {/* Meta */}
       <div className="grid grid-cols-3 gap-4 text-sm">
-        <MetaField label="Teacher" value={obs.teacher?.full_name ?? '—'} />
-        <MetaField
-          label="Class"
-          value={obs.class ? `${obs.class.label} · ${obs.class.subject}` : 'General observation'}
-        />
+        <MetaField label="Teacher"     value={obs.teacher?.full_name ?? '—'} />
+        <MetaField label="Class"       value={obs.class ? `${obs.class.label} · ${obs.class.subject}` : 'General observation'} />
         <MetaField label="Observed At" value={formatDate(obs.observed_at)} />
-        <MetaField label="Observer" value={obs.observer?.full_name ?? '—'} />
+        <MetaField label="Observer"    value={obs.observer?.full_name ?? '—'} />
         <MetaField
           label="Rated"
           value={`${Object.values(obs.domain3_ratings ?? {}).filter(v => v != null).length} / ${framework?.indicators.length ?? '—'} indicators`}
         />
-        <MetaField label="Avg Rating" value={avgRating(obs.domain3_ratings ?? {})} />
+        <MetaField label="Avg Rating"  value={avgRating(obs.domain3_ratings ?? {})} />
+        {obs.scheduled_date && (
+          <MetaField label="Scheduled Date" value={obs.scheduled_date} />
+        )}
+        <div>
+          <p className="text-xs text-gray-400 mb-0.5">Status</p>
+          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${statusStyle.bg} ${statusStyle.text}`}>
+            {statusStyle.label}
+          </span>
+        </div>
       </div>
 
       {/* Domain 3 ratings */}
@@ -827,16 +982,10 @@ function ObservationDetail({
 
       {/* Actions */}
       <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
-        <button
-          onClick={onDelete}
-          className="px-4 py-2 text-sm text-red-500 border border-red-200 rounded-lg hover:bg-red-50"
-        >
+        <button onClick={onDelete} className="px-4 py-2 text-sm text-red-500 border border-red-200 rounded-lg hover:bg-red-50">
           Delete
         </button>
-        <button
-          onClick={onEdit}
-          className="px-5 py-2 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54]"
-        >
+        <button onClick={onEdit} className="px-5 py-2 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54]">
           Edit Observation
         </button>
       </div>
@@ -881,15 +1030,11 @@ function Modal({ title, wide, onClose, children }: {
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div
-        className={`bg-white rounded-2xl shadow-xl flex flex-col max-h-[90vh] w-full ${wide ? 'max-w-4xl' : 'max-w-lg'}`}
-      >
-        {/* Header */}
+      <div className={`bg-white rounded-2xl shadow-xl flex flex-col max-h-[90vh] w-full ${wide ? 'max-w-4xl' : 'max-w-lg'}`}>
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
           <h3 className="text-base font-semibold text-gray-900">{title}</h3>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
         </div>
-        {/* Scrollable body */}
         <div className="overflow-y-auto flex-1 px-6 py-5">
           {children}
         </div>
@@ -940,13 +1085,13 @@ function SkeletonTable() {
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden animate-pulse">
       <div className="px-5 py-3 bg-gray-50 border-b border-gray-200 flex gap-6">
-        {[80, 100, 80, 60, 60, 80, 120].map((w, i) => (
+        {[80, 100, 80, 60, 60, 60, 80, 120].map((w, i) => (
           <div key={i} className="h-3 bg-gray-200 rounded" style={{ width: w }} />
         ))}
       </div>
       {[1, 2, 3, 4].map(i => (
         <div key={i} className="px-5 py-4 border-b border-gray-100 flex gap-6">
-          {[80, 100, 80, 60, 60, 80, 120].map((w, j) => (
+          {[80, 100, 80, 60, 60, 60, 80, 120].map((w, j) => (
             <div key={j} className="h-3.5 bg-gray-100 rounded" style={{ width: w }} />
           ))}
         </div>
