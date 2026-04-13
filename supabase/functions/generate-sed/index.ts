@@ -621,7 +621,7 @@ serve(async (req) => {
     if (uploadErr) return json({ error: `Upload failed: ${uploadErr.message}` }, 500);
 
     // 7. Insert into sed_documents
-    await svc.from('sed_documents').insert({
+    const { data: sedDocRow } = await svc.from('sed_documents').insert({
       school_id:                  schoolId,
       academic_year:              academicYearId,
       file_path:                  filePath,
@@ -629,7 +629,39 @@ serve(async (req) => {
       generated_at:               new Date().toISOString(),
       overall_judgement_snapshot: overallJRes.data?.judgement ?? null,
       file_size_bytes:            uint8.byteLength,
-    });
+    }).select('id').single();
+
+    // 7b. Freeze indicator snapshot for this SED document
+    if (sedDocRow?.id) {
+      const allIndicators = (indicatorsRes.data ?? []) as Array<{
+        id: string; description_en: string; description_ar: string | null;
+        domain_id: string; standard_id: string; order_num: number;
+      }>;
+      const allRatings = (ratingsRes.data ?? []) as Array<{
+        indicator_id: string; rating: number | null;
+        strengths: string | null; improvement_areas: string | null; next_steps: string | null;
+      }>;
+      const ratingByIndicator = Object.fromEntries(allRatings.map(r => [r.indicator_id, r]));
+
+      const snapRows = allIndicators.map(ind => {
+        const r = ratingByIndicator[ind.id];
+        return {
+          sed_document_id:   sedDocRow.id,
+          indicator_code:    ind.id,
+          indicator_label_en: ind.description_en,
+          indicator_label_ar: ind.description_ar ?? null,
+          standard_code:     ind.standard_id,
+          domain_number:     parseInt(ind.domain_id, 10),
+          rating:            r?.rating ?? null,
+          strengths_en:      r?.strengths ?? null,
+          strengths_ar:      null,
+          improvements_en:   r?.improvement_areas ?? null,
+          improvements_ar:   null,
+        };
+      });
+
+      await svc.from('sed_indicator_snapshots').insert(snapRows);
+    }
 
     // 8. Signed URL (1 hour)
     const { data: signedData, error: signedErr } = await svc.storage

@@ -1,7 +1,7 @@
 import { NavLink, useSearchParams } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, Users,
-  LogOut, ShieldAlert,
+  LogOut, ShieldAlert, GitBranch,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { cn } from '../../lib/utils';
@@ -52,6 +52,22 @@ export function SuperAdminSidebar() {
           </button>
         ))}
       </nav>
+
+      {/* Framework Versions — route-based (not a tab) */}
+      <div className="mt-auto border-t border-white/10 pt-2 pb-1">
+        <NavLink
+          to="/framework-versions"
+          className={({ isActive }) => cn(
+            'flex items-center gap-3 w-full px-5 py-2.5 text-sm transition-colors',
+            isActive
+              ? 'bg-white/20 text-white font-medium'
+              : 'text-white/70 hover:bg-white/10 hover:text-white'
+          )}
+        >
+          <GitBranch className="h-4 w-4 shrink-0" />
+          Framework Versions
+        </NavLink>
+      </div>
 
       {/* Footer */}
       <div className="p-4 border-t border-white/10">

@@ -37,6 +37,7 @@ import GovernancePage from './pages/GovernancePage';
 import PublicDashboardPage from './pages/PublicDashboardPage';
 import StudentImportPage from './pages/StudentImportPage';
 import ChainDashboardPage from './pages/ChainDashboardPage';
+import FrameworkVersionPage from './pages/FrameworkVersionPage';
 import { useSchool } from './hooks/useSchool';
 import { useSchoolStore } from './stores/schoolStore';
 import type { Session } from '@supabase/supabase-js';
@@ -116,7 +117,8 @@ function App() {
 
       {/* ── Super admin shell ── */}
       <Route element={<SuperAdminRoute session={session} />}>
-        <Route path="/super-admin" element={<SuperAdminPage />} />
+        <Route path="/super-admin"         element={<SuperAdminPage />} />
+        <Route path="/framework-versions"  element={<FrameworkVersionPage />} />
       </Route>
 
       {/* ── Regular school shell ── */}
