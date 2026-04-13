@@ -3,7 +3,7 @@ import {
   LayoutDashboard, BookOpen, FileText, FolderOpen, ClipboardList,
   CheckSquare, BarChart3, Settings, LogOut, Shield, ShieldAlert,
   ChevronDown, Building2, ClipboardCheck, Award, TrendingUp, Users, Home,
-  MessageSquare, CalendarCheck, GraduationCap, Upload,
+  MessageSquare, CalendarCheck, GraduationCap, Upload, UserCheck,
 } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -32,6 +32,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/self-evaluation',    icon: FileText,        label: 'Self-Evaluation',      roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/observations',       icon: ClipboardCheck,  label: 'Observations',         roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/cpd-log',            icon: GraduationCap,   label: 'CPD Log',              roles: ['teacher', 'hod', 'school_admin', 'super_admin'] },
+  { to: '/appraisals',         icon: UserCheck,       label: 'Appraisals',           roles: ['teacher', 'hod', 'school_admin', 'super_admin'] },
   { to: '/judgements',         icon: Award,           label: 'Judgements',           roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/surveys',            icon: MessageSquare,   label: 'Surveys',              roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/performance-data',   icon: TrendingUp,      label: 'Performance Data',     roles: ['school_admin', 'super_admin'] },
