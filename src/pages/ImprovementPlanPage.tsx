@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Plus, ChevronDown, ChevronRight, CheckCircle2, Circle,
-  Archive, RotateCcw, X, AlertTriangle, MessageSquare, ListTodo,
+  Archive, RotateCcw, X, AlertTriangle, MessageSquare, ListTodo, Download,
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
@@ -112,8 +112,47 @@ const EMPTY_FORM: AFIForm = {
 
 // ─── Page ─────────────────────────────────────────────────────
 
+// ─── CSV Export ───────────────────────────────────────────────
+
+function escapeCSV(value: string | null | undefined): string {
+  const str = value ?? '';
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function generateCSV(
+  items: AFI[],
+  userMap: Record<string, string>,
+  indMap: Record<string, { id: string }>,
+  academicYear: string,
+) {
+  const header = ['title', 'priority', 'status', 'assigned_to', 'due_date', 'linked_indicator', 'created_at'];
+  const rows = items.map(a => [
+    escapeCSV(a.title),
+    escapeCSV(a.priority ?? ''),
+    escapeCSV(a.status),
+    escapeCSV(a.owner_id ? (userMap[a.owner_id] ?? a.owner_id) : ''),
+    escapeCSV(a.due_date ?? ''),
+    escapeCSV(a.indicator_id ? (indMap[a.indicator_id]?.id ?? a.indicator_id) : ''),
+    escapeCSV(a.created_at),
+  ]);
+
+  const csv = [header.join(','), ...rows.map(r => r.join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href     = url;
+  link.download = `improvement-plan-${academicYear}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Page ─────────────────────────────────────────────────────
+
 export default function ImprovementPlanPage() {
-  const { school } = useSchoolStore();
+  const { school, academicYear } = useSchoolStore();
   const [showArchived, setShowArchived] = useState(false);
   const [filterStatus, setFilterStatus] = useState<AFIStatus | 'all'>('all');
   const [filterDomain, setFilterDomain] = useState<string>('all');
@@ -228,6 +267,14 @@ export default function ImprovementPlanPage() {
             >
               <Archive className="h-4 w-4" />
               {showArchived ? 'Active' : 'Archived'}
+            </button>
+            <button
+              onClick={() => generateCSV(visible, userMap, indMap, academicYear)}
+              disabled={visible.length === 0}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              <Download className="h-4 w-4" />
+              Export CSV
             </button>
             <button
               onClick={openCreate}
