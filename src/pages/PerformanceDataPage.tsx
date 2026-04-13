@@ -73,7 +73,6 @@ function CsvImportDialog({
   open,
   onClose,
   schoolId,
-  academicYear,
   onSuccess,
 }: {
   open: boolean;
