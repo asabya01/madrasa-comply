@@ -33,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/observations',       icon: ClipboardCheck,  label: 'Observations',         roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/cpd-log',            icon: GraduationCap,   label: 'CPD Log',              roles: ['teacher', 'hod', 'school_admin', 'super_admin'] },
   { to: '/appraisals',         icon: UserCheck,       label: 'Appraisals',           roles: ['teacher', 'hod', 'school_admin', 'super_admin'] },
+  { to: '/benchmarking',       icon: BarChart3,       label: 'Benchmarking',         roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/judgements',         icon: Award,           label: 'Judgements',           roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/surveys',            icon: MessageSquare,   label: 'Surveys',              roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/performance-data',   icon: TrendingUp,      label: 'Performance Data',     roles: ['school_admin', 'super_admin'] },
