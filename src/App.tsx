@@ -38,6 +38,7 @@ import PublicDashboardPage from './pages/PublicDashboardPage';
 import StudentImportPage from './pages/StudentImportPage';
 import ChainDashboardPage from './pages/ChainDashboardPage';
 import FrameworkVersionPage from './pages/FrameworkVersionPage';
+import { PwaUpdateBanner } from './components/PwaUpdateBanner';
 import { useSchool } from './hooks/useSchool';
 import { useSchoolStore } from './stores/schoolStore';
 import type { Session } from '@supabase/supabase-js';
@@ -99,6 +100,7 @@ function App() {
   const postLoginPath = profile?.is_super_admin ? '/super-admin' : '/dashboard';
 
   return (
+    <>
     <Routes>
       {/* ── Public routes (no auth) ── */}
       <Route path="/survey/:shareToken" element={<PublicSurveyPage />} />
@@ -155,6 +157,8 @@ function App() {
 
       <Route path="*" element={<Navigate to={session ? postLoginPath : '/login'} />} />
     </Routes>
+    <PwaUpdateBanner />
+    </>
   );
 }
 

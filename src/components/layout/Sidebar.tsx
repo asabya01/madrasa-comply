@@ -10,6 +10,7 @@ import { supabase } from '../../lib/supabase';
 import { useSchoolStore } from '../../stores/schoolStore';
 import { useSchool } from '../../hooks/useSchool';
 import { usePermissions } from '../../hooks/usePermissions';
+import { useOfflineQueue } from '../../hooks/useOfflineQueue';
 import { cn } from '../../lib/utils';
 
 interface NavItem {
@@ -52,6 +53,7 @@ export function Sidebar() {
   const { school, profile } = useSchoolStore();
   const { allMemberships, switchSchool } = useSchool();
   const { isSuperAdmin, isSchoolAdmin, isHOD, isTeacher, isChainAdmin } = usePermissions();
+  const { isOnline, pendingCount } = useOfflineQueue();
   const [schoolMenuOpen, setSchoolMenuOpen] = useState(false);
 
   const multiSchool = allMemberships.length > 1;
@@ -88,6 +90,16 @@ export function Sidebar() {
             </div>
           </div>
         </div>
+
+        {/* Offline indicator */}
+        {!isOnline && (
+          <div className="mt-2">
+            <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 flex items-center gap-1 w-fit">
+              <span className="leading-none">●</span>
+              {pendingCount > 0 ? `Offline · ${pendingCount} pending` : 'Offline'}
+            </span>
+          </div>
+        )}
 
         {/* School switcher — only shown when user belongs to multiple schools */}
         {multiSchool && (
