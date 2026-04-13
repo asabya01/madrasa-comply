@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useMemo, Fragment } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { List, CalendarDays, ChevronDown, ChevronUp } from 'lucide-react';
+import { List, CalendarDays, ChevronDown, ChevronUp, Link2, RotateCcw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
 import { usePermissions } from '../hooks/usePermissions';
@@ -61,6 +61,9 @@ interface Observation {
   teacher_response: string | null;
   reobserve_date: string | null;
   coaching_status: 'none' | 'feedback_given' | 'teacher_responded' | 'closed';
+  // cycle fields (migration 043)
+  cycle_number: number;
+  parent_obs_id: string | null;
   // joined
   teacher:  { id: string; full_name: string | null } | null;
   observer: { id: string; full_name: string | null } | null;
@@ -76,6 +79,8 @@ interface ObsForm {
   ratings: Record<string, number | null>;
   qualitative_notes: string;
   attachPaths: string[];
+  parent_obs_id: string | null;
+  cycle_number: number;
 }
 
 const EMPTY_FORM: ObsForm = {
@@ -87,6 +92,8 @@ const EMPTY_FORM: ObsForm = {
   ratings: {},
   qualitative_notes: '',
   attachPaths: [],
+  parent_obs_id: null,
+  cycle_number: 1,
 };
 
 // ─── Helpers ─────────────────────────────────────────────────
@@ -104,6 +111,25 @@ function avgRating(ratings: Record<string, number | null>): string {
   const vals = Object.values(ratings).filter((v): v is number => v != null);
   if (!vals.length) return '—';
   return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1);
+}
+
+function getObsChain(obsId: string, allObs: Observation[]): Observation[] {
+  const byId = Object.fromEntries(allObs.map(o => [o.id, o]));
+  let root = byId[obsId];
+  if (!root) return [];
+  while (root.parent_obs_id && byId[root.parent_obs_id]) root = byId[root.parent_obs_id];
+  const childrenOf: Record<string, string[]> = {};
+  for (const o of allObs) {
+    if (o.parent_obs_id) (childrenOf[o.parent_obs_id] ??= []).push(o.id);
+  }
+  const chain: Observation[] = [];
+  let cur: Observation | undefined = root;
+  while (cur) {
+    chain.push(cur);
+    const kids = childrenOf[cur.id];
+    cur = kids?.[0] ? byId[kids[0]] : undefined;
+  }
+  return chain;
 }
 
 const OBS_STATUS_STYLES: Record<string, { bg: string; text: string; label: string }> = {
@@ -252,6 +278,7 @@ export default function ClassroomObservationsPage() {
   const [filterTeacher, setFilterTeacher] = useState<string>('all');
   const [filterCoaching, setFilterCoaching] = useState<string>('all');
   const [expandedCoachingId, setExpandedCoachingId] = useState<string | null>(null);
+  const [cycleViewObsId, setCycleViewObsId]         = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [attachUploading, setAttachUploading] = useState(false);
   const attachInputRef = useRef<HTMLInputElement>(null);
@@ -264,6 +291,11 @@ export default function ClassroomObservationsPage() {
   });
 
   const { data: observations = [], isLoading } = useObservations(school?.id);
+  // Set of obs IDs that are parents (have at least one child observation)
+  const parentObsIds = useMemo(
+    () => new Set(observations.filter(o => o.parent_obs_id).map(o => o.parent_obs_id!)),
+    [observations],
+  );
   const { data: teachers = [] } = useTeachers(school?.id);
   const { data: observers = [] } = useObservers(school?.id);
   const { data: classes = [] } = useClasses(school?.id, form.teacher_id);
@@ -314,6 +346,8 @@ export default function ClassroomObservationsPage() {
       ratings:           { ...obs.domain3_ratings },
       qualitative_notes: obs.qualitative_notes ?? '',
       attachPaths:       obs.evidence_files ?? [],
+      parent_obs_id:     obs.parent_obs_id ?? null,
+      cycle_number:      obs.cycle_number ?? 1,
     });
     setModalMode('edit');
   }
@@ -321,6 +355,20 @@ export default function ClassroomObservationsPage() {
   function openView(obs: Observation) {
     setActiveObs(obs);
     setModalMode('view');
+  }
+
+  function openReobs(parentObs: Observation) {
+    setForm({
+      ...EMPTY_FORM,
+      teacher_id:    parentObs.teacher_id,
+      class_id:      parentObs.class_id ?? '',
+      observed_at:   toLocalDatetimeValue(new Date()),
+      scheduled_date: parentObs.reobserve_date ?? '',
+      parent_obs_id: parentObs.id,
+      cycle_number:  (parentObs.cycle_number ?? 1) + 1,
+    });
+    setActiveObs(null);
+    setModalMode('create');
   }
 
   function closeModal() {
@@ -354,6 +402,8 @@ export default function ClassroomObservationsPage() {
       scheduled_date:    form.scheduled_date || null,
       assigned_observer: form.assigned_observer || null,
       obs_status,
+      parent_obs_id:     form.parent_obs_id || null,
+      cycle_number:      form.cycle_number ?? 1,
     };
 
     setSaving(true);
@@ -517,6 +567,16 @@ export default function ClassroomObservationsPage() {
             </div>
           </div>
 
+          {/* ── Cycle Timeline ── */}
+          {cycleViewObsId !== null && (() => {
+            const chain = getObsChain(cycleViewObsId, observations);
+            return chain.length >= 2 ? (
+              <div className="px-8 pt-3">
+                <CycleTimeline chain={chain} onClose={() => setCycleViewObsId(null)} />
+              </div>
+            ) : null;
+          })()}
+
           {/* ── Observations list ── */}
           <div className="px-8 py-5">
             {isLoading ? (
@@ -529,6 +589,7 @@ export default function ClassroomObservationsPage() {
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
                       <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Date</th>
+                      <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Cycle</th>
                       <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Teacher</th>
                       <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Class</th>
                       <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Status</th>
@@ -559,6 +620,34 @@ export default function ClassroomObservationsPage() {
                                 ? <><span className="text-blue-600">{obs.scheduled_date}</span><br/><span className="text-[10px] text-gray-400">scheduled</span></>
                                 : formatDate(obs.observed_at)
                               }
+                            </td>
+                            <td className="px-5 py-3" onClick={e => e.stopPropagation()}>
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => {
+                                    const cycleNum = obs.cycle_number ?? 1;
+                                    const hasChain = cycleNum > 1 || parentObsIds.has(obs.id);
+                                    if (hasChain) setCycleViewObsId(cycleViewObsId === obs.id ? null : obs.id);
+                                  }}
+                                  className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border transition-colors ${
+                                    (obs.cycle_number ?? 1) > 1 || parentObsIds.has(obs.id)
+                                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 cursor-pointer'
+                                      : 'bg-gray-50 text-gray-500 border-gray-200 cursor-default'
+                                  }`}
+                                  title={(obs.cycle_number ?? 1) > 1 || parentObsIds.has(obs.id) ? 'View cycle timeline' : undefined}
+                                >
+                                  Obs {obs.cycle_number ?? 1}
+                                </button>
+                                {obs.parent_obs_id && (() => {
+                                  const parent = observations.find(o => o.id === obs.parent_obs_id);
+                                  const parentDate = parent?.scheduled_date ?? parent?.observed_at.slice(0, 10) ?? 'earlier';
+                                  return (
+                                    <span title={`Follow-up to ${parentDate} observation`} className="text-gray-400 cursor-help">
+                                      <Link2 className="h-3 w-3" />
+                                    </span>
+                                  );
+                                })()}
+                              </div>
                             </td>
                             <td className="px-5 py-3 text-gray-700">
                               {obs.teacher?.full_name ?? '—'}
@@ -636,6 +725,7 @@ export default function ClassroomObservationsPage() {
                               obs={obs}
                               profileId={profile?.id ?? null}
                               schoolId={school?.id ?? ''}
+                              onScheduleReobs={openReobs}
                             />
                           )}
                         </Fragment>
@@ -711,10 +801,12 @@ function CoachingPanel({
   obs,
   profileId,
   schoolId,
+  onScheduleReobs,
 }: {
   obs: Observation;
   profileId: string | null;
   schoolId: string;
+  onScheduleReobs: (obs: Observation) => void;
 }) {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -748,7 +840,7 @@ function CoachingPanel({
 
   return (
     <tr>
-      <td colSpan={9} className="px-5 pb-4 pt-0 bg-amber-50/20">
+      <td colSpan={10} className="px-5 pb-4 pt-0 bg-amber-50/20">
         <div className="border border-amber-200 rounded-xl p-4 space-y-4 bg-white shadow-sm">
           {/* Panel header */}
           <div className="flex items-center justify-between">
@@ -803,7 +895,7 @@ function CoachingPanel({
           </div>
 
           {/* Re-observe date + save */}
-          <div className="flex items-end gap-4">
+          <div className="flex items-end gap-4 flex-wrap">
             {!isTeacher && (
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Re-Observe Date</label>
@@ -820,6 +912,18 @@ function CoachingPanel({
                 )}
               </div>
             )}
+            {!isTeacher && obs.reobserve_date && (
+              (obs.coaching_status === 'teacher_responded' || obs.coaching_status === 'closed') && (
+                <button
+                  onClick={() => onScheduleReobs(obs)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 border border-indigo-300 text-indigo-700 text-sm font-medium rounded-lg hover:bg-indigo-50 transition-colors"
+                  title={`Schedule follow-up observation for ${obs.reobserve_date}`}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Schedule Re-observation
+                </button>
+              )
+            )}
             <div className="flex-1" />
             <button
               onClick={save}
@@ -833,6 +937,122 @@ function CoachingPanel({
         </div>
       </td>
     </tr>
+  );
+}
+
+// ─── Cycle Timeline ───────────────────────────────────────────
+
+function CycleTimeline({ chain, onClose }: { chain: Observation[]; onClose: () => void }) {
+  if (chain.length < 2) return null;
+
+  return (
+    <div className="mb-4 bg-white border border-indigo-200 rounded-xl p-5">
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-2">
+          <Link2 className="h-4 w-4 text-indigo-500" />
+          <p className="text-sm font-semibold text-gray-800">
+            Observation Cycle — {chain[0].teacher?.full_name ?? '—'}
+          </p>
+          <span className="text-xs text-gray-400">{chain.length} observations</span>
+        </div>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-sm">✕ Close</button>
+      </div>
+
+      {/* Vertical timeline — border-left approach, no extra packages */}
+      <div className="relative ml-3">
+        {/* continuous vertical line */}
+        <div className="absolute left-2.5 top-2 bottom-2 w-0.5 bg-gray-200" />
+
+        {chain.map((obs, idx) => {
+          const avg      = avgRating(obs.domain3_ratings ?? {});
+          const avgNum   = parseFloat(avg);
+          const prevObs  = chain[idx - 1];
+          const nextObs  = chain[idx + 1];
+
+          // Improvement vs previous obs (lower number = better in OAAAQA)
+          let improvTag: React.ReactNode = null;
+          if (prevObs) {
+            const prevAvg = parseFloat(avgRating(prevObs.domain3_ratings ?? {}));
+            if (!isNaN(avgNum) && !isNaN(prevAvg)) {
+              if (avgNum < prevAvg) {
+                improvTag = <span className="text-xs font-semibold text-green-600">↑ Improved</span>;
+              } else if (avgNum > prevAvg) {
+                improvTag = <span className="text-xs font-semibold text-red-500">↓ Declined</span>;
+              } else {
+                improvTag = <span className="text-xs font-semibold text-gray-400">→ Unchanged</span>;
+              }
+            }
+          }
+
+          return (
+            <div key={obs.id}>
+              {/* Observation node */}
+              <div className="relative flex items-start gap-4 pb-3">
+                <div className="relative z-10 flex items-center justify-center w-5 h-5 rounded-full bg-indigo-600 text-white text-[10px] font-bold shrink-0 mt-0.5">
+                  {obs.cycle_number ?? idx + 1}
+                </div>
+                <div className="flex-1 bg-gray-50 border border-gray-200 rounded-lg px-4 py-3">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <span className="text-xs font-semibold text-gray-700">Obs {obs.cycle_number ?? idx + 1}</span>
+                      <span className="text-xs text-gray-400 ml-2">
+                        {obs.scheduled_date ?? formatDate(obs.observed_at)}
+                      </span>
+                      {obs.class && (
+                        <span className="text-xs text-gray-400 ml-2">
+                          · {obs.class.label} — {obs.class.subject}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {!isNaN(avgNum) ? (
+                        <span
+                          className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold text-white"
+                          style={{ backgroundColor: JUDGEMENT_COLORS[Math.round(avgNum) as JudgementLevel] }}
+                        >
+                          {avg} avg
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">Not rated</span>
+                      )}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${OBS_STATUS_STYLES[obs.obs_status ?? 'completed'].bg} ${OBS_STATUS_STYLES[obs.obs_status ?? 'completed'].text}`}>
+                        {OBS_STATUS_STYLES[obs.obs_status ?? 'completed'].label}
+                      </span>
+                      {improvTag}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Coaching bridge between this and next obs */}
+              {nextObs && (
+                <div className="relative flex items-start gap-4 pb-3">
+                  <div className="relative z-10 flex items-center justify-center w-5 h-5 rounded-full bg-amber-100 border-2 border-amber-300 shrink-0 mt-0.5">
+                    <span className="text-[9px] text-amber-700 font-bold">C</span>
+                  </div>
+                  <div className="flex-1 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2.5">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs font-medium text-amber-700">Coaching</span>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium border ${COACHING_STATUS_STYLES[obs.coaching_status ?? 'none'].bg} ${COACHING_STATUS_STYLES[obs.coaching_status ?? 'none'].text} ${COACHING_STATUS_STYLES[obs.coaching_status ?? 'none'].border}`}>
+                        {COACHING_STATUS_STYLES[obs.coaching_status ?? 'none'].label}
+                      </span>
+                    </div>
+                    {obs.coaching_notes && (
+                      <p className="text-xs text-gray-500 mt-1 line-clamp-2">{obs.coaching_notes}</p>
+                    )}
+                    {obs.teacher_response && (
+                      <p className="text-xs text-blue-600 mt-1 line-clamp-1">
+                        Teacher: {obs.teacher_response}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
