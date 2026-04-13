@@ -17,13 +17,15 @@ interface NavItem {
   icon: React.ElementType;
   label: string;
   /** Roles allowed to see this item. Omit = everyone (school-level users) */
-  roles?: ('teacher' | 'hod' | 'school_admin' | 'super_admin')[];
+  roles?: ('teacher' | 'hod' | 'school_admin' | 'super_admin' | 'chain_admin')[];
 }
 
 const NAV_ITEMS: NavItem[] = [
   // Teacher-specific nav
   { to: '/teacher-home',       icon: Home,            label: 'Home',                 roles: ['teacher'] },
   { to: '/teacher-assessment', icon: ClipboardCheck,  label: 'Self-Assessment',      roles: ['teacher'] },
+  // Chain admin / super admin cross-school view
+  { to: '/chain-dashboard',    icon: Building2,       label: 'Chain Dashboard',      roles: ['chain_admin', 'super_admin'] },
   // Admin / HOD nav
   { to: '/dashboard',          icon: LayoutDashboard, label: 'Dashboard',            roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/domains',            icon: BookOpen,        label: 'Domains & Standards',  roles: ['hod', 'school_admin', 'super_admin'] },
@@ -47,14 +49,15 @@ const NAV_ITEMS: NavItem[] = [
 export function Sidebar() {
   const { school, profile } = useSchoolStore();
   const { allMemberships, switchSchool } = useSchool();
-  const { isSuperAdmin, isSchoolAdmin, isHOD, isTeacher } = usePermissions();
+  const { isSuperAdmin, isSchoolAdmin, isHOD, isTeacher, isChainAdmin } = usePermissions();
   const [schoolMenuOpen, setSchoolMenuOpen] = useState(false);
 
   const multiSchool = allMemberships.length > 1;
 
   // Derive which abstract role bucket this user falls into
-  const roleBucket: 'super_admin' | 'school_admin' | 'hod' | 'teacher' =
+  const roleBucket: 'super_admin' | 'school_admin' | 'hod' | 'teacher' | 'chain_admin' =
     isSuperAdmin  ? 'super_admin'  :
+    isChainAdmin  ? 'chain_admin'  :
     isSchoolAdmin ? 'school_admin' :
     isHOD         ? 'hod'          :
     isTeacher     ? 'teacher'      :

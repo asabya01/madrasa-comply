@@ -34,6 +34,7 @@ import ReviewVisitsPage from './pages/ReviewVisitsPage';
 import GovernancePage from './pages/GovernancePage';
 import PublicDashboardPage from './pages/PublicDashboardPage';
 import StudentImportPage from './pages/StudentImportPage';
+import ChainDashboardPage from './pages/ChainDashboardPage';
 import { useSchool } from './hooks/useSchool';
 import { useSchoolStore } from './stores/schoolStore';
 import type { Session } from '@supabase/supabase-js';
@@ -118,6 +119,7 @@ function App() {
 
       {/* ── Regular school shell ── */}
       <Route element={<ProtectedRoute session={session} />}>
+        <Route path="/chain-dashboard"   element={<ChainDashboardPage />} />
         <Route path="/dashboard"        element={<DashboardPage />} />
         <Route path="/domains"          element={<DomainsPage />} />
         <Route path="/domains/:domainId" element={<DomainDetailPage />} />

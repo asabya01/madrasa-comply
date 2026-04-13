@@ -179,6 +179,8 @@ export interface PermissionsResult extends Permissions {
   isHOD: boolean;
   /** True if role is teacher */
   isTeacher: boolean;
+  /** True if role is chain_admin (multi-school group viewer) */
+  isChainAdmin: boolean;
 }
 
 // ─── Hook ─────────────────────────────────────────────────────
@@ -190,6 +192,7 @@ export function usePermissions(): PermissionsResult {
   const isSchoolAdmin = ['school_admin', 'principal', 'vice_principal', 'quality_coordinator'].includes(userRole ?? '');
   const isHOD         = ['head_of_department', 'senior_management'].includes(userRole ?? '');
   const isTeacher     = userRole === 'teacher';
+  const isChainAdmin  = profile?.role === 'chain_admin';
 
   return {
     ...roleToPermissions(userRole, isSuperAdmin),
@@ -197,6 +200,7 @@ export function usePermissions(): PermissionsResult {
     isSchoolAdmin,
     isHOD,
     isTeacher,
+    isChainAdmin,
   };
 }
 
