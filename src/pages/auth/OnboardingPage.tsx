@@ -63,7 +63,10 @@ export function OnboardingPage() {
   }
 
   // ── CREATE SCHOOL ─────────────────────────────────────────────────────────
-  const [schoolForm, setSchoolForm] = useState({ name_en: '' });
+  const [schoolForm, setSchoolForm] = useState<{ name_en: string; school_type: 'government' | 'private' }>({
+    name_en: '',
+    school_type: 'government',
+  });
 
   const handleCreateSchool = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -247,10 +250,22 @@ export function OnboardingPage() {
                   <Label>School Name</Label>
                   <Input
                     value={schoolForm.name_en}
-                    onChange={(e) => setSchoolForm({ name_en: e.target.value })}
+                    onChange={(e) => setSchoolForm((f) => ({ ...f, name_en: e.target.value }))}
                     placeholder="Al Salam Primary School"
                     required
                   />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>School Type</Label>
+                  <select
+                    value={schoolForm.school_type}
+                    onChange={(e) => setSchoolForm((f) => ({ ...f, school_type: e.target.value as 'government' | 'private' }))}
+                    className="w-full border border-[#e2e0db] rounded-md px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#01696f]"
+                  >
+                    <option value="government">Government</option>
+                    <option value="private">Private</option>
+                  </select>
                 </div>
 
                 {error && (

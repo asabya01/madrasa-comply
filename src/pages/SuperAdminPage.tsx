@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, TrendingDown, ClipboardList } from 'lucide-react';
 import { seedSurveyQuestions } from '../../seed/survey_questions';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
 import { JUDGEMENT_LABELS, JUDGEMENT_COLORS, type JudgementLevel } from '../lib/judgement';
@@ -76,7 +77,21 @@ async function invokeAdmin(action: string, params: Record<string, unknown> = {})
   const { data, error } = await supabase.functions.invoke('admin-actions', {
     body: { action, ...params },
   });
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error instanceof FunctionsHttpError) {
+      // FunctionsHttpError.message is always the generic "Edge Function returned
+      // a non-2xx status code". The real reason is in the response body JSON.
+      let detail = error.message;
+      try {
+        const body = await error.context.json() as { error?: string };
+        if (body?.error) detail = body.error;
+      } catch {
+        // response body wasn't JSON — keep the generic message
+      }
+      throw new Error(detail);
+    }
+    throw new Error(error.message);
+  }
   const d = data as Record<string, unknown>;
   if (d?.error) throw new Error(d.error as string);
   return d;
