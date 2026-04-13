@@ -11,6 +11,7 @@ import { useSchoolStore } from '../../stores/schoolStore';
 import { useSchool } from '../../hooks/useSchool';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useOfflineQueue } from '../../hooks/useOfflineQueue';
+import { useUIStore } from '../../stores/uiStore';
 import { cn } from '../../lib/utils';
 import { NotificationBell } from '../NotificationBell';
 
@@ -55,6 +56,7 @@ export function Sidebar() {
   const { allMemberships, switchSchool } = useSchool();
   const { isSuperAdmin, isSchoolAdmin, isHOD, isTeacher, isChainAdmin } = usePermissions();
   const { isOnline, pendingCount } = useOfflineQueue();
+  const { rtl, setRtl } = useUIStore();
   const [schoolMenuOpen, setSchoolMenuOpen] = useState(false);
 
   const multiSchool = allMemberships.length > 1;
@@ -79,7 +81,7 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="fixed left-0 top-0 h-full w-60 bg-[#0c4e54] text-white flex flex-col z-40">
+    <aside className="fixed left-0 top-0 h-full w-60 bg-[#0c4e54] text-white flex flex-col z-40 rtl:left-auto rtl:right-0">
       {/* Logo + school name / switcher */}
       <div className="px-5 py-5 border-b border-white/10">
         <div className="flex items-center gap-2">
@@ -102,6 +104,16 @@ export function Sidebar() {
             </span>
           </div>
         )}
+
+        {/* RTL / LTR language toggle */}
+        <div className="mt-2">
+          <button
+            onClick={() => setRtl(!rtl)}
+            className="text-xs px-2 py-0.5 rounded-full border border-slate-600 text-slate-400 hover:text-white hover:border-slate-400 transition-colors"
+          >
+            {rtl ? 'English' : 'عربي'}
+          </button>
+        </div>
 
         {/* School switcher — only shown when user belongs to multiple schools */}
         {multiSchool && (
@@ -148,7 +160,7 @@ export function Sidebar() {
             to="/admin"
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 px-5 py-2.5 text-sm transition-colors border-b border-white/10 mb-1',
+                'flex items-center gap-3 px-5 py-2.5 text-sm transition-colors border-b border-white/10 mb-1 rtl:flex-row-reverse',
                 isActive
                   ? 'bg-white/20 text-white font-medium'
                   : 'text-amber-300 hover:bg-white/10 hover:text-white'
@@ -167,7 +179,7 @@ export function Sidebar() {
             to={to}
             className={({ isActive }) =>
               cn(
-                'flex items-center gap-3 px-5 py-2.5 text-sm transition-colors',
+                'flex items-center gap-3 px-5 py-2.5 text-sm transition-colors rtl:flex-row-reverse',
                 isActive
                   ? 'bg-white/20 text-white font-medium'
                   : 'text-white/70 hover:bg-white/10 hover:text-white'
@@ -187,7 +199,7 @@ export function Sidebar() {
         )}
         <button
           onClick={handleLogout}
-          className="flex items-center gap-3 w-full px-2 py-2 text-sm text-white/70 hover:text-white transition-colors"
+          className="flex items-center gap-3 w-full px-2 py-2 text-sm text-white/70 hover:text-white transition-colors rtl:flex-row-reverse"
         >
           <LogOut className="h-4 w-4" />
           Sign Out

@@ -28,7 +28,9 @@ const CSV_SUBJECTS = [
   'Mathematics', 'Science', 'Social Studies',
 ] as const;
 
-const CSV_HEADERS = ['subject', 'grade', 'academic_year', 'total_students', 'students_at_75', 'total_days_possible', 'days_attended'];
+const CSV_HEADERS_REQUIRED = ['subject', 'grade', 'academic_year', 'total_students', 'students_at_75', 'total_days_possible', 'days_attended'];
+const CSV_HEADERS_COHORT   = ['total_students_male', 'students_at_75_male', 'total_students_female', 'students_at_75_female', 'total_students_omani', 'students_at_75_omani', 'total_students_non_omani', 'students_at_75_non_omani'];
+const CSV_HEADERS = [...CSV_HEADERS_REQUIRED, ...CSV_HEADERS_COHORT];
 
 interface CsvRow {
   subject: string;
@@ -38,6 +40,15 @@ interface CsvRow {
   students_at_75: string;
   total_days_possible: string;
   days_attended: string;
+  // Optional cohort columns
+  total_students_male: string;
+  students_at_75_male: string;
+  total_students_female: string;
+  students_at_75_female: string;
+  total_students_omani: string;
+  students_at_75_omani: string;
+  total_students_non_omani: string;
+  students_at_75_non_omani: string;
   _errors: string[];
   _valid: boolean;
 }
@@ -57,13 +68,38 @@ function validateCsvRow(r: Omit<CsvRow, '_errors' | '_valid'>): string[] {
   const da = parseInt(r.days_attended, 10);
   if (!Number.isInteger(da) || da < 0) errors.push('days_attended must be non-negative integer');
   if (Number.isInteger(tdp) && Number.isInteger(da) && da > tdp) errors.push('days_attended > total_days_possible');
+
+  // Optional cohort pairs — if one of a pair is given, both must be given and valid
+  const cohortPairs: [string, string, string][] = [
+    [r.total_students_male,     r.students_at_75_male,     'male'],
+    [r.total_students_female,   r.students_at_75_female,   'female'],
+    [r.total_students_omani,    r.students_at_75_omani,    'omani'],
+    [r.total_students_non_omani, r.students_at_75_non_omani, 'non_omani'],
+  ];
+  for (const [total, at75, label] of cohortPairs) {
+    const hasTotal = total.trim() !== '';
+    const hasAt75  = at75.trim()  !== '';
+    if (hasTotal !== hasAt75) {
+      errors.push(`${label}: both total and ≥75 count must be provided together`);
+    } else if (hasTotal && hasAt75) {
+      const tN  = parseInt(total, 10);
+      const a75 = parseInt(at75, 10);
+      if (!Number.isInteger(tN)  || tN < 0)  errors.push(`total_students_${label} must be non-negative integer`);
+      if (!Number.isInteger(a75) || a75 < 0)  errors.push(`students_at_75_${label} must be non-negative integer`);
+      if (Number.isInteger(tN) && Number.isInteger(a75) && a75 > tN) {
+        errors.push(`students_at_75_${label} > total_students_${label}`);
+      }
+    }
+  }
+
   return errors;
 }
 
 function downloadTemplate() {
-  const header = CSV_HEADERS.join(',');
-  const example = 'Mathematics,Grade 5,2024-2025,30,22,180,170';
-  const blob = new Blob([`${header}\n${example}\n`], { type: 'text/csv' });
+  const header  = CSV_HEADERS.join(',');
+  const example = 'Mathematics,Grade 5,2024-2025,30,22,180,170,15,11,15,11,20,15,10,7';
+  const note    = '# Columns after days_attended are optional cohort breakdown data (gender + nationality)';
+  const blob = new Blob([`${note}\n${header}\n${example}\n`], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -100,14 +136,32 @@ function CsvImportDialog({
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
       if (lines.length < 2) return;
       // Skip header line
       const dataLines = lines.slice(1);
       const parsed: CsvRow[] = dataLines.map(line => {
         const parts = line.split(',');
-        const [subject = '', grade = '', academic_year = '', total_students = '', students_at_75 = '', total_days_possible = '', days_attended = ''] = parts;
-        const raw = { subject: subject.trim(), grade: grade.trim(), academic_year: academic_year.trim(), total_students: total_students.trim(), students_at_75: students_at_75.trim(), total_days_possible: total_days_possible.trim(), days_attended: days_attended.trim() };
+        const [
+          subject = '', grade = '', academic_year = '',
+          total_students = '', students_at_75 = '',
+          total_days_possible = '', days_attended = '',
+          // Optional cohort columns
+          total_students_male = '', students_at_75_male = '',
+          total_students_female = '', students_at_75_female = '',
+          total_students_omani = '', students_at_75_omani = '',
+          total_students_non_omani = '', students_at_75_non_omani = '',
+        ] = parts;
+        const raw: Omit<CsvRow, '_errors' | '_valid'> = {
+          subject: subject.trim(), grade: grade.trim(),
+          academic_year: academic_year.trim(),
+          total_students: total_students.trim(), students_at_75: students_at_75.trim(),
+          total_days_possible: total_days_possible.trim(), days_attended: days_attended.trim(),
+          total_students_male: total_students_male.trim(), students_at_75_male: students_at_75_male.trim(),
+          total_students_female: total_students_female.trim(), students_at_75_female: students_at_75_female.trim(),
+          total_students_omani: total_students_omani.trim(), students_at_75_omani: students_at_75_omani.trim(),
+          total_students_non_omani: total_students_non_omani.trim(), students_at_75_non_omani: students_at_75_non_omani.trim(),
+        };
         const _errors = validateCsvRow(raw);
         return { ...raw, _errors, _valid: _errors.length === 0 };
       });
@@ -123,6 +177,10 @@ function CsvImportDialog({
     setImporting(true);
     setImportError(null);
     try {
+      function optInt(s: string): number | null {
+        const n = parseInt(s, 10);
+        return Number.isInteger(n) ? n : null;
+      }
       const payload = valid.map(r => ({
         school_id:      schoolId,
         academic_year:  r.academic_year,
@@ -132,6 +190,15 @@ function CsvImportDialog({
         total_students: parseInt(r.total_students, 10),
         students_at_75: parseInt(r.students_at_75, 10),
         updated_at:     new Date().toISOString(),
+        // Optional cohort columns — omit if not provided
+        ...(r.total_students_male     ? { total_students_male:     optInt(r.total_students_male) }     : {}),
+        ...(r.students_at_75_male     ? { students_at_75_male:     optInt(r.students_at_75_male) }     : {}),
+        ...(r.total_students_female   ? { total_students_female:   optInt(r.total_students_female) }   : {}),
+        ...(r.students_at_75_female   ? { students_at_75_female:   optInt(r.students_at_75_female) }   : {}),
+        ...(r.total_students_omani    ? { total_students_omani:    optInt(r.total_students_omani) }    : {}),
+        ...(r.students_at_75_omani    ? { students_at_75_omani:    optInt(r.students_at_75_omani) }    : {}),
+        ...(r.total_students_non_omani ? { total_students_non_omani: optInt(r.total_students_non_omani) } : {}),
+        ...(r.students_at_75_non_omani ? { students_at_75_non_omani: optInt(r.students_at_75_non_omani) } : {}),
       }));
       const { error } = await supabase
         .from('student_performance')
@@ -184,10 +251,13 @@ function CsvImportDialog({
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
               <p className="text-xs font-semibold text-gray-600 mb-2">Template headers:</p>
               <code className="text-xs text-[#01696f] bg-white border border-gray-200 px-3 py-2 rounded block font-mono">
-                {CSV_HEADERS.join(', ')}
+                {CSV_HEADERS_REQUIRED.join(', ')}
               </code>
-              <p className="text-xs text-gray-400 mt-2">
-                subject must be one of the 6 OAAAQA subjects. academic_year format: 2024-2025.
+              <p className="text-xs text-gray-400 mt-1">
+                + Optional cohort columns: <span className="font-mono">{CSV_HEADERS_COHORT.join(', ')}</span>
+              </p>
+              <p className="text-xs text-gray-400 mt-1">
+                subject must be one of the 6 OAAAQA subjects · academic_year format: 2024-2025 · cohort columns are optional but must be provided in pairs (total + ≥75%).
               </p>
             </div>
             <button

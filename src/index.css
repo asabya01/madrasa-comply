@@ -36,3 +36,15 @@
     font-family: 'Instrument Serif', Georgia, serif;
   }
 }
+
+/* ─── RTL sidebar / main content layout ──────────────────────── */
+[dir="rtl"] aside.sidebar-fixed {
+  left: auto;
+  right: 0;
+  border-right: none;
+  border-left: 1px solid rgba(255,255,255,0.1);
+}
+[dir="rtl"] .main-content-offset {
+  margin-left: 0;
+  margin-right: 15rem;
+}

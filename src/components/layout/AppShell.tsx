@@ -73,7 +73,7 @@ export function AppShell() {
   return (
     <div className="flex h-screen bg-[#f7f6f2]">
       <Sidebar />
-      <div className="flex-1 flex flex-col ml-60 min-h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col ml-60 rtl:ml-0 rtl:mr-60 min-h-screen overflow-hidden">
         {/* Impersonation banner */}
         {impersonating && (
           <div className="flex items-center justify-between px-5 py-2 bg-orange-500 text-white text-sm shrink-0">

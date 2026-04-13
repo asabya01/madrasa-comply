@@ -98,6 +98,131 @@ serve(async (req) => {
     }
 
     // ─────────────────────────────────────────────────────────────────────────
+    // check_email_exists — school admin accessible
+    // Returns { exists: boolean, user_id?: string }
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'check_email_exists') {
+      const { email } = body as { email: string };
+      if (!email) return json({ error: 'email is required' }, 400);
+
+      const { data: profileData } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (profileData) {
+        return json({ exists: true, user_id: profileData.id });
+      }
+      return json({ exists: false });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // invite_staff_member — school admin accessible
+    // Creates auth user with temp password, inserts profile + school_member,
+    // sends in-app (and optional email) welcome notification.
+    // ─────────────────────────────────────────────────────────────────────────
+    if (action === 'invite_staff_member') {
+      const { email, full_name, role, department, school_id, school_name } =
+        body as Record<string, string>;
+      if (!email || !role || !school_id) {
+        return json({ error: 'email, role and school_id are required' }, 400);
+      }
+
+      // Verify caller is a school admin of the target school
+      const { data: callerMembership } = await supabaseAdmin
+        .from('school_members')
+        .select('role')
+        .eq('user_id', userId)
+        .eq('school_id', school_id)
+        .maybeSingle();
+
+      const adminRoles = ['school_admin', 'principal', 'vice_principal'];
+      if (!callerMembership || !adminRoles.includes(callerMembership.role)) {
+        return json({ error: 'Forbidden — school admin access required' }, 403);
+      }
+
+      // Generate temp password
+      const tempPassword = Math.random().toString(36).slice(-8) + 'Mc1!';
+
+      // Create auth user with temp password
+      const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password: tempPassword,
+        email_confirm: true,
+        user_metadata: { full_name },
+      });
+      if (authErr) return json({ error: authErr.message }, 400);
+      const newUserId = authData.user.id;
+
+      // Insert/upsert profile
+      await supabaseAdmin.from('profiles').upsert({
+        id:         newUserId,
+        email,
+        full_name:  full_name  || null,
+        role,
+        department: department || null,
+      }, { onConflict: 'id' });
+
+      // Insert school_member
+      const { error: smErr } = await supabaseAdmin.from('school_members').upsert({
+        school_id,
+        user_id:    newUserId,
+        role,
+        status:     'active',
+        invited_by: userId,
+      }, { onConflict: 'school_id,user_id' });
+      if (smErr) return json({ error: smErr.message }, 400);
+
+      // Send in-app welcome notification
+      const roleLabel = role.replace(/_/g, ' ');
+      await supabaseAdmin.from('notifications').insert({
+        school_id,
+        user_id: newUserId,
+        type:    'welcome',
+        title:   'Welcome to Madrasa Comply',
+        body:    `You have been added to ${school_name || 'your school'} as ${roleLabel}. Your temporary password is: ${tempPassword}. Please log in and change your password immediately.`,
+        link:    '/settings',
+      });
+
+      // Optional: send Resend email
+      const resendKey = Deno.env.get('RESEND_API_KEY');
+      if (resendKey) {
+        try {
+          await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+              Authorization: `Bearer ${resendKey}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              from: 'Madrasa Comply <notifications@madrasacomply.com>',
+              to: [email],
+              subject: 'Welcome to Madrasa Comply',
+              html: `<div style="font-family:sans-serif;max-width:520px;margin:0 auto">
+<div style="background:#0c4e54;padding:20px 24px">
+  <span style="color:#fff;font-size:16px;font-weight:700">Madrasa Comply</span>
+</div>
+<div style="padding:24px">
+  <h2 style="margin:0 0 12px;color:#111">Welcome, ${full_name || email}</h2>
+  <p style="color:#555;font-size:14px">You have been added to <strong>${school_name || 'your school'}</strong> as <strong>${roleLabel}</strong>.</p>
+  <p style="color:#555;font-size:14px">Your temporary password is: <strong style="font-family:monospace;background:#f0f0f0;padding:2px 6px;border-radius:4px">${tempPassword}</strong></p>
+  <p style="color:#c00;font-size:13px">Please log in and change your password immediately.</p>
+  <a href="${Deno.env.get('SUPABASE_URL')?.replace('.supabase.co', '') ?? ''}/login" style="display:inline-block;margin-top:16px;padding:10px 20px;background:#01696f;color:#fff;text-decoration:none;border-radius:8px;font-weight:600">Log in →</a>
+</div>
+</div>`,
+            }),
+          });
+        } catch (_emailErr) {
+          // Email failure is non-fatal
+        }
+      }
+
+      console.log(`[admin-actions] Invited staff member ${email} to school ${school_id}`);
+      return json({ success: true, user_id: newUserId });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
     // All remaining actions require super_admin
     // ─────────────────────────────────────────────────────────────────────────
     const { data: callerProfile } = await supabaseAdmin
