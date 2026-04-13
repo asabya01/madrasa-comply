@@ -96,7 +96,7 @@ export interface Profile {
   email?: string;
   full_name?: string;
   // role is nullable — authoritative role is in school_members.role
-  role?: 'admin' | 'super_admin' | 'principal' | 'vice_principal' | 'quality_coordinator' | 'teacher' | null;
+  role?: 'admin' | 'super_admin' | 'principal' | 'vice_principal' | 'quality_coordinator' | 'teacher' | 'chain_admin' | null;
   department?: string;
   avatar_url?: string;
   is_super_admin: boolean;

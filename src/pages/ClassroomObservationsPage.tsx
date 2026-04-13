@@ -126,8 +126,8 @@ function getObsChain(obsId: string, allObs: Observation[]): Observation[] {
   let cur: Observation | undefined = root;
   while (cur) {
     chain.push(cur);
-    const kids = childrenOf[cur.id];
-    cur = kids?.[0] ? byId[kids[0]] : undefined;
+    const kids: string[] = childrenOf[cur.id] ?? [];
+    cur = kids[0] ? byId[kids[0]] : undefined;
   }
   return chain;
 }

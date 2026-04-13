@@ -12,7 +12,8 @@ export type AppRole =
   | 'head_of_department'
   | 'quality_coordinator'
   | 'teacher'
-  | 'auditor';
+  | 'auditor'
+  | 'chain_admin';
 
 // ─── Permission definitions (PSD Section 7.2) ────────────────
 

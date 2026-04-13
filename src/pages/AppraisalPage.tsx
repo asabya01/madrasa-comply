@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, ChevronLeft, FileDown, UserCheck, MessageSquare,
   BookOpen, CheckCircle2, Clock, AlertCircle,
@@ -243,10 +243,10 @@ function useTeachers(schoolId: string | undefined) {
         .eq('role', 'teacher')
         .eq('status', 'active');
       if (error) throw error;
-      return (data ?? []).map((m: { user_id: string; profiles: { full_name: string | null; email: string | null } | null }) => ({
-        user_id:   m.user_id,
-        full_name: m.profiles?.full_name ?? null,
-        email:     m.profiles?.email ?? null,
+      return (data ?? []).map((m) => ({
+        user_id:   m.user_id as string,
+        full_name: (m.profiles as { full_name: string | null; email: string | null }[])[0]?.full_name ?? null,
+        email:     (m.profiles as { full_name: string | null; email: string | null }[])[0]?.email ?? null,
       }));
     },
     enabled: !!schoolId,
