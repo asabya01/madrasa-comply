@@ -1,4 +1,4 @@
-import { NavLink, useSearchParams } from 'react-router-dom';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, Building2, Users,
   LogOut, ShieldAlert, GitBranch,
@@ -6,8 +6,6 @@ import {
 import { supabase } from '../../lib/supabase';
 import { cn } from '../../lib/utils';
 
-// All sections live on /super-admin; tab is controlled via ?tab= query param.
-// 'overview' renders the stats/overview section (no tab panel).
 const NAV_ITEMS = [
   { tab: 'overview', icon: LayoutDashboard, label: 'Overview' },
   { tab: 'schools',  icon: Building2,       label: 'Schools' },
@@ -15,8 +13,14 @@ const NAV_ITEMS = [
 ];
 
 export function SuperAdminSidebar() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const activeTab = searchParams.get('tab') || 'overview';
+  const navigate  = useNavigate();
+  const location  = useLocation();
+
+  // Resolve active tab from the URL — only meaningful when on /super-admin
+  const onSuperAdmin = location.pathname === '/super-admin';
+  const activeTab    = onSuperAdmin
+    ? (new URLSearchParams(location.search).get('tab') || 'overview')
+    : null; // no tab is active when on a different route
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -36,10 +40,26 @@ export function SuperAdminSidebar() {
 
       {/* Nav */}
       <nav className="flex-1 py-4 overflow-y-auto">
+        {/* Admin Panel top-link — always visible, active when on /super-admin with no tab or overview */}
+        <NavLink
+          to="/super-admin"
+          end
+          className={({ isActive }) => cn(
+            'flex items-center gap-3 w-full px-5 py-2.5 text-sm transition-colors border-b border-white/10 mb-2',
+            isActive && onSuperAdmin && (!activeTab || activeTab === 'overview')
+              ? 'bg-white/20 text-white font-medium'
+              : 'text-purple-300 hover:bg-white/10 hover:text-white'
+          )}
+        >
+          <ShieldAlert className="h-4 w-4 shrink-0" />
+          Admin Panel
+        </NavLink>
+
+        {/* Tab nav — navigate to /super-admin?tab=X so it works from any route */}
         {NAV_ITEMS.map(({ tab, icon: Icon, label }) => (
           <button
             key={tab}
-            onClick={() => setSearchParams({ tab })}
+            onClick={() => navigate(`/super-admin?tab=${tab}`)}
             className={cn(
               'flex items-center gap-3 w-full px-5 py-2.5 text-sm transition-colors text-left',
               activeTab === tab
@@ -53,8 +73,8 @@ export function SuperAdminSidebar() {
         ))}
       </nav>
 
-      {/* Framework Versions — route-based (not a tab) */}
-      <div className="mt-auto border-t border-white/10 pt-2 pb-1">
+      {/* Framework Versions — route-based */}
+      <div className="border-t border-white/10 pt-2 pb-1">
         <NavLink
           to="/framework-versions"
           className={({ isActive }) => cn(

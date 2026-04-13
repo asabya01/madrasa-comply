@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { GitBranch, Plus, CheckCircle } from 'lucide-react';
+import { GitBranch, Plus, CheckCircle, ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { Button } from '../components/ui/button';
@@ -167,6 +167,16 @@ export default function FrameworkVersionPage() {
 
   return (
     <div className="space-y-6 max-w-6xl">
+      {/* Back navigation */}
+      <Button
+        variant="ghost"
+        onClick={() => navigate('/super-admin')}
+        className="mb-2 -ml-2 text-sm text-[#6b7280] hover:text-[#1a1a1a]"
+      >
+        <ArrowLeft className="h-4 w-4 mr-1" />
+        Back to Admin Panel
+      </Button>
+
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
