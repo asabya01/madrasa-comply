@@ -33,6 +33,7 @@ import PublicSurveyPage from './pages/PublicSurveyPage';
 import ReviewVisitsPage from './pages/ReviewVisitsPage';
 import GovernancePage from './pages/GovernancePage';
 import PublicDashboardPage from './pages/PublicDashboardPage';
+import StudentImportPage from './pages/StudentImportPage';
 import { useSchool } from './hooks/useSchool';
 import { useSchoolStore } from './stores/schoolStore';
 import type { Session } from '@supabase/supabase-js';
@@ -133,6 +134,7 @@ function App() {
         <Route path="/judgements"        element={<JudgementsPage />} />
         <Route path="/surveys"           element={<SurveysPage />} />
         <Route path="/performance-data"  element={<PerformanceDataPage />} />
+        <Route path="/student-import"    element={<StudentImportPage />} />
         <Route path="/improvement-plan" element={<ImprovementPlanPage />} />
         <Route path="/audit-prep"       element={<AuditPrepPage />} />
         <Route path="/review-visits"    element={<ReviewVisitsPage />} />

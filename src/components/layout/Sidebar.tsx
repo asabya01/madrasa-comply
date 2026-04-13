@@ -3,7 +3,7 @@ import {
   LayoutDashboard, BookOpen, FileText, FolderOpen, ClipboardList,
   CheckSquare, BarChart3, Settings, LogOut, Shield, ShieldAlert,
   ChevronDown, Building2, ClipboardCheck, Award, TrendingUp, Users, Home,
-  MessageSquare, CalendarCheck, GraduationCap,
+  MessageSquare, CalendarCheck, GraduationCap, Upload,
 } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -33,6 +33,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: '/judgements',         icon: Award,           label: 'Judgements',           roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/surveys',            icon: MessageSquare,   label: 'Surveys',              roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/performance-data',   icon: TrendingUp,      label: 'Performance Data',     roles: ['school_admin', 'super_admin'] },
+  { to: '/student-import',     icon: Upload,          label: 'Import Data',          roles: ['school_admin', 'super_admin'] },
   { to: '/evidence',           icon: FolderOpen,      label: 'Evidence Library',     roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/improvement-plan',   icon: ClipboardList,   label: 'Improvement Plan',     roles: ['hod', 'school_admin', 'super_admin'] },
   { to: '/audit-prep',         icon: CheckSquare,     label: 'Audit Preparation',    roles: ['school_admin', 'super_admin'] },
