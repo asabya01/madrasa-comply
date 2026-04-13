@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import {
   Plus, ChevronDown, ChevronRight, CheckCircle2, Circle,
   Archive, RotateCcw, X, AlertTriangle, MessageSquare, ListTodo, Download,
@@ -394,6 +395,8 @@ function AFIRow({
   onToggle, onTabChange, onEdit, onArchive, showArchived,
 }: AFIRowProps) {
   const updateAFI = useUpdateAFI();
+  const navigate = useNavigate();
+  const [completionDialog, setCompletionDialog] = useState(false);
   const cfg = STATUS_CFG[afi.status];
   const indicator = afi.indicator_id ? indMap[afi.indicator_id] : null;
   const ownerName = afi.owner_id ? (userMap[afi.owner_id] ?? '—') : '—';
@@ -417,6 +420,18 @@ function AFIRow({
       status,
       completion_date: status === 'completed' ? new Date().toISOString().split('T')[0] : null,
     });
+
+    // Improvement 5: show prompt if action has linked indicator and not yet prompted
+    if (status === 'completed' && afi.indicator_id && !afi.completion_prompted) {
+      setCompletionDialog(true);
+      // Mark as prompted so dialog only shows once
+      await supabase.from('action_items').update({ completion_prompted: true }).eq('id', afi.id);
+    }
+  }
+
+  function handleUpdateIndicator() {
+    setCompletionDialog(false);
+    navigate(`/self-evaluation?indicator=${afi.indicator_id}`);
   }
 
   return (
@@ -541,6 +556,39 @@ function AFIRow({
               ? <TasksPanel afiId={afi.id} users={[]} userMap={{}} />
               : <ImpactNotesPanel afiId={afi.id} />
             }
+          </div>
+        </div>
+      )}
+
+      {/* ── Completion Dialog (Improvement 5) ── */}
+      {completionDialog && indicator && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+            <h3 className="text-base font-semibold text-gray-900 mb-2">
+              Action Completed — Update Self-Evaluation?
+            </h3>
+            <p className="text-sm text-gray-600 mb-5">
+              This action was linked to{' '}
+              <span className="font-mono text-[#01696f]">{indicator.id}</span>
+              {': '}
+              <span className="font-medium">{indicator.description_en}</span>.
+              Would you like to update the improvement areas text for this indicator to reflect
+              the completed action?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setCompletionDialog(false)}
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Not Now
+              </button>
+              <button
+                onClick={handleUpdateIndicator}
+                className="px-4 py-2 text-sm font-medium text-white bg-[#01696f] rounded-lg hover:bg-[#0c4e54] transition-colors"
+              >
+                Update Indicator
+              </button>
+            </div>
           </div>
         </div>
       )}

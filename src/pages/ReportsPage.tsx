@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   FileText, BarChart2, PieChart, AlertCircle, ClipboardList,
-  TrendingUp, ShieldCheck, Download, Loader2, FileSpreadsheet, X,
+  TrendingUp, ShieldCheck, Download, Loader2, FileSpreadsheet, X, GitCompare,
 } from 'lucide-react';
+import { SedDiffReport } from '../components/reports/SedDiffReport';
 import jsPDF from 'jspdf';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent } from '../components/ui/card';
@@ -949,6 +950,16 @@ export function ReportsPage() {
             </Card>
           );
         })}
+      </div>
+
+      {/* SED Comparison section */}
+      <div className="mt-8">
+        <div className="flex items-center gap-2 mb-4">
+          <GitCompare className="h-5 w-5 text-[#01696f]" />
+          <h2 className="text-base font-semibold text-gray-900">SED Comparison</h2>
+          <span className="text-xs text-gray-400">Compare indicator ratings between two generated SEDs</span>
+        </div>
+        <SedDiffReport />
       </div>
 
       {/* KPI Trend modal */}

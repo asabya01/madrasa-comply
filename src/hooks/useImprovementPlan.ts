@@ -29,6 +29,7 @@ export interface AFI {
   created_by?: string | null;
   created_at: string;
   updated_at?: string | null;
+  completion_prompted?: boolean | null;
 }
 
 export interface ActionTask {

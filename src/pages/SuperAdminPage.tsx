@@ -1216,6 +1216,56 @@ function AnalyticsTab() {
 
       {/* Regression card still shown below */}
       <RegressionCard />
+
+      {/* ── Maintenance section ── */}
+      <MaintenanceSection />
+    </div>
+  );
+}
+
+// ─── Maintenance Section (academic year rollover) ─────────────
+
+function MaintenanceSection() {
+  const [rolling, setRolling]   = useState(false);
+  const [result, setResult]     = useState<string | null>(null);
+  const [err, setErr]           = useState<string | null>(null);
+
+  async function handleRollover() {
+    setRolling(true);
+    setResult(null);
+    setErr(null);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data, error: fnErr } = await supabase.functions.invoke('academic-year-rollover', {
+        headers: session ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
+      if (fnErr) throw fnErr;
+      const r = data as { expected_label: string; rolled_over_count: number };
+      setResult(`Rolled over ${r.rolled_over_count} school${r.rolled_over_count !== 1 ? 's' : ''} to ${r.expected_label}`);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRolling(false);
+    }
+  }
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-5">
+      <h3 className="text-sm font-semibold text-gray-900 mb-1">Maintenance</h3>
+      <p className="text-xs text-gray-500 mb-4">
+        Run academic year rollover to create the current Oman school year for all active schools.
+      </p>
+      <div className="flex items-center gap-3 flex-wrap">
+        <button
+          onClick={() => void handleRollover()}
+          disabled={rolling}
+          className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+        >
+          {rolling ? 'Running…' : 'Run Academic Year Rollover'}
+        </button>
+        {result && <span className="text-sm text-green-700 font-medium">{result}</span>}
+        {err    && <span className="text-sm text-red-600">{err}</span>}
+      </div>
     </div>
   );
 }

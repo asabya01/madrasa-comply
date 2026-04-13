@@ -12,6 +12,7 @@ import { useSchool } from '../../hooks/useSchool';
 import { usePermissions } from '../../hooks/usePermissions';
 import { useOfflineQueue } from '../../hooks/useOfflineQueue';
 import { cn } from '../../lib/utils';
+import { NotificationBell } from '../NotificationBell';
 
 interface NavItem {
   to: string;
@@ -83,12 +84,13 @@ export function Sidebar() {
       <div className="px-5 py-5 border-b border-white/10">
         <div className="flex items-center gap-2">
           <Shield className="h-7 w-7 text-white shrink-0" />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="font-semibold text-sm">Madrasa Comply</div>
             <div className="text-xs text-white/60 truncate">
               {isSuperAdmin ? 'Platform Admin' : (school?.name_en || 'Loading…')}
             </div>
           </div>
+          <NotificationBell />
         </div>
 
         {/* Offline indicator */}

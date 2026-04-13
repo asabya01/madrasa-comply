@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
 import { useAllRatings } from '../hooks/useIndicatorRatings';
 import { useToast } from '../components/ui/toast';
+import { usePermissions, useHodDomains } from '../hooks/usePermissions';
 import {
   JUDGEMENT_LABELS_SHORT,
   JUDGEMENT_COLORS,
@@ -40,15 +41,62 @@ function useFramework() {
   });
 }
 
+// ─── SEF Approval Workflow ────────────────────────────────────
+
+type SefStatus = 'draft' | 'submitted' | 'approved';
+
+interface AcademicYearRow {
+  id: string;
+  label: string;
+  sef_status: SefStatus;
+  submitted_by: string | null;
+  submitted_at: string | null;
+  approved_by: string | null;
+  approved_at: string | null;
+}
+
+function useCurrentAcademicYear() {
+  const { school, academicYear } = useSchoolStore();
+  return useQuery({
+    queryKey: ['academic-year-row', school?.id, academicYear],
+    queryFn: async () => {
+      if (!school) return null;
+      const { data } = await supabase
+        .from('academic_years')
+        .select('id, label, sef_status, submitted_by, submitted_at, approved_by, approved_at')
+        .eq('school_id', school.id)
+        .eq('label', academicYear)
+        .maybeSingle();
+      return (data ?? null) as AcademicYearRow | null;
+    },
+    enabled: !!school,
+  });
+}
+
+async function callNotify(
+  session: { access_token: string } | null,
+  payload: { school_id: string; user_ids: string[]; type: string; title: string; body: string; link: string },
+) {
+  if (!session) return;
+  await supabase.functions.invoke('notify', {
+    body: payload,
+    headers: { Authorization: `Bearer ${session.access_token}` },
+  });
+}
+
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function IndicatorsPage() {
   const { school, academicYear, profile } = useSchoolStore();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
+  const { isSuperAdmin, isSchoolAdmin, isHOD } = usePermissions();
+  const { userRole } = useSchoolStore();
+  const allowedDomains = useHodDomains();
 
   const { data: framework, isLoading: frameworkLoading } = useFramework();
   const { data: ratings, isLoading: ratingsLoading } = useAllRatings();
+  const { data: academicYearRow, refetch: refetchAcademicYear } = useCurrentAcademicYear();
 
   const [activeTab, setActiveTab] = useState<string>('1');
   // drafts: local edits not yet saved
@@ -159,6 +207,112 @@ export default function IndicatorsPage() {
   }
 
   const loading = frameworkLoading || ratingsLoading;
+  const sefStatus: SefStatus = academicYearRow?.sef_status ?? 'draft';
+  const [workflowBusy, setWorkflowBusy] = useState(false);
+
+  const isQCOrHOD = ['quality_coordinator', 'head_of_department'].includes(userRole ?? '');
+  const isPrincipalOrAdmin = ['principal', 'school_admin'].includes(userRole ?? '');
+
+  async function getSchoolUserIds(roles: string[]): Promise<string[]> {
+    if (!school) return [];
+    const { data } = await supabase
+      .from('school_members')
+      .select('user_id, profiles:profiles!school_members_user_id_fkey(role)')
+      .eq('school_id', school.id)
+      .eq('status', 'active');
+    const rows = (data ?? []) as Array<{ user_id: string; profiles: unknown }>;
+    return rows
+      .filter(r => {
+        const p = (Array.isArray(r.profiles) ? r.profiles[0] : r.profiles) as { role?: string } | null;
+        return roles.includes(p?.role ?? '');
+      })
+      .map(r => r.user_id);
+  }
+
+  async function handleSubmitForApproval() {
+    if (!school || !academicYearRow) return;
+    setWorkflowBusy(true);
+    try {
+      await supabase.from('academic_years').update({
+        sef_status: 'submitted',
+        submitted_by: profile?.id ?? null,
+        submitted_at: new Date().toISOString(),
+      }).eq('id', academicYearRow.id);
+      await refetchAcademicYear();
+      showToast('Submitted for principal approval', 'success');
+      // Notify principals/school_admins
+      const { data: { session } } = await supabase.auth.getSession();
+      const targetIds = await getSchoolUserIds(['principal', 'school_admin']);
+      if (targetIds.length) {
+        await callNotify(session, {
+          school_id: school.id,
+          user_ids: targetIds,
+          type: 'sef_submitted',
+          title: 'Self-Evaluation Submitted for Approval',
+          body: `${profile?.full_name ?? 'A staff member'} has submitted the self-evaluation for your approval.`,
+          link: '/self-evaluation',
+        });
+      }
+    } finally {
+      setWorkflowBusy(false);
+    }
+  }
+
+  async function handleApprove() {
+    if (!school || !academicYearRow) return;
+    setWorkflowBusy(true);
+    try {
+      await supabase.from('academic_years').update({
+        sef_status: 'approved',
+        approved_by: profile?.id ?? null,
+        approved_at: new Date().toISOString(),
+      }).eq('id', academicYearRow.id);
+      await refetchAcademicYear();
+      showToast('Self-evaluation approved', 'success');
+      const { data: { session } } = await supabase.auth.getSession();
+      const targetIds = await getSchoolUserIds(['quality_coordinator', 'head_of_department']);
+      if (targetIds.length) {
+        await callNotify(session, {
+          school_id: school.id,
+          user_ids: targetIds,
+          type: 'sef_approved',
+          title: 'Self-Evaluation Approved',
+          body: 'The principal has approved the self-evaluation. SED generation is now unlocked.',
+          link: '/self-evaluation',
+        });
+      }
+    } finally {
+      setWorkflowBusy(false);
+    }
+  }
+
+  async function handleReturnToDraft() {
+    if (!school || !academicYearRow) return;
+    setWorkflowBusy(true);
+    try {
+      await supabase.from('academic_years').update({
+        sef_status: 'draft',
+        submitted_by: null,
+        submitted_at: null,
+      }).eq('id', academicYearRow.id);
+      await refetchAcademicYear();
+      showToast('Returned to draft', 'info');
+      const { data: { session } } = await supabase.auth.getSession();
+      const targetIds = await getSchoolUserIds(['quality_coordinator', 'head_of_department']);
+      if (targetIds.length) {
+        await callNotify(session, {
+          school_id: school.id,
+          user_ids: targetIds,
+          type: 'sef_returned',
+          title: 'Self-Evaluation Returned to Draft',
+          body: 'The principal has returned the self-evaluation for further updates.',
+          link: '/self-evaluation',
+        });
+      }
+    } finally {
+      setWorkflowBusy(false);
+    }
+  }
 
   if (!school) {
     return (
@@ -172,9 +326,18 @@ export default function IndicatorsPage() {
   const standards = framework?.standards ?? [];
   const indicators = framework?.indicators ?? [];
 
+  // HOD scoping: filter domains to allowed ones
+  const visibleDomains = domains.filter(d => allowedDomains.includes(Number(d.id)));
+
   // Stats for tab badges
   const totalIndicators = indicators.length;
   const ratedCount = indicators.filter(i => ratingsMap[i.id]?.rating != null).length;
+
+  const SEF_STATUS_BANNER: Record<SefStatus, { label: string; cls: string }> = {
+    draft:     { label: 'Self-Evaluation in Progress',              cls: 'bg-gray-100 text-gray-600 border-gray-200' },
+    submitted: { label: 'Submitted — Awaiting Principal Approval',  cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+    approved:  { label: 'Approved by Principal — Ready for SED Generation', cls: 'bg-green-50 text-green-700 border-green-200' },
+  };
 
   return (
     <div className="min-h-screen bg-[#f7f6f2]">
@@ -191,12 +354,51 @@ export default function IndicatorsPage() {
             <ProgressPill rated={ratedCount} total={totalIndicators} />
           </div>
         </div>
+
+        {/* ── SEF Status Banner ── */}
+        {academicYearRow && (
+          <div className="mt-4 flex items-center justify-between gap-4 flex-wrap">
+            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm font-medium ${SEF_STATUS_BANNER[sefStatus].cls}`}>
+              <span className={`w-2 h-2 rounded-full ${sefStatus === 'approved' ? 'bg-green-500' : sefStatus === 'submitted' ? 'bg-amber-500' : 'bg-gray-400'}`} />
+              {SEF_STATUS_BANNER[sefStatus].label}
+            </div>
+            <div className="flex items-center gap-2">
+              {isQCOrHOD && sefStatus === 'draft' && (
+                <button
+                  onClick={() => void handleSubmitForApproval()}
+                  disabled={workflowBusy}
+                  className="px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50"
+                >
+                  Submit for Principal Approval
+                </button>
+              )}
+              {(isPrincipalOrAdmin || isSuperAdmin) && sefStatus === 'submitted' && (
+                <>
+                  <button
+                    onClick={() => void handleApprove()}
+                    disabled={workflowBusy}
+                    className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                  >
+                    Approve Self-Evaluation
+                  </button>
+                  <button
+                    onClick={() => void handleReturnToDraft()}
+                    disabled={workflowBusy}
+                    className="px-4 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  >
+                    Return to Draft
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Domain tabs ── */}
       <div className="px-8 pt-5">
         <div className="flex gap-1 bg-white border border-gray-200 rounded-xl p-1.5 w-fit shadow-sm overflow-x-auto">
-          {domains.map(d => {
+          {visibleDomains.map(d => {
             const domainIndicators = indicators.filter(i =>
               standards.filter(s => s.domain_id === d.id).some(s => s.id === i.standard_id)
             );
@@ -239,7 +441,7 @@ export default function IndicatorsPage() {
         {loading ? (
           <SkeletonStandards />
         ) : (
-          domains
+          visibleDomains
             .filter(d => d.id === activeTab)
             .map(domain => (
               <div key={domain.id}>

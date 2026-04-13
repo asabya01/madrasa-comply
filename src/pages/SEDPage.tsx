@@ -175,6 +175,27 @@ function useValidation() {
   return { checks, allPass, rated, total, pct, isLoading };
 }
 
+// ─── Academic year SEF status hook ───────────────────────────
+
+function useSefStatus() {
+  const { school, academicYear } = useSchoolStore();
+  return useQuery({
+    queryKey: ['sef-status', school?.id, academicYear],
+    queryFn: async () => {
+      if (!school) return 'draft' as const;
+      const { data } = await supabase
+        .from('academic_years')
+        .select('sef_status')
+        .eq('school_id', school.id)
+        .eq('label', academicYear)
+        .maybeSingle();
+      return ((data as { sef_status?: string } | null)?.sef_status ?? 'draft') as 'draft' | 'submitted' | 'approved';
+    },
+    enabled: !!school,
+    staleTime: 30_000,
+  });
+}
+
 // ─── History hook ─────────────────────────────────────────────
 
 function useSEDHistory() {
@@ -217,8 +238,13 @@ export default function SEDPage() {
   const [downloadingId, setDownloadingId]   = useState<string | null>(null);
   const [overrideGenerate, setOverrideGenerate] = useState(false);
 
+  const { data: sefStatus = 'draft' } = useSefStatus();
+  const sefApproved = sefStatus === 'approved';
+
   const canGenerate = isSchoolAdmin || isSuperAdmin;
-  const generateEnabled = validation.allPass || overrideGenerate;
+  // Non-super-admins need principal approval before generating
+  const approvalRequired = !isSuperAdmin && !sefApproved;
+  const generateEnabled = (validation.allPass || overrideGenerate) && !approvalRequired;
 
   function toggleOption(key: keyof DocOptions) {
     setOptions(o => ({ ...o, [key]: !o[key] }));
@@ -414,9 +440,20 @@ export default function SEDPage() {
                 </div>
               )}
 
+              {approvalRequired && (
+                <div className="flex items-start gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-xs text-amber-700 font-medium">
+                    Principal approval required before generating the SED.
+                    Go to <a href="/self-evaluation" className="underline">Self-Evaluation</a> to request approval.
+                  </p>
+                </div>
+              )}
+
               <button
                 onClick={handleGenerate}
                 disabled={generating || !generateEnabled}
+                title={approvalRequired ? 'Principal approval required' : undefined}
                 className="w-full flex items-center justify-center gap-2 py-3 bg-[#01696f] text-white text-sm font-semibold rounded-xl hover:bg-[#0c4e54] disabled:opacity-60 transition-colors"
               >
                 {generating ? (

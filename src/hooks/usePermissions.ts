@@ -1,3 +1,5 @@
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
 
 // ─── Role taxonomy ────────────────────────────────────────────
@@ -203,6 +205,47 @@ export function usePermissions(): PermissionsResult {
     isTeacher,
     isChainAdmin,
   };
+}
+
+// ─── HOD domain scoping ───────────────────────────────────────
+// Returns the domain numbers this HOD is assigned to.
+// If the user is not an HOD, or has no specific assignments, returns [1,2,3,4,5].
+
+export function useHodDomains(): number[] {
+  const { school, profile } = useSchoolStore();
+  const { isHOD } = usePermissions();
+
+  const { data } = useQuery({
+    queryKey: ['hod-domains', school?.id, profile?.id],
+    queryFn: async () => {
+      if (!school || !profile) return [] as number[];
+      // First get the current academic year id for this school
+      const { data: ayRow } = await supabase
+        .from('academic_years')
+        .select('id')
+        .eq('school_id', school.id)
+        .eq('is_current', true)
+        .maybeSingle();
+
+      if (!ayRow) return [] as number[];
+
+      const { data: rows } = await supabase
+        .from('hod_domain_assignments')
+        .select('domain_number')
+        .eq('school_id', school.id)
+        .eq('user_id', profile.id)
+        .eq('academic_year_id', ayRow.id);
+
+      return ((rows ?? []) as { domain_number: number }[]).map(r => r.domain_number);
+    },
+    enabled: !!school && !!profile && isHOD,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  // Non-HOD or no assignments → full access
+  if (!isHOD) return [1, 2, 3, 4, 5];
+  if (!data || data.length === 0) return [1, 2, 3, 4, 5];
+  return data;
 }
 
 // ─── Standalone helper (useful outside React components) ──────

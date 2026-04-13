@@ -227,7 +227,7 @@ function StaffPerformanceOverview({ schoolId, subjectFilter }: { schoolId: strin
 // ─── Page ─────────────────────────────────────────────────────
 
 export function DashboardPage() {
-  const { school, profile } = useSchoolStore();
+  const { school, profile, academicYear } = useSchoolStore();
   const { judgements, isLoading } = useJudgements();
   const { isSchoolAdmin, isSuperAdmin, isHOD } = usePermissions();
   const [shareCopied, setShareCopied] = useState(false);
@@ -329,8 +329,31 @@ export function DashboardPage() {
 
   const overallJudgement = (judgements?.overall || 3) as JudgementLevel;
 
+  // Academic year mismatch check
+  const today = new Date();
+  const yearStart = today.getMonth() >= 8 ? today.getFullYear() : today.getFullYear() - 1;
+  const expectedLabel = `${yearStart}-${yearStart + 1}`;
+  const academicYearMismatch = academicYear !== expectedLabel;
+
   return (
     <div className="space-y-6">
+      {/* Academic year mismatch banner — school admin / principal only */}
+      {(isSchoolAdmin || isSuperAdmin) && academicYearMismatch && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-lg border bg-amber-50 border-amber-200 text-amber-800">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold">
+              Your academic year may need updating.
+            </p>
+            <p className="text-xs mt-0.5 text-amber-700">
+              Current year shows <strong>{academicYear}</strong>, but the expected Oman school year is <strong>{expectedLabel}</strong>.
+              Contact your school admin or update in{' '}
+              <Link to="/settings" className="underline">Settings</Link>.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Share Public Summary — school admin only */}
       {(isSchoolAdmin || isSuperAdmin) && (
         <div className="flex justify-end">

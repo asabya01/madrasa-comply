@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAcademicYears } from '../hooks/useAcademicYears';
 
-type SettingsTab = 'profile' | 'academic-years' | 'audit' | 'notifications';
+type SettingsTab = 'profile' | 'academic-years' | 'audit' | 'notifications' | 'hod-domains';
 
 export default function SettingsPage() {
   const { school, setSchool } = useSchoolStore();
@@ -93,6 +94,9 @@ export default function SettingsPage() {
           <TabBtn id="academic-years" label="Academic Years" />
           <TabBtn id="audit" label="Audit Dates" />
           <TabBtn id="notifications" label="Notifications" />
+          {(perms.isSchoolAdmin || perms.isSuperAdmin) && (
+            <TabBtn id="hod-domains" label="HOD Domains" />
+          )}
         </div>
       </div>
 
@@ -246,6 +250,10 @@ export default function SettingsPage() {
             <h2 className="text-base font-semibold text-gray-800 mb-4">Notification Preferences</h2>
             <p className="text-sm text-gray-500">Email notification configuration coming soon.</p>
           </div>
+        )}
+
+        {activeTab === 'hod-domains' && (
+          <HodDomainAssignments />
         )}
       </div>
     </div>
@@ -507,3 +515,128 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 const inputCls =
   'w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01696f] bg-white';
+
+// ─── HOD Domain Assignments Panel ────────────────────────────
+
+const DOMAIN_LABELS = ['D1: Academic Achievement', 'D2: Personal Development', 'D3: Teaching & Assessment', 'D4: School Climate', 'D5: Leadership & Governance'];
+
+interface HodMember { user_id: string; full_name: string | null; email: string | null }
+interface HodAssignment { user_id: string; domain_number: number }
+
+function HodDomainAssignments() {
+  const { school, academicYear } = useSchoolStore();
+  const queryClient = useQueryClient();
+  const [saving, setSaving] = useState<string | null>(null);
+
+  // Fetch HOD members
+  const { data: hods = [] } = useQuery({
+    queryKey: ['hod-members', school?.id],
+    queryFn: async () => {
+      if (!school) return [] as HodMember[];
+      const { data } = await supabase
+        .from('school_members')
+        .select('user_id, profiles:profiles!school_members_user_id_fkey(full_name, email, role)')
+        .eq('school_id', school.id)
+        .eq('status', 'active');
+      return ((data ?? []) as Array<{ user_id: string; profiles: unknown }>)
+        .filter(m => {
+          const p = (Array.isArray(m.profiles) ? m.profiles[0] : m.profiles) as { role?: string } | null;
+          return p?.role === 'head_of_department';
+        })
+        .map(m => {
+          const p = (Array.isArray(m.profiles) ? m.profiles[0] : m.profiles) as { full_name?: string; email?: string } | null;
+          return { user_id: m.user_id, full_name: p?.full_name ?? null, email: p?.email ?? null };
+        });
+    },
+    enabled: !!school,
+  });
+
+  // Fetch current academic year id
+  const { data: ayId } = useQuery({
+    queryKey: ['ay-id', school?.id, academicYear],
+    queryFn: async () => {
+      if (!school) return null as string | null;
+      const { data } = await supabase.from('academic_years').select('id').eq('school_id', school.id).eq('label', academicYear).maybeSingle();
+      return (data as { id: string } | null)?.id ?? null;
+    },
+    enabled: !!school,
+  });
+
+  // Fetch existing assignments
+  const { data: assignments = [] } = useQuery({
+    queryKey: ['hod-assignments', school?.id, ayId],
+    queryFn: async () => {
+      if (!school || !ayId) return [] as HodAssignment[];
+      const { data } = await supabase.from('hod_domain_assignments').select('user_id, domain_number').eq('school_id', school.id).eq('academic_year_id', ayId);
+      return (data ?? []) as HodAssignment[];
+    },
+    enabled: !!school && !!ayId,
+  });
+
+  // Build checked state: userId → Set<domainNumber>
+  const checkedMap: Record<string, Set<number>> = {};
+  for (const a of assignments) {
+    if (!checkedMap[a.user_id]) checkedMap[a.user_id] = new Set();
+    checkedMap[a.user_id].add(a.domain_number);
+  }
+
+  async function toggleDomain(userId: string, domain: number, checked: boolean) {
+    if (!school || !ayId) return;
+    setSaving(`${userId}-${domain}`);
+    if (checked) {
+      await supabase.from('hod_domain_assignments').upsert(
+        { school_id: school.id, user_id: userId, domain_number: domain, academic_year_id: ayId },
+        { onConflict: 'school_id,user_id,domain_number,academic_year_id' },
+      );
+    } else {
+      await supabase.from('hod_domain_assignments').delete()
+        .eq('school_id', school.id).eq('user_id', userId).eq('domain_number', domain).eq('academic_year_id', ayId);
+    }
+    queryClient.invalidateQueries({ queryKey: ['hod-assignments'] });
+    queryClient.invalidateQueries({ queryKey: ['hod-domains'] });
+    setSaving(null);
+  }
+
+  if (!hods.length) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-xl p-6">
+        <h2 className="text-base font-semibold text-gray-800 mb-2">HOD Domain Assignments</h2>
+        <p className="text-sm text-gray-500">No users with role Head of Department found in this school.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-6">
+      <h2 className="text-base font-semibold text-gray-800 mb-1">HOD Domain Assignments</h2>
+      <p className="text-sm text-gray-500 mb-5">
+        Assign specific domains to each HOD. If no domains are checked, the HOD has access to all domains.
+      </p>
+      <div className="space-y-5">
+        {hods.map(hod => (
+          <div key={hod.user_id} className="border border-gray-100 rounded-xl p-4">
+            <p className="text-sm font-semibold text-gray-900">{hod.full_name ?? hod.email ?? hod.user_id}</p>
+            <div className="mt-3 flex flex-wrap gap-3">
+              {[1, 2, 3, 4, 5].map(d => {
+                const isChecked = checkedMap[hod.user_id]?.has(d) ?? false;
+                const busyKey = `${hod.user_id}-${d}`;
+                return (
+                  <label key={d} className="flex items-center gap-2 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={isChecked}
+                      disabled={saving === busyKey}
+                      onChange={e => void toggleDomain(hod.user_id, d, e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300 text-[#01696f] focus:ring-[#01696f]"
+                    />
+                    <span className="text-xs text-gray-700">{DOMAIN_LABELS[d - 1]}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
