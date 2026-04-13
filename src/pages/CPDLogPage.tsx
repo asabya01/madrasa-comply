@@ -137,7 +137,7 @@ function useTeachers(schoolId: string | undefined) {
 
 export default function CPDLogPage() {
   const { school, profile } = useSchoolStore();
-  const { isTeacher, isHOD, isSchoolAdmin, isSuperAdmin } = usePermissions();
+  const { isTeacher } = usePermissions();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { years, currentYear } = useAcademicYears();
@@ -429,7 +429,7 @@ export default function CPDLogPage() {
                     tickLine={false}
                   />
                   <Tooltip
-                    formatter={(v: number) => [`${v.toFixed(1)} hrs`, 'Hours']}
+                    formatter={(v) => [Number(v ?? 0).toFixed(1) + ' hrs', 'Hours']}
                     contentStyle={{ fontSize: 12, borderRadius: 8 }}
                   />
                   <Bar dataKey="hours" radius={[0, 4, 4, 0]} maxBarSize={16}>
@@ -498,7 +498,7 @@ export default function CPDLogPage() {
                     >
                       <XAxis type="number" tick={{ fontSize: 10 }} axisLine={false} tickLine={false} />
                       <YAxis type="category" dataKey="name" width={108} tick={{ fontSize: 11 }} axisLine={false} tickLine={false} />
-                      <Tooltip formatter={(v: number) => [`${v.toFixed(1)} hrs`, 'Hours']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                      <Tooltip formatter={(v) => [Number(v ?? 0).toFixed(1) + ' hrs', 'Hours']} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
                       <Bar dataKey="hours" radius={[0, 4, 4, 0]} maxBarSize={16}>
                         {allCatData.map(d => (
                           <Cell key={d.cat} fill={CATEGORY_COLORS[d.cat] ?? '#9ca3af'} />
