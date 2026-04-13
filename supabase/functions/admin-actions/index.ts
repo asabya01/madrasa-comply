@@ -184,17 +184,28 @@ serve(async (req) => {
 
     // ── update_user ───────────────────────────────────────────────────────────
     if (action === 'update_user') {
-      const { user_id, role, school_id, is_super_admin } = body as Record<string, unknown>;
+      const { user_id, full_name, email, role, school_id, is_super_admin } = body as Record<string, unknown>;
       if (!user_id) return json({ error: 'user_id is required' }, 400);
 
       const profileFields: Record<string, unknown> = {};
+      if (full_name      !== undefined) profileFields.full_name      = full_name;
       if (role           !== undefined) profileFields.role           = role;
       if (is_super_admin !== undefined) profileFields.is_super_admin = Boolean(is_super_admin);
+      if (email          !== undefined) profileFields.email          = email;
+
       if (Object.keys(profileFields).length) {
         const { error } = await supabaseAdmin.from('profiles')
           .update(profileFields)
           .eq('id', user_id);
         if (error) return json({ error: error.message }, 400);
+      }
+
+      // Update auth email if changed
+      if (email) {
+        const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(
+          user_id as string, { email: email as string }
+        );
+        if (authErr) return json({ error: authErr.message }, 400);
       }
 
       if (school_id && role) {
@@ -209,11 +220,44 @@ serve(async (req) => {
       return json({ success: true });
     }
 
+    // ── toggle_user_active ────────────────────────────────────────────────────
+    if (action === 'toggle_user_active') {
+      const { user_id, set_active } = body as { user_id: string; set_active: boolean };
+      if (!user_id) return json({ error: 'user_id is required' }, 400);
+
+      const newStatus = set_active ? 'active' : 'suspended';
+      const { error: profileErr } = await supabaseAdmin.from('profiles')
+        .update({ is_active: set_active })
+        .eq('id', user_id);
+      if (profileErr) return json({ error: profileErr.message }, 400);
+
+      await supabaseAdmin.from('school_members')
+        .update({ status: newStatus })
+        .eq('user_id', user_id);
+
+      console.log(`[admin-actions] Set user ${user_id} active=${set_active}`);
+      return json({ success: true });
+    }
+
+    // ── reset_user_password ───────────────────────────────────────────────────
+    if (action === 'reset_user_password') {
+      const { user_id, new_password } = body as { user_id: string; new_password: string };
+      if (!user_id || !new_password) return json({ error: 'user_id and new_password are required' }, 400);
+      if (new_password.length < 8) return json({ error: 'Password must be at least 8 characters' }, 400);
+
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(user_id, { password: new_password });
+      if (error) return json({ error: error.message }, 400);
+
+      console.log(`[admin-actions] Reset password for user ${user_id}`);
+      return json({ success: true });
+    }
+
     // ── delete_user ───────────────────────────────────────────────────────────
     if (action === 'delete_user') {
       const { user_id } = body as { user_id: string };
       if (!user_id) return json({ error: 'user_id is required' }, 400);
 
+      await supabaseAdmin.from('school_members').delete().eq('user_id', user_id);
       await supabaseAdmin.from('profiles').delete().eq('id', user_id);
       const { error: deleteErr } = await supabaseAdmin.auth.admin.deleteUser(user_id);
       if (deleteErr) return json({ error: deleteErr.message }, 400);
@@ -222,7 +266,7 @@ serve(async (req) => {
       return json({ success: true });
     }
 
-    // ── reset_password ────────────────────────────────────────────────────────
+    // ── reset_password (legacy — generates recovery link) ─────────────────────
     if (action === 'reset_password') {
       const { email } = body as { email: string };
       if (!email) return json({ error: 'email is required' }, 400);
@@ -239,7 +283,7 @@ serve(async (req) => {
       return json({ success: true, link });
     }
 
-    // ── deactivate_user ───────────────────────────────────────────────────────
+    // ── deactivate_user (legacy) ──────────────────────────────────────────────
     if (action === 'deactivate_user') {
       const { user_id, school_id } = body as { user_id: string; school_id?: string };
       if (!user_id) return json({ error: 'user_id is required' }, 400);

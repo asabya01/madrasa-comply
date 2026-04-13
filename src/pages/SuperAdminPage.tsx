@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, TrendingDown, ClipboardList, Eye, EyeOff, Check } from 'lucide-react';
+import { AlertTriangle, TrendingDown, ClipboardList, Eye, EyeOff, Check, MoreHorizontal } from 'lucide-react';
 import { seedSurveyQuestions } from '../../seed/survey_questions';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import {
@@ -36,6 +36,7 @@ interface UserRow {
   email: string | null;
   is_super_admin: boolean;
   is_sed_team: boolean;
+  is_active: boolean;
   role: string;
   status: string;
   school_id: string;
@@ -685,23 +686,38 @@ function SchoolsTab() {
 // ─── Users Tab ────────────────────────────────────────────────
 
 const ROLE_OPTIONS = [
-  'school_admin', 'principal', 'vice_principal', 'senior_management',
-  'head_of_department', 'quality_coordinator', 'teacher', 'auditor',
+  'school_admin', 'principal', 'vice_principal', 'quality_coordinator',
+  'head_of_department', 'teacher', 'auditor', 'chain_admin',
 ];
 
 function UsersTab() {
-  const [users, setUsers]           = useState<UserRow[]>([]);
-  const [allSchools, setAllSchools] = useState<SchoolRow[]>([]);
-  const [loading, setLoading]       = useState(true);
-  const [error, setError]           = useState<string | null>(null);
-  const [editing, setEditing]       = useState<UserRow | null>(null);
-  const [form, setForm]             = useState({ role: '', school_id: '', is_super_admin: false });
-  const [saving, setSaving]         = useState(false);
-  const [panelError, setPanelError] = useState<string | null>(null);
-  const [resetLink, setResetLink]   = useState<string | null>(null);
-  const [resetting, setResetting]   = useState(false);
-  const [deactivating, setDeactivating] = useState<string | null>(null);
+  const [users, setUsers]         = useState<UserRow[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState<string | null>(null);
   const [filterText, setFilterText] = useState('');
+
+  // Dropdown menu per row
+  const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
+
+  // Edit dialog
+  const [editUser, setEditUser]   = useState<UserRow | null>(null);
+  const [editForm, setEditForm]   = useState({ full_name: '', email: '', role: '' });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+
+  // Reset password dialog
+  const [resetUser, setResetUser] = useState<UserRow | null>(null);
+  const [newPw, setNewPw]         = useState('');
+  const [showPw, setShowPw]       = useState(false);
+  const [resetSaving, setResetSaving] = useState(false);
+  const [resetError, setResetError]   = useState<string | null>(null);
+
+  // Delete dialog
+  const [deleteUser, setDeleteUser] = useState<UserRow | null>(null);
+  const [deleting, setDeleting]     = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // SED team toggle
   const [sedTeamLoading, setSedTeamLoading] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
@@ -709,18 +725,17 @@ function UsersTab() {
     setError(null);
     const [profilesRes, membershipsRes, schoolsRes] = await Promise.all([
       supabase.from('profiles')
-        .select('id, full_name, email, is_super_admin, is_sed_team, created_at')
+        .select('id, full_name, email, role, is_super_admin, is_sed_team, is_active, created_at')
         .order('created_at', { ascending: false })
         .limit(500),
       supabase.from('school_members')
         .select('user_id, role, status, school_id'),
       supabase.from('schools')
-        .select('id, name_en, name_ar, oaaaqa_code, school_type, governorate, education_cycle, is_active, subscription_tier')
+        .select('id, name_en')
         .order('name_en'),
     ]);
 
     if (profilesRes.error) { setError(profilesRes.error.message); setLoading(false); return; }
-    setAllSchools((schoolsRes.data ?? []) as SchoolRow[]);
 
     const schoolMap = Object.fromEntries((schoolsRes.data ?? []).map(s => [s.id, s.name_en as string]));
     const memberMap: Record<string, Array<{ role: string; status: string; school_id: string }>> = {};
@@ -730,32 +745,39 @@ function UsersTab() {
     }
 
     const rows: UserRow[] = (profilesRes.data ?? []).flatMap(p => {
-      const memberships = memberMap[p.id] ?? [];
+      const profile = p as {
+        id: string; full_name: string | null; email: string | null;
+        role: string | null; is_super_admin: boolean; is_sed_team: boolean;
+        is_active: boolean; created_at: string;
+      };
+      const memberships = memberMap[profile.id] ?? [];
       if (!memberships.length) {
         return [{
-          user_id:        p.id,
-          full_name:      p.full_name ?? null,
-          email:          p.email     ?? null,
-          is_super_admin: Boolean(p.is_super_admin),
-          is_sed_team:    Boolean((p as { is_sed_team?: boolean }).is_sed_team),
-          role:           p.is_super_admin ? 'super_admin' : '—',
+          user_id:        profile.id,
+          full_name:      profile.full_name,
+          email:          profile.email,
+          is_super_admin: Boolean(profile.is_super_admin),
+          is_sed_team:    Boolean(profile.is_sed_team),
+          is_active:      profile.is_active !== false,
+          role:           profile.is_super_admin ? 'super_admin' : (profile.role ?? '—'),
           status:         'active',
           school_id:      '',
           school_name:    '—',
-          created_at:     p.created_at as string,
+          created_at:     profile.created_at,
         }];
       }
       return memberships.map(m => ({
-        user_id:        p.id,
-        full_name:      p.full_name ?? null,
-        email:          p.email     ?? null,
-        is_super_admin: Boolean(p.is_super_admin),
-        is_sed_team:    Boolean((p as { is_sed_team?: boolean }).is_sed_team),
+        user_id:        profile.id,
+        full_name:      profile.full_name,
+        email:          profile.email,
+        is_super_admin: Boolean(profile.is_super_admin),
+        is_sed_team:    Boolean(profile.is_sed_team),
+        is_active:      profile.is_active !== false,
         role:           m.role,
         status:         m.status,
         school_id:      m.school_id,
         school_name:    schoolMap[m.school_id] ?? '—',
-        created_at:     p.created_at as string,
+        created_at:     profile.created_at,
       }));
     });
 
@@ -765,70 +787,101 @@ function UsersTab() {
 
   useEffect(() => { void load(); }, [load]);
 
+  // ── Edit user ──────────────────────────────────────────────
   function openEdit(u: UserRow) {
-    setEditing(u);
-    setForm({ role: u.role, school_id: u.school_id, is_super_admin: u.is_super_admin });
-    setPanelError(null);
-    setResetLink(null);
+    setEditUser(u);
+    setEditForm({ full_name: u.full_name ?? '', email: u.email ?? '', role: u.role });
+    setEditError(null);
+    setMenuOpenId(null);
   }
 
-  async function handleSave() {
-    if (!editing) return;
-    setSaving(true);
-    setPanelError(null);
+  async function handleEditSave() {
+    if (!editUser) return;
+    setEditSaving(true);
+    setEditError(null);
     try {
       await invokeAdmin('update_user', {
-        user_id:       editing.user_id,
-        role:          form.role          || undefined,
-        school_id:     form.school_id     || undefined,
-        is_super_admin: form.is_super_admin,
+        user_id:   editUser.user_id,
+        full_name: editForm.full_name || null,
+        email:     editForm.email     || undefined,
+        role:      editForm.role      || undefined,
       });
-      setEditing(null);
+      setEditUser(null);
       await load();
     } catch (e: unknown) {
-      setPanelError(e instanceof Error ? e.message : String(e));
+      setEditError(e instanceof Error ? e.message : String(e));
     } finally {
-      setSaving(false);
+      setEditSaving(false);
     }
   }
 
-  async function handleResetPassword() {
-    if (!editing?.email) return;
-    setResetting(true);
-    setPanelError(null);
+  // ── Toggle active ──────────────────────────────────────────
+  async function handleToggleActive(u: UserRow) {
+    setMenuOpenId(null);
     try {
-      const res = await invokeAdmin('reset_password', { email: editing.email });
-      setResetLink(res.link as string ?? null);
-    } catch (e: unknown) {
-      setPanelError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setResetting(false);
-    }
-  }
-
-  async function handleSedToggle(u: UserRow) {
-    setSedTeamLoading(prev => new Set(prev).add(u.user_id));
-    const { error } = await supabase
-      .from('profiles')
-      .update({ is_sed_team: !u.is_sed_team })
-      .eq('id', u.user_id);
-    if (!error) {
-      setUsers(prev => prev.map(r => r.user_id === u.user_id ? { ...r, is_sed_team: !r.is_sed_team } : r));
-    }
-    setSedTeamLoading(prev => { const s = new Set(prev); s.delete(u.user_id); return s; });
-  }
-
-  async function handleDeactivate(u: UserRow) {
-    if (!window.confirm(`Suspend ${u.full_name ?? u.email} from ${u.school_name}?`)) return;
-    setDeactivating(u.user_id + u.school_id);
-    try {
-      await invokeAdmin('deactivate_user', { user_id: u.user_id, school_id: u.school_id || undefined });
+      await invokeAdmin('toggle_user_active', { user_id: u.user_id, set_active: !u.is_active });
       await load();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setDeactivating(null);
     }
+  }
+
+  // ── Reset password ─────────────────────────────────────────
+  function openResetPw(u: UserRow) {
+    setResetUser(u);
+    setNewPw('');
+    setShowPw(false);
+    setResetError(null);
+    setMenuOpenId(null);
+  }
+
+  async function handleResetPw() {
+    if (!resetUser) return;
+    setResetSaving(true);
+    setResetError(null);
+    try {
+      await invokeAdmin('reset_user_password', { user_id: resetUser.user_id, new_password: newPw });
+      setResetUser(null);
+    } catch (e: unknown) {
+      setResetError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setResetSaving(false);
+    }
+  }
+
+  // ── Delete user ────────────────────────────────────────────
+  function openDelete(u: UserRow) {
+    setDeleteUser(u);
+    setDeleteError(null);
+    setMenuOpenId(null);
+  }
+
+  async function handleDelete() {
+    if (!deleteUser) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await invokeAdmin('delete_user', { user_id: deleteUser.user_id });
+      setDeleteUser(null);
+      await load();
+    } catch (e: unknown) {
+      setDeleteError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  // ── SED team toggle ────────────────────────────────────────
+  async function handleSedToggle(u: UserRow) {
+    setSedTeamLoading(prev => new Set(prev).add(u.user_id));
+    const { error: sedErr } = await supabase
+      .from('profiles')
+      .update({ is_sed_team: !u.is_sed_team })
+      .eq('id', u.user_id);
+    if (!sedErr) {
+      setUsers(prev => prev.map(r => r.user_id === u.user_id ? { ...r, is_sed_team: !r.is_sed_team } : r));
+    }
+    setSedTeamLoading(prev => { const s = new Set(prev); s.delete(u.user_id); return s; });
   }
 
   const filtered = filterText
@@ -869,12 +922,15 @@ function UsersTab() {
                 <tr key={`${u.user_id}-${u.school_id}-${i}`} className="hover:bg-gray-50">
                   <td className="px-5 py-3">
                     <div className="font-medium text-gray-900 flex items-center gap-1.5">
-                      {u.full_name || '—'}
+                      {u.full_name ?? '—'}
                       {u.is_super_admin && (
                         <span className="text-[10px] px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded font-semibold">SA</span>
                       )}
+                      {!u.is_active && (
+                        <span className="text-[10px] px-1.5 py-0.5 bg-red-100 text-red-600 rounded font-semibold">Inactive</span>
+                      )}
                     </div>
-                    <div className="text-xs text-gray-400">{u.email}</div>
+                    <div className="text-sm text-gray-500">{u.email ?? '—'}</div>
                   </td>
                   <td className="px-5 py-3 text-gray-600 text-xs">{u.role.replace(/_/g, ' ')}</td>
                   <td className="px-5 py-3 text-gray-500 text-xs">{u.school_name}</td>
@@ -903,15 +959,30 @@ function UsersTab() {
                   <td className="px-5 py-3 text-gray-400 text-xs">
                     {u.created_at ? new Date(u.created_at).toLocaleDateString('en-GB') : '—'}
                   </td>
-                  <td className="px-5 py-3 text-right whitespace-nowrap">
-                    <button onClick={() => openEdit(u)} className="text-xs text-[#01696f] hover:underline mr-2 font-medium">Edit</button>
+                  <td className="px-5 py-3 text-right relative">
                     <button
-                      onClick={() => handleDeactivate(u)}
-                      disabled={deactivating === u.user_id + u.school_id || u.status === 'suspended'}
-                      className="text-xs text-red-500 hover:underline disabled:opacity-40"
+                      onClick={() => setMenuOpenId(id => id === u.user_id + u.school_id ? null : u.user_id + u.school_id)}
+                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-700 transition-colors"
                     >
-                      {deactivating === u.user_id + u.school_id ? 'Suspending…' : 'Deactivate'}
+                      <MoreHorizontal className="h-4 w-4" />
                     </button>
+                    {menuOpenId === u.user_id + u.school_id && (
+                      <div className="absolute right-5 top-10 z-30 bg-white border border-gray-200 rounded-xl shadow-xl py-1 w-44">
+                        <button onClick={() => openEdit(u)} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                          Edit User
+                        </button>
+                        <button onClick={() => void handleToggleActive(u)} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                          {u.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        <button onClick={() => openResetPw(u)} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                          Reset Password
+                        </button>
+                        <div className="border-t border-gray-100 my-1" />
+                        <button onClick={() => openDelete(u)} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+                          Delete User
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -923,80 +994,94 @@ function UsersTab() {
         </div>
       )}
 
-      {/* Edit user panel */}
-      {editing && (
-        <SidePanel
-          title={`Edit — ${editing.full_name ?? editing.email}`}
-          onClose={() => setEditing(null)}
-        >
-          {panelError && <ErrorBanner message={panelError} />}
-          <div className="space-y-4">
-            <Field label="Role">
-              <select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} className={inputCls}>
-                {ROLE_OPTIONS.map(r => (
-                  <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="School Assignment">
-              <select value={form.school_id} onChange={e => setForm(f => ({ ...f, school_id: e.target.value }))} className={inputCls}>
-                <option value="">— No school —</option>
-                {allSchools.map(s => (
-                  <option key={s.id} value={s.id}>{s.name_en}</option>
-                ))}
-              </select>
-            </Field>
-            <div className="flex items-center justify-between py-2">
-              <div>
-                <p className="text-sm font-medium text-gray-700">Super Admin</p>
-                <p className="text-xs text-gray-400">Full platform access</p>
-              </div>
-              <button
-                onClick={() => setForm(f => ({ ...f, is_super_admin: !f.is_super_admin }))}
-                className={`relative w-10 h-5 rounded-full transition-colors focus:outline-none ${
-                  form.is_super_admin ? 'bg-[#01696f]' : 'bg-gray-200'
-                }`}
-              >
-                <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
-                  form.is_super_admin ? 'translate-x-5' : 'translate-x-0.5'
-                }`} />
-              </button>
-            </div>
-          </div>
-
-          <div className="flex gap-3 mt-6">
-            <button onClick={handleSave} disabled={saving} className={primaryBtn}>
-              {saving ? 'Saving…' : 'Save Changes'}
-            </button>
-            <button onClick={() => setEditing(null)} className={secondaryBtn}>Cancel</button>
-          </div>
-
-          <div className="mt-4 pt-4 border-t border-gray-100 space-y-2">
-            <button
-              onClick={handleResetPassword}
-              disabled={resetting || !editing.email}
-              className="w-full py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-            >
-              {resetting ? 'Generating link…' : 'Reset Password'}
-            </button>
-          </div>
-
-          {resetLink && (
-            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-xs font-semibold text-blue-800 mb-1.5">Recovery link (valid for 1 hour):</p>
-              <p className="text-xs text-blue-700 break-all font-mono bg-white rounded px-2 py-1.5 border border-blue-100">
-                {resetLink}
-              </p>
-              <button
-                onClick={() => { void navigator.clipboard.writeText(resetLink); }}
-                className="mt-2 text-xs text-blue-700 hover:underline font-medium"
-              >
-                Copy to clipboard
-              </button>
-            </div>
-          )}
-        </SidePanel>
+      {/* Click-away to close menu */}
+      {menuOpenId && (
+        <div className="fixed inset-0 z-20" onClick={() => setMenuOpenId(null)} />
       )}
+
+      {/* Edit User Dialog */}
+      <Dialog open={!!editUser} onOpenChange={open => { if (!open && !editSaving) setEditUser(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+          </DialogHeader>
+          {editError && <ErrorBanner message={editError} />}
+          <div className="space-y-4">
+            <Field label="Full Name">
+              <input type="text" value={editForm.full_name} onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))} className={inputCls} placeholder="Ahmad Al-Rashidi" />
+            </Field>
+            <Field label="Email">
+              <input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} className={inputCls} placeholder="user@school.edu.om" />
+            </Field>
+            <Field label="Role">
+              <select value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))} className={inputCls}>
+                {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>)}
+              </select>
+            </Field>
+          </div>
+          <div className="flex gap-3 mt-4">
+            <button onClick={() => void handleEditSave()} disabled={editSaving} className={primaryBtn}>
+              {editSaving ? 'Saving…' : 'Save Changes'}
+            </button>
+            <button onClick={() => setEditUser(null)} disabled={editSaving} className={secondaryBtn}>Cancel</button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Dialog */}
+      <Dialog open={!!resetUser} onOpenChange={open => { if (!open && !resetSaving) setResetUser(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Password — {resetUser?.full_name ?? resetUser?.email}</DialogTitle>
+          </DialogHeader>
+          {resetError && <ErrorBanner message={resetError} />}
+          <Field label="New Password (min 8 chars)">
+            <div className="relative">
+              <input
+                type={showPw ? 'text' : 'password'}
+                value={newPw}
+                onChange={e => setNewPw(e.target.value)}
+                placeholder="••••••••"
+                className={`${inputCls} pr-10`}
+              />
+              <button type="button" onClick={() => setShowPw(p => !p)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {newPw.length > 0 && newPw.length < 8 && <p className="text-xs text-red-500 mt-1">At least 8 characters required</p>}
+          </Field>
+          <div className="flex gap-3 mt-4">
+            <button onClick={() => void handleResetPw()} disabled={resetSaving || newPw.length < 8} className={primaryBtn}>
+              {resetSaving ? 'Saving…' : 'Set Password'}
+            </button>
+            <button onClick={() => setResetUser(null)} disabled={resetSaving} className={secondaryBtn}>Cancel</button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Dialog */}
+      <Dialog open={!!deleteUser} onOpenChange={open => { if (!open && !deleting) setDeleteUser(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete User</DialogTitle>
+          </DialogHeader>
+          {deleteError && <ErrorBanner message={deleteError} />}
+          <div className="py-2 text-sm text-gray-600">
+            <p>This will permanently delete <strong>{deleteUser?.full_name ?? deleteUser?.email}</strong> and all their data.</p>
+            <p className="mt-1 text-red-600 font-medium">This cannot be undone.</p>
+          </div>
+          <div className="flex gap-3 mt-2">
+            <button
+              onClick={() => void handleDelete()}
+              disabled={deleting}
+              className="flex-1 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+            >
+              {deleting ? 'Deleting…' : 'Delete Permanently'}
+            </button>
+            <button onClick={() => setDeleteUser(null)} disabled={deleting} className={secondaryBtn}>Cancel</button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
