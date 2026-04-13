@@ -335,8 +335,60 @@ export function DashboardPage() {
   const expectedLabel = `${yearStart}-${yearStart + 1}`;
   const academicYearMismatch = academicYear !== expectedLabel;
 
+  // Subscription expiry check
+  const subscriptionExpiresAt = (school as unknown as { subscription_expires_at?: string | null })?.subscription_expires_at ?? null;
+  const subscriptionTier = school?.subscription_tier ?? '';
+  const isTrial = subscriptionTier === 'trial';
+  const isExpired = subscriptionExpiresAt
+    ? new Date(subscriptionExpiresAt).getTime() < Date.now()
+    : false;
+  const daysUntilExpiry = subscriptionExpiresAt
+    ? Math.ceil((new Date(subscriptionExpiresAt).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+    : null;
+  const showTrialWarning = isTrial && !isExpired && daysUntilExpiry !== null && daysUntilExpiry <= 14;
+
   return (
     <div className="space-y-6">
+      {/* Subscription expired banner */}
+      {isExpired && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-lg border bg-red-900 border-red-900 text-white">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-white" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold">Your subscription has expired.</p>
+            <p className="text-xs mt-0.5 text-red-200">
+              Access to platform features has been restricted.{' '}
+              <a
+                href="mailto:hello@asabya.com?subject=Madrasa Comply Renewal - Subscription expired"
+                className="underline text-white font-semibold"
+              >
+                Contact us to renew →
+              </a>
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Trial expiry warning banner */}
+      {showTrialWarning && !isExpired && (
+        <div className="flex items-start gap-3 px-4 py-3 rounded-lg border bg-amber-50 border-amber-200 text-amber-800">
+          <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold">
+              Your trial expires in {daysUntilExpiry} day{daysUntilExpiry !== 1 ? 's' : ''}.
+            </p>
+            <p className="text-xs mt-0.5 text-amber-700">
+              Upgrade before your trial ends to keep full access.{' '}
+              <a
+                href="mailto:hello@asabya.com?subject=Madrasa Comply Upgrade - Please advise on pricing"
+                className="underline font-semibold text-amber-900"
+              >
+                Get in touch →
+              </a>
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Academic year mismatch banner — school admin / principal only */}
       {(isSchoolAdmin || isSuperAdmin) && academicYearMismatch && (
         <div className="flex items-start gap-3 px-4 py-3 rounded-lg border bg-amber-50 border-amber-200 text-amber-800">

@@ -67,24 +67,33 @@ interface AnalyticsData {
 // ─── Tier helpers ─────────────────────────────────────────────
 
 const TIER_LABELS: Record<string, string> = {
-  trial:        'Trial',
-  essential:    'Essential',
-  professional: 'Professional',
-  chain:        'Chain',
+  trial:        'Trial (30 days)',
+  starter:      'Starter — 350 OMR/yr',
+  essential:    'Starter — 350 OMR/yr',
+  professional: 'Professional — 650 OMR/yr',
+  premium:      'Premium — 950 OMR/yr',
+  chain:        'Chain — 1,200 OMR/school/yr',
+  enterprise:   'Enterprise — Custom',
 };
 
 const TIER_COLOURS: Record<string, string> = {
   trial:        'bg-gray-100 text-gray-600 border-gray-300',
+  starter:      'bg-blue-100 text-blue-700 border-blue-200',
   essential:    'bg-blue-100 text-blue-700 border-blue-200',
   professional: 'bg-purple-100 text-purple-700 border-purple-200',
+  premium:      'bg-indigo-100 text-indigo-700 border-indigo-200',
   chain:        'bg-amber-100 text-amber-700 border-amber-200',
+  enterprise:   'bg-rose-100 text-rose-700 border-rose-200',
 };
 
 const TIER_PIE_COLOURS: Record<string, string> = {
   trial:        '#9ca3af',
+  starter:      '#3b82f6',
   essential:    '#3b82f6',
   professional: '#a855f7',
+  premium:      '#6366f1',
   chain:        '#f59e0b',
+  enterprise:   '#f43f5e',
 };
 
 const OMAN_GOVERNORATES = [

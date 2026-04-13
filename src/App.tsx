@@ -38,6 +38,7 @@ import PublicDashboardPage from './pages/PublicDashboardPage';
 import StudentImportPage from './pages/StudentImportPage';
 import ChainDashboardPage from './pages/ChainDashboardPage';
 import FrameworkVersionPage from './pages/FrameworkVersionPage';
+import PricingPage from './pages/PricingPage';
 import { PwaUpdateBanner } from './components/PwaUpdateBanner';
 import { useSchool } from './hooks/useSchool';
 import { useSchoolStore } from './stores/schoolStore';
@@ -105,6 +106,7 @@ function App() {
       {/* ── Public routes (no auth) ── */}
       <Route path="/survey/:shareToken" element={<PublicSurveyPage />} />
       <Route path="/public/:schoolId"   element={<PublicDashboardPage />} />
+      <Route path="/pricing"            element={<PricingPage />} />
 
       {/* ── Public auth routes ── */}
       <Route path="/login"  element={session ? <Navigate to={postLoginPath} /> : <LoginPage />} />
