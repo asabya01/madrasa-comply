@@ -25,6 +25,9 @@ interface SurveyQuestion {
 export default function PublicSurveyPage() {
   const { shareToken } = useParams<{ shareToken: string }>();
   const [answers, setAnswers] = useState<Record<string, string | number>>({});
+  const [respondentName, setRespondentName] = useState('');
+  const [respondentType, setRespondentType] = useState<'parent' | 'student' | 'staff' | 'other'>('other');
+  const [respondentEmail, setRespondentEmail] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -71,7 +74,13 @@ export default function PublicSurveyPage() {
     setSubmitError(null);
     try {
       const { data, error } = await supabase.functions.invoke('submit-survey', {
-        body: { shareToken, responsesJson: answers },
+        body: {
+          shareToken,
+          responsesJson: answers,
+          respondent_name:  respondentName.trim() || null,
+          respondent_type:  respondentType,
+          respondent_email: respondentEmail.trim() || null,
+        },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error as string);
@@ -142,6 +151,46 @@ export default function PublicSurveyPage() {
         {template.name_ar && (
           <p className="text-base text-gray-500 mt-0.5 text-right" dir="rtl">{template.name_ar}</p>
         )}
+      </div>
+
+      {/* Optional respondent info */}
+      <div className="mb-8 p-5 bg-white border border-gray-200 rounded-2xl space-y-4">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">About you (optional)</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs text-gray-600 mb-1 block">Your name</label>
+            <input
+              type="text"
+              value={respondentName}
+              onChange={e => setRespondentName(e.target.value)}
+              placeholder="e.g. Ahmed Al-Rashdi"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#01696f]"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-gray-600 mb-1 block">I am a…</label>
+            <select
+              value={respondentType}
+              onChange={e => setRespondentType(e.target.value as typeof respondentType)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#01696f]"
+            >
+              <option value="parent">Parent / Guardian</option>
+              <option value="student">Student</option>
+              <option value="staff">Staff member</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs text-gray-600 mb-1 block">Email (for follow-up only)</label>
+            <input
+              type="email"
+              value={respondentEmail}
+              onChange={e => setRespondentEmail(e.target.value)}
+              placeholder="e.g. ahmed@example.com"
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#01696f]"
+            />
+          </div>
+        </div>
       </div>
 
       <form onSubmit={(e) => void handleSubmit(e)} className="space-y-8">

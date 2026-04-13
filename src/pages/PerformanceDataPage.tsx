@@ -1,6 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Save, TrendingUp, Users, FileSpreadsheet, Loader2, LineChart as LineChartIcon, Upload } from 'lucide-react';
+import { Plus, Trash2, Save, TrendingUp, Users, FileSpreadsheet, Loader2, LineChart as LineChartIcon, Upload, PieChart as PieChartIcon } from 'lucide-react';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cell,
+} from 'recharts';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { JudgementBadge } from '../components/ui/judgement-badge';
@@ -953,6 +956,356 @@ function AttendanceTab() {
   );
 }
 
+// ─── Cohort tab ───────────────────────────────────────────────
+
+interface CohortRow {
+  id?: string;
+  subject: Subject;
+  semester: Semester;
+  total_students_male: number | '';
+  total_students_female: number | '';
+  students_at_75_male: number | '';
+  students_at_75_female: number | '';
+  total_students_omani: number | '';
+  total_students_non_omani: number | '';
+  students_at_75_omani: number | '';
+  students_at_75_non_omani: number | '';
+}
+
+function calcRate(at75: number | '', total: number | ''): number | null {
+  if (total === '' || at75 === '' || Number(total) === 0) return null;
+  return Math.round((Number(at75) / Number(total)) * 1000) / 10;
+}
+
+function CohortDataDialog({
+  open,
+  onClose,
+  subject,
+  row,
+  onSave,
+}: {
+  open: boolean;
+  onClose: () => void;
+  subject: Subject;
+  row: Partial<CohortRow>;
+  onSave: (data: Partial<CohortRow>) => void;
+}) {
+  const [draft, setDraft] = useState<Partial<CohortRow>>({ ...row });
+  useEffect(() => { setDraft({ ...row }); }, [row, open]);
+
+  function field(label: string, key: keyof CohortRow) {
+    return (
+      <div>
+        <label className="text-xs text-gray-600 mb-1 block">{label}</label>
+        <input
+          type="number"
+          min={0}
+          value={draft[key] as number | '' ?? ''}
+          onChange={e => setDraft(d => ({ ...d, [key]: e.target.value === '' ? '' : parseInt(e.target.value, 10) }))}
+          className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01696f]"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Cohort Data — {subject}</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Gender breakdown</p>
+            <div className="grid grid-cols-2 gap-3">
+              {field('Total boys', 'total_students_male')}
+              {field('Boys ≥75%', 'students_at_75_male')}
+              {field('Total girls', 'total_students_female')}
+              {field('Girls ≥75%', 'students_at_75_female')}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Nationality breakdown</p>
+            <div className="grid grid-cols-2 gap-3">
+              {field('Total Omani', 'total_students_omani')}
+              {field('Omani ≥75%', 'students_at_75_omani')}
+              {field('Total Non-Omani', 'total_students_non_omani')}
+              {field('Non-Omani ≥75%', 'students_at_75_non_omani')}
+            </div>
+          </div>
+        </div>
+        <div className="flex gap-3 mt-4">
+          <button onClick={onClose} className="flex-1 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50">
+            Cancel
+          </button>
+          <button
+            onClick={() => { onSave(draft); onClose(); }}
+            className="flex-1 py-2 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54]"
+          >
+            Save
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function CohortTab() {
+  const { school, academicYear, profile } = useSchoolStore();
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
+  const [semester, setSemester] = useState<Semester>('semester_1');
+  const [dialogSubject, setDialogSubject] = useState<Subject | null>(null);
+  const [draft, setDraft] = useState<Partial<CohortRow>>({});
+
+  const { data: dbRows = [] } = useQuery({
+    queryKey: ['student-performance-cohort', school?.id, academicYear, semester],
+    queryFn: async () => {
+      if (!school) return [];
+      const { data, error } = await supabase
+        .from('student_performance')
+        .select(`id, subject, semester,
+          total_students_male, total_students_female,
+          students_at_75_male, students_at_75_female,
+          total_students_omani, total_students_non_omani,
+          students_at_75_omani, students_at_75_non_omani`)
+        .eq('school_id', school.id)
+        .eq('academic_year', academicYear)
+        .eq('semester', semester);
+      if (error) throw error;
+      return (data ?? []) as CohortRow[];
+    },
+    enabled: !!school,
+  });
+
+  // Map by subject for quick lookup
+  const rowBySubject = Object.fromEntries(dbRows.map(r => [r.subject, r]));
+
+  const saveMutation = useMutation({
+    mutationFn: async ({ subject, data }: { subject: Subject; data: Partial<CohortRow> }) => {
+      if (!school) return;
+      const existing = rowBySubject[subject];
+      const payload = {
+        school_id: school.id,
+        academic_year: academicYear,
+        subject,
+        semester,
+        grade_label: 'all',
+        total_students: 0,
+        students_at_75: 0,
+        entered_by: profile?.id ?? null,
+        updated_at: new Date().toISOString(),
+        total_students_male: data.total_students_male !== '' ? Number(data.total_students_male) : null,
+        total_students_female: data.total_students_female !== '' ? Number(data.total_students_female) : null,
+        students_at_75_male: data.students_at_75_male !== '' ? Number(data.students_at_75_male) : null,
+        students_at_75_female: data.students_at_75_female !== '' ? Number(data.students_at_75_female) : null,
+        total_students_omani: data.total_students_omani !== '' ? Number(data.total_students_omani) : null,
+        total_students_non_omani: data.total_students_non_omani !== '' ? Number(data.total_students_non_omani) : null,
+        students_at_75_omani: data.students_at_75_omani !== '' ? Number(data.students_at_75_omani) : null,
+        students_at_75_non_omani: data.students_at_75_non_omani !== '' ? Number(data.students_at_75_non_omani) : null,
+      };
+      if (existing?.id) {
+        const { error } = await supabase.from('student_performance').update(payload).eq('id', existing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('student_performance')
+          .upsert(payload, { onConflict: 'school_id,academic_year,grade_label,subject,semester' });
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['student-performance-cohort'] });
+      showToast('Cohort data saved', 'success');
+    },
+    onError: (e: Error) => showToast(e.message, 'error'),
+  });
+
+  // Build chart data
+  const genderChartData = SUBJECTS.map(subj => {
+    const r = rowBySubject[subj];
+    return {
+      name: subj.replace(' Language', '').replace(' Education', '').replace(' Studies', ''),
+      Boys: r ? calcRate(r.students_at_75_male, r.total_students_male) ?? 0 : 0,
+      Girls: r ? calcRate(r.students_at_75_female, r.total_students_female) ?? 0 : 0,
+    };
+  });
+
+  const natChartData = SUBJECTS.map(subj => {
+    const r = rowBySubject[subj];
+    return {
+      name: subj.replace(' Language', '').replace(' Education', '').replace(' Studies', ''),
+      Omani: r ? calcRate(r.students_at_75_omani, r.total_students_omani) ?? 0 : 0,
+      'Non-Omani': r ? calcRate(r.students_at_75_non_omani, r.total_students_non_omani) ?? 0 : 0,
+    };
+  });
+
+  function openDialog(subject: Subject) {
+    const r = rowBySubject[subject];
+    setDraft(r ? { ...r } : {});
+    setDialogSubject(subject);
+  }
+
+  function CohortTable({
+    headers,
+    getRow,
+  }: {
+    headers: string[];
+    getRow: (subj: Subject, r: CohortRow | undefined) => React.ReactNode[];
+  }) {
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-gray-100 bg-gray-50">
+              <th className="text-left px-3 py-2 font-medium text-gray-500">Subject</th>
+              {headers.map(h => (
+                <th key={h} className="text-right px-3 py-2 font-medium text-gray-500 whitespace-nowrap">{h}</th>
+              ))}
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-50">
+            {SUBJECTS.map(subj => {
+              const r = rowBySubject[subj];
+              const cells = getRow(subj, r);
+              return (
+                <tr key={subj} className="hover:bg-gray-50">
+                  <td className="px-3 py-2 font-medium text-gray-700">{subj}</td>
+                  {cells.map((cell, i) => (
+                    <td key={i} className="px-3 py-2 text-right tabular-nums text-gray-600">{cell}</td>
+                  ))}
+                  <td className="px-3 py-2 text-right">
+                    <button
+                      onClick={() => openDialog(subj)}
+                      className="text-[#01696f] text-xs hover:underline"
+                    >
+                      Edit
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <SemesterSelector value={semester} onChange={setSemester} rows={[]} />
+
+      {/* Gender breakdown */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold">Gender Breakdown — Proficiency ≥75%</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CohortTable
+            headers={['Total Boys', 'Boys ≥75%', 'Boys Rate', 'Total Girls', 'Girls ≥75%', 'Girls Rate', 'Gap']}
+            getRow={(subj, r) => {
+              const boysRate = r ? calcRate(r.students_at_75_male, r.total_students_male) : null;
+              const girlsRate = r ? calcRate(r.students_at_75_female, r.total_students_female) : null;
+              const gap = boysRate != null && girlsRate != null ? boysRate - girlsRate : null;
+              return [
+                r?.total_students_male ?? '—',
+                r?.students_at_75_male ?? '—',
+                boysRate != null ? `${boysRate}%` : '—',
+                r?.total_students_female ?? '—',
+                r?.students_at_75_female ?? '—',
+                girlsRate != null ? `${girlsRate}%` : '—',
+                gap != null ? (
+                  <span className={gap > 0 ? 'text-blue-600' : gap < 0 ? 'text-pink-600' : 'text-gray-400'}>
+                    {gap > 0 ? `+${gap.toFixed(1)}%` : `${gap.toFixed(1)}%`}
+                  </span>
+                ) : '—',
+              ];
+            }}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold">Gender Proficiency Chart</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={genderChartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} unit="%" domain={[0, 100]} />
+              <Tooltip formatter={(v: number) => [`${v}%`]} />
+              <Legend />
+              <Bar dataKey="Boys" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={32} />
+              <Bar dataKey="Girls" fill="#ec4899" radius={[4, 4, 0, 0]} maxBarSize={32} />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {/* Nationality breakdown */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold">Nationality Breakdown — Proficiency ≥75%</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <CohortTable
+            headers={['Total Omani', 'Omani ≥75%', 'Omani Rate', 'Total Non-Omani', 'Non-Omani ≥75%', 'Non-Omani Rate', 'Gap']}
+            getRow={(subj, r) => {
+              const omaniRate = r ? calcRate(r.students_at_75_omani, r.total_students_omani) : null;
+              const nonOmaniRate = r ? calcRate(r.students_at_75_non_omani, r.total_students_non_omani) : null;
+              const gap = omaniRate != null && nonOmaniRate != null ? omaniRate - nonOmaniRate : null;
+              return [
+                r?.total_students_omani ?? '—',
+                r?.students_at_75_omani ?? '—',
+                omaniRate != null ? `${omaniRate}%` : '—',
+                r?.total_students_non_omani ?? '—',
+                r?.students_at_75_non_omani ?? '—',
+                nonOmaniRate != null ? `${nonOmaniRate}%` : '—',
+                gap != null ? (
+                  <span className={gap > 0 ? 'text-green-600' : gap < 0 ? 'text-red-600' : 'text-gray-400'}>
+                    {gap > 0 ? `+${gap.toFixed(1)}%` : `${gap.toFixed(1)}%`}
+                  </span>
+                ) : '—',
+              ];
+            }}
+          />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold">Nationality Proficiency Chart</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={natChartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} unit="%" domain={[0, 100]} />
+              <Tooltip formatter={(v: number) => [`${v}%`]} />
+              <Legend />
+              <Bar dataKey="Omani" fill="#01696f" radius={[4, 4, 0, 0]} maxBarSize={32} />
+              <Bar dataKey="Non-Omani" fill="#d19900" radius={[4, 4, 0, 0]} maxBarSize={32} />
+            </BarChart>
+          </ResponsiveContainer>
+        </CardContent>
+      </Card>
+
+      {dialogSubject && (
+        <CohortDataDialog
+          open={true}
+          onClose={() => setDialogSubject(null)}
+          subject={dialogSubject}
+          row={draft}
+          onSave={(data) => {
+            saveMutation.mutate({ subject: dialogSubject, data });
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
 // ─── Page ────────────────────────────────────────────────────
 
 export default function PerformanceDataPage() {
@@ -1023,6 +1376,10 @@ export default function PerformanceDataPage() {
             <LineChartIcon className="h-3.5 w-3.5" />
             3-Year Trend
           </TabsTrigger>
+          <TabsTrigger value="cohort" className="flex items-center gap-1.5">
+            <PieChartIcon className="h-3.5 w-3.5" />
+            Cohort Breakdown
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="proficiency" className="mt-4">
@@ -1035,6 +1392,10 @@ export default function PerformanceDataPage() {
 
         <TabsContent value="trend" className="mt-4">
           <TrendTab />
+        </TabsContent>
+
+        <TabsContent value="cohort" className="mt-4">
+          <CohortTab />
         </TabsContent>
       </Tabs>
     </div>

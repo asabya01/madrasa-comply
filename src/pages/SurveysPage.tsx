@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   MessageSquare, Copy, Check, ToggleLeft, ToggleRight, ChevronDown,
-  Users, GraduationCap, Briefcase, BarChart2, Link2, X, Loader2,
+  Users, GraduationCap, Briefcase, BarChart2, Link2, X, Loader2, Download,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -39,6 +39,10 @@ interface SurveyResponse {
   id: string;
   template_id: string;
   responses_json: Record<string, string | number>;
+  respondent_name: string | null;
+  respondent_type: 'parent' | 'student' | 'staff' | 'other' | null;
+  respondent_email: string | null;
+  created_at: string | null;
 }
 
 // ─── Config ───────────────────────────────────────────────────
@@ -404,6 +408,7 @@ function SurveyCards({ onViewResults }: { onViewResults: (id: string) => void })
 function ResultsPanel({ templateId, onBack }: { templateId: string; onBack: () => void }) {
   const { data: schoolTemplates = [] } = useSchoolTemplates();
   const [selectedId, setSelectedId] = useState(templateId);
+  const [activeTab, setActiveTab] = useState<'charts' | 'respondents'>('charts');
   const effectiveId = selectedId || templateId;
 
   const { data: questions = [] } = useQuery({
@@ -427,8 +432,9 @@ function ResultsPanel({ templateId, onBack }: { templateId: string; onBack: () =
       if (!effectiveId) return [] as SurveyResponse[];
       const { data, error } = await supabase
         .from('survey_responses')
-        .select('id, template_id, responses_json')
-        .eq('template_id', effectiveId);
+        .select('id, template_id, responses_json, respondent_name, respondent_type, respondent_email, created_at')
+        .eq('template_id', effectiveId)
+        .order('created_at', { ascending: false });
       if (error) throw error;
       return (data ?? []) as SurveyResponse[];
     },
@@ -436,6 +442,32 @@ function ResultsPanel({ templateId, onBack }: { templateId: string; onBack: () =
   });
 
   const tpl = schoolTemplates.find((t) => t.id === effectiveId);
+
+  function exportRespondentsCsv() {
+    const rows = [
+      ['Name', 'Type', 'Email', 'Submitted At'].join(','),
+      ...responses.map(r => [
+        JSON.stringify(r.respondent_name ?? ''),
+        r.respondent_type ?? 'other',
+        JSON.stringify(r.respondent_email ?? ''),
+        r.created_at ? new Date(r.created_at).toLocaleString('en-GB') : '',
+      ].join(',')),
+    ].join('\n');
+    const blob = new Blob([rows], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `respondents-${tpl?.name_en ?? effectiveId}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const TYPE_LABELS: Record<string, string> = {
+    parent: 'Parent / Guardian',
+    student: 'Student',
+    staff: 'Staff',
+    other: 'Other',
+  };
 
   return (
     <div className="space-y-5">
@@ -472,15 +504,82 @@ function ResultsPanel({ templateId, onBack }: { templateId: string; onBack: () =
         </div>
       )}
 
-      {responses.length === 0 ? (
-        <div className="text-center py-12 text-sm text-gray-400">
-          No responses yet for this survey.
-        </div>
-      ) : (
-        <div className="space-y-5">
-          {questions.map((q) => (
-            <QuestionResult key={q.id} question={q} responses={responses} />
-          ))}
+      {/* Tab bar */}
+      <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+        {(['charts', 'respondents'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors capitalize ${
+              activeTab === tab
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tab === 'charts' ? 'Question Charts' : 'Respondents'}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'charts' && (
+        responses.length === 0 ? (
+          <div className="text-center py-12 text-sm text-gray-400">
+            No responses yet for this survey.
+          </div>
+        ) : (
+          <div className="space-y-5">
+            {questions.map((q) => (
+              <QuestionResult key={q.id} question={q} responses={responses} />
+            ))}
+          </div>
+        )
+      )}
+
+      {activeTab === 'respondents' && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-gray-500">{responses.filter(r => r.respondent_name || r.respondent_email).length} of {responses.length} respondents shared contact info</p>
+            <button
+              onClick={exportRespondentsCsv}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              <Download className="h-3.5 w-3.5" /> Export CSV
+            </button>
+          </div>
+          {responses.length === 0 ? (
+            <div className="text-center py-12 text-sm text-gray-400">No responses yet.</div>
+          ) : (
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 border-b border-gray-100">
+                  <tr>
+                    <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">#</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Name</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Type</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Email</th>
+                    <th className="text-left px-4 py-2.5 text-xs font-medium text-gray-500">Submitted</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {responses.map((r, i) => (
+                    <tr key={r.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-2.5 text-xs text-gray-400">{responses.length - i}</td>
+                      <td className="px-4 py-2.5 text-gray-700">{r.respondent_name ?? <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-2.5">
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                          {TYPE_LABELS[r.respondent_type ?? 'other'] ?? 'Other'}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-500 text-xs">{r.respondent_email ?? <span className="text-gray-300">—</span>}</td>
+                      <td className="px-4 py-2.5 text-xs text-gray-400">
+                        {r.created_at ? new Date(r.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>

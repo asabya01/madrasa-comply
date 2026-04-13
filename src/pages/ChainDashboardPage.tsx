@@ -1,5 +1,6 @@
-import { useQuery } from '@tanstack/react-query';
-import { Building2, AlertTriangle, RefreshCw } from 'lucide-react';
+import { useState } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { Building2, AlertTriangle, RefreshCw, Send } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
 import { usePermissions } from '../hooks/usePermissions';
@@ -7,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { JudgementBadge } from '../components/ui/judgement-badge';
 import { Progress } from '../components/ui/progress';
 import { JUDGEMENT_COLORS, JUDGEMENT_LABELS_SHORT, type JudgementLevel } from '../lib/judgement';
+import { useToast } from '../components/ui/toast';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -302,11 +304,302 @@ function GroupSection({ name, stats }: { name: string; stats: SchoolStat[] }) {
   );
 }
 
+// ─── Push to Schools tab ──────────────────────────────────────
+
+interface SurveyTemplate {
+  id: string;
+  name_en: string;
+  target_group: string;
+  school_id: string | null;
+}
+
+interface SchoolOption {
+  id: string;
+  name_en: string;
+}
+
+function PushToSchoolsTab() {
+  const { profile } = useSchoolStore();
+  const { isSuperAdmin } = usePermissions();
+  const { showToast } = useToast();
+
+  // Survey push state
+  const [selectedTemplateId, setSelectedTemplateId] = useState('');
+  const [surveySchoolIds, setSurveySchoolIds] = useState<string[]>([]);
+
+  // Action item push state
+  const [actionTitle, setActionTitle] = useState('');
+  const [actionDomain, setActionDomain] = useState('');
+  const [actionDueDate, setActionDueDate] = useState('');
+  const [actionPriority, setActionPriority] = useState<'high' | 'medium' | 'low'>('medium');
+  const [actionSchoolIds, setActionSchoolIds] = useState<string[]>([]);
+
+  // Fetch platform (school_id IS NULL) survey templates
+  const { data: templates = [] } = useQuery({
+    queryKey: ['chain-platform-templates'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('survey_templates')
+        .select('id, name_en, target_group, school_id')
+        .is('school_id', null)
+        .eq('is_active', true);
+      if (error) throw error;
+      return (data ?? []) as SurveyTemplate[];
+    },
+  });
+
+  // Fetch accessible schools
+  const { data: schools = [] } = useQuery({
+    queryKey: ['chain-push-schools', profile?.id, isSuperAdmin],
+    queryFn: async () => {
+      if (!profile?.id) return [] as SchoolOption[];
+      if (isSuperAdmin) {
+        const { data, error } = await supabase
+          .from('schools').select('id, name_en').eq('is_active', true).order('name_en');
+        if (error) throw error;
+        return (data ?? []) as SchoolOption[];
+      }
+      // Chain admin: resolve through group memberships
+      const { data: capData } = await supabase
+        .from('chain_admin_profiles').select('group_id').eq('user_id', profile.id);
+      const groupIds = (capData ?? []).map((r: { group_id: string }) => r.group_id);
+      if (!groupIds.length) return [] as SchoolOption[];
+      const { data: memberData } = await supabase
+        .from('school_group_members').select('school_id').in('group_id', groupIds);
+      const schoolIds = [...new Set((memberData ?? []).map((m: { school_id: string }) => m.school_id))];
+      if (!schoolIds.length) return [] as SchoolOption[];
+      const { data: schoolData } = await supabase
+        .from('schools').select('id, name_en').in('id', schoolIds).order('name_en');
+      return (schoolData ?? []) as SchoolOption[];
+    },
+    enabled: !!profile?.id,
+  });
+
+  function toggleSchool(id: string, list: string[], setList: (l: string[]) => void) {
+    setList(list.includes(id) ? list.filter(s => s !== id) : [...list, id]);
+  }
+
+  function selectAll(list: string[], setList: (l: string[]) => void) {
+    setList(list.length === schools.length ? [] : schools.map(s => s.id));
+  }
+
+  // Push survey template to selected schools
+  const pushSurveyMutation = useMutation({
+    mutationFn: async () => {
+      if (!selectedTemplateId || !surveySchoolIds.length) throw new Error('Select a template and at least one school');
+      const tpl = templates.find(t => t.id === selectedTemplateId);
+      if (!tpl) throw new Error('Template not found');
+
+      // Fetch questions for the template
+      const { data: questions, error: qErr } = await supabase
+        .from('survey_questions')
+        .select('question_en, question_ar, question_type, domain_id, standard_id, sort_order')
+        .eq('template_id', selectedTemplateId)
+        .order('sort_order');
+      if (qErr) throw qErr;
+
+      // Clone template + questions for each school
+      for (const schoolId of surveySchoolIds) {
+        const { data: newTpl, error: tErr } = await supabase
+          .from('survey_templates')
+          .insert({
+            school_id: schoolId,
+            name_en: tpl.name_en,
+            target_group: tpl.target_group,
+            is_active: true,
+            source_template_id: selectedTemplateId,
+          })
+          .select('id')
+          .single();
+        if (tErr || !newTpl) throw tErr ?? new Error('Failed to clone template');
+
+        if (questions?.length) {
+          const { error: insertErr } = await supabase
+            .from('survey_questions')
+            .insert(questions.map(q => ({ ...q, template_id: newTpl.id })));
+          if (insertErr) throw insertErr;
+        }
+      }
+    },
+    onSuccess: () => {
+      showToast(`Survey pushed to ${surveySchoolIds.length} school(s)`, 'success');
+      setSurveySchoolIds([]);
+      setSelectedTemplateId('');
+    },
+    onError: (e: Error) => showToast(e.message, 'error'),
+  });
+
+  // Push action item template to selected schools
+  const pushActionMutation = useMutation({
+    mutationFn: async () => {
+      if (!actionTitle.trim() || !actionSchoolIds.length) throw new Error('Enter a title and select at least one school');
+      const rows = actionSchoolIds.map(schoolId => ({
+        school_id: schoolId,
+        title: actionTitle.trim(),
+        domain: actionDomain.trim() || null,
+        due_date: actionDueDate || null,
+        priority: actionPriority,
+        status: 'not_started',
+        source: 'chain_push',
+      }));
+      const { error } = await supabase.from('action_items').insert(rows);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      showToast(`Action item pushed to ${actionSchoolIds.length} school(s)`, 'success');
+      setActionTitle('');
+      setActionDomain('');
+      setActionDueDate('');
+      setActionPriority('medium');
+      setActionSchoolIds([]);
+    },
+    onError: (e: Error) => showToast(e.message, 'error'),
+  });
+
+  function SchoolPicker({ selected, setSelected }: { selected: string[]; setSelected: (l: string[]) => void }) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Target schools</p>
+          <button
+            onClick={() => selectAll(selected, setSelected)}
+            className="text-xs text-[#01696f] hover:underline"
+          >
+            {selected.length === schools.length ? 'Deselect all' : 'Select all'}
+          </button>
+        </div>
+        <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-xl divide-y divide-gray-50">
+          {schools.map(s => (
+            <label key={s.id} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={selected.includes(s.id)}
+                onChange={() => toggleSchool(s.id, selected, setSelected)}
+                className="rounded border-gray-300 text-[#01696f] focus:ring-[#01696f]"
+              />
+              <span className="text-sm text-gray-700">{s.name_en}</span>
+            </label>
+          ))}
+          {schools.length === 0 && (
+            <p className="px-4 py-3 text-xs text-gray-400">No schools available</p>
+          )}
+        </div>
+        {selected.length > 0 && (
+          <p className="text-xs text-gray-500">{selected.length} school{selected.length !== 1 ? 's' : ''} selected</p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Push Survey Template */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Send className="h-4 w-4 text-[#01696f]" />
+            Push Survey Template to Schools
+          </CardTitle>
+          <p className="text-xs text-gray-400 mt-0.5">Clone a platform survey template to multiple schools at once</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <label className="text-xs text-gray-600 mb-1 block">Survey template</label>
+            <select
+              value={selectedTemplateId}
+              onChange={e => setSelectedTemplateId(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#01696f]"
+            >
+              <option value="">Select a template…</option>
+              {templates.map(t => (
+                <option key={t.id} value={t.id}>{t.name_en} ({t.target_group})</option>
+              ))}
+            </select>
+          </div>
+          <SchoolPicker selected={surveySchoolIds} setSelected={setSurveySchoolIds} />
+          <button
+            onClick={() => pushSurveyMutation.mutate()}
+            disabled={pushSurveyMutation.isPending || !selectedTemplateId || !surveySchoolIds.length}
+            className="flex items-center gap-2 px-4 py-2 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54] disabled:opacity-50 transition-colors"
+          >
+            {pushSurveyMutation.isPending ? 'Pushing…' : `Push to ${surveySchoolIds.length || 0} school(s)`}
+          </button>
+        </CardContent>
+      </Card>
+
+      {/* Push Action Item Template */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <Send className="h-4 w-4 text-[#01696f]" />
+            Push Improvement Action to Schools
+          </CardTitle>
+          <p className="text-xs text-gray-400 mt-0.5">Insert an action item into multiple schools' improvement plans</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="sm:col-span-2">
+              <label className="text-xs text-gray-600 mb-1 block">Action title</label>
+              <input
+                type="text"
+                value={actionTitle}
+                onChange={e => setActionTitle(e.target.value)}
+                placeholder="e.g. Review reading intervention programme"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#01696f]"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">Domain (optional)</label>
+              <input
+                type="text"
+                value={actionDomain}
+                onChange={e => setActionDomain(e.target.value)}
+                placeholder="e.g. Student Achievement"
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#01696f]"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">Priority</label>
+              <select
+                value={actionPriority}
+                onChange={e => setActionPriority(e.target.value as typeof actionPriority)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#01696f]"
+              >
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-600 mb-1 block">Due date (optional)</label>
+              <input
+                type="date"
+                value={actionDueDate}
+                onChange={e => setActionDueDate(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#01696f]"
+              />
+            </div>
+          </div>
+          <SchoolPicker selected={actionSchoolIds} setSelected={setActionSchoolIds} />
+          <button
+            onClick={() => pushActionMutation.mutate()}
+            disabled={pushActionMutation.isPending || !actionTitle.trim() || !actionSchoolIds.length}
+            className="flex items-center gap-2 px-4 py-2 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54] disabled:opacity-50 transition-colors"
+          >
+            {pushActionMutation.isPending ? 'Pushing…' : `Push to ${actionSchoolIds.length || 0} school(s)`}
+          </button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function ChainDashboardPage() {
   const { profile } = useSchoolStore();
   const { isSuperAdmin } = usePermissions();
+  const [activeTab, setActiveTab] = useState<'overview' | 'push'>('overview');
   const { data, isLoading, dataUpdatedAt, refetch, isFetching } = useChainData(profile?.id, isSuperAdmin);
 
   const groups = data?.groups ?? [];
@@ -394,6 +687,27 @@ export default function ChainDashboardPage() {
         </button>
       </div>
 
+      {/* Tab bar */}
+      <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
+        {(['overview', 'push'] as const).map(tab => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+              activeTab === tab
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tab === 'overview' ? 'School Overview' : 'Push to Schools'}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === 'push' && <PushToSchoolsTab />}
+
+      {activeTab === 'overview' && (<>
+
       {/* Summary cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
@@ -451,6 +765,8 @@ export default function ChainDashboardPage() {
       {isSuperAdmin && ungrouped.length > 0 && (
         <GroupSection name="Ungrouped Schools" stats={ungrouped} />
       )}
+
+      </>)}
     </div>
   );
 }

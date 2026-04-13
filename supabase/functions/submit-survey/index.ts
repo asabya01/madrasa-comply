@@ -10,7 +10,13 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const { shareToken, responsesJson } = await req.json();
+    const {
+      shareToken,
+      responsesJson,
+      respondent_name,
+      respondent_type,
+      respondent_email,
+    } = await req.json();
 
     if (!shareToken || !responsesJson) {
       return new Response(JSON.stringify({ error: 'Missing shareToken or responsesJson' }), {
@@ -42,11 +48,19 @@ serve(async (req) => {
       });
     }
 
+    const VALID_RESPONDENT_TYPES = ['parent', 'student', 'staff', 'other'];
+    const safeRespondentType = VALID_RESPONDENT_TYPES.includes(respondent_type)
+      ? respondent_type
+      : 'other';
+
     await serviceClient.from('survey_responses').insert({
-      template_id:    template.id,
-      school_id:      template.school_id,
-      academic_year:  template.academic_year ?? '',
-      responses_json: responsesJson,
+      template_id:      template.id,
+      school_id:        template.school_id,
+      academic_year:    template.academic_year ?? '',
+      responses_json:   responsesJson,
+      respondent_name:  respondent_name ?? null,
+      respondent_type:  safeRespondentType,
+      respondent_email: respondent_email ?? null,
     });
 
     return new Response(JSON.stringify({ success: true }), {
