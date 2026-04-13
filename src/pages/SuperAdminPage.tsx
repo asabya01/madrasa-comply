@@ -1,11 +1,16 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, TrendingDown, ClipboardList } from 'lucide-react';
+import { AlertTriangle, TrendingDown, ClipboardList, Eye, EyeOff, Check } from 'lucide-react';
 import { seedSurveyQuestions } from '../../seed/survey_questions';
 import { FunctionsHttpError } from '@supabase/supabase-js';
+import {
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
+  Tooltip, ResponsiveContainer, Legend,
+} from 'recharts';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
 import { JUDGEMENT_LABELS, JUDGEMENT_COLORS, type JudgementLevel } from '../lib/judgement';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import type { School } from '../types';
 
 // ─── Types ────────────────────────────────────────────────────
@@ -22,6 +27,7 @@ interface SchoolRow {
   education_cycle: string | null;
   is_active: boolean;
   subscription_tier: string;
+  subscription_expires_at: string | null;
 }
 
 interface UserRow {
@@ -37,18 +43,59 @@ interface UserRow {
   created_at: string;
 }
 
+interface AnalyticsSchoolDetail {
+  id: string;
+  name_en: string;
+  governorate: string | null;
+  subscription_tier: string;
+  subscription_expires_at: string | null;
+  user_count: number;
+  last_activity: string | null;
+}
+
 interface AnalyticsData {
   total_schools: number;
   total_users: number;
-  active_academic_years: number;
-  schools_needing_attention: number;
-  school_breakdown: Array<{
-    school_id: string;
-    name_en: string;
-    overall_judgement: number | null;
-    domain_completion_pct: number;
-    last_activity: string | null;
-  }>;
+  total_seds: number;
+  ai_requests_30d: number;
+  schools_by_tier: Array<{ tier: string; count: number }>;
+  seds_by_month: Array<{ month: string; count: number }>;
+  schools_detail: AnalyticsSchoolDetail[];
+}
+
+// ─── Tier helpers ─────────────────────────────────────────────
+
+const TIER_LABELS: Record<string, string> = {
+  trial:        'Trial',
+  essential:    'Essential',
+  professional: 'Professional',
+  chain:        'Chain',
+};
+
+const TIER_COLOURS: Record<string, string> = {
+  trial:        'bg-gray-100 text-gray-600 border-gray-300',
+  essential:    'bg-blue-100 text-blue-700 border-blue-200',
+  professional: 'bg-purple-100 text-purple-700 border-purple-200',
+  chain:        'bg-amber-100 text-amber-700 border-amber-200',
+};
+
+const TIER_PIE_COLOURS: Record<string, string> = {
+  trial:        '#9ca3af',
+  essential:    '#3b82f6',
+  professional: '#a855f7',
+  chain:        '#f59e0b',
+};
+
+const OMAN_GOVERNORATES = [
+  'Muscat', 'Dhofar', 'Musandam', 'Al Buraymi', 'Al Wusta',
+  'North Al Batinah', 'South Al Batinah', 'North Al Sharqiyah',
+  'South Al Sharqiyah', 'Ad Dhahirah', 'Al Dakhiliyah',
+];
+
+function defaultExpiry(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 90);
+  return d.toISOString().slice(0, 10);
 }
 
 interface IndicatorRow {
@@ -157,49 +204,64 @@ export default function SuperAdminPage() {
 
 // ─── Schools Tab ──────────────────────────────────────────────
 
-type SchoolPanelMode = null | 'create' | 'edit';
-
-const EMPTY_SCHOOL_FORM = {
+const EMPTY_EDIT_FORM = {
   name_en: '', name_ar: '', oaaaqa_code: '', school_type: 'government',
   governorate: '', education_cycle: '',
 };
 
+// 3-step wizard state
+const EMPTY_WIZARD = {
+  // step 1
+  name_en: '', name_ar: '', school_type: 'government', oaaaqa_code: '', governorate: '',
+  // step 2
+  full_name: '', email: '', password: '',
+  // step 3
+  tier: 'trial', expiry_date: defaultExpiry(),
+};
+
 function SchoolsTab() {
-  const navigate   = useNavigate();
+  const navigate            = useNavigate();
   const { setImpersonating } = useSchoolStore();
 
-  const [schools, setSchools]     = useState<SchoolRow[]>([]);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
-  const [panelMode, setPanelMode] = useState<SchoolPanelMode>(null);
-  const [editing, setEditing]     = useState<SchoolRow | null>(null);
-  const [form, setForm]           = useState(EMPTY_SCHOOL_FORM);
-  const [saving, setSaving]       = useState(false);
-  const [panelError, setPanelError] = useState<string | null>(null);
+  const [schools, setSchools]       = useState<SchoolRow[]>([]);
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState<string | null>(null);
+
+  // Edit panel (existing schools)
+  const [editingSchool, setEditingSchool]   = useState<SchoolRow | null>(null);
+  const [editForm, setEditForm]             = useState(EMPTY_EDIT_FORM);
+  const [editSaving, setEditSaving]         = useState(false);
+  const [editError, setEditError]           = useState<string | null>(null);
+
+  // Tier popover
+  const [tierEditId, setTierEditId]         = useState<string | null>(null);
+  const [tierForm, setTierForm]             = useState({ tier: 'trial', expiry_date: '' });
+  const [tierSaving, setTierSaving]         = useState(false);
+
+  // Creation wizard
+  const [wizardOpen, setWizardOpen]         = useState(false);
+  const [wizardStep, setWizardStep]         = useState(1);
+  const [wizard, setWizard]                 = useState(EMPTY_WIZARD);
+  const [wizardSaving, setWizardSaving]     = useState(false);
+  const [wizardError, setWizardError]       = useState<string | null>(null);
+  const [showPw, setShowPw]                 = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
-    const { data, error } = await supabase
+    const { data, error: qErr } = await supabase
       .from('schools')
-      .select('id, name_en, name_ar, oaaaqa_code, school_type, governorate, education_cycle, is_active, subscription_tier')
+      .select('id, name_en, name_ar, oaaaqa_code, school_type, governorate, education_cycle, is_active, subscription_tier, subscription_expires_at')
       .order('name_en');
-    if (error) setError(error.message);
+    if (qErr) setError(qErr.message);
     else setSchools((data ?? []) as SchoolRow[]);
     setLoading(false);
   }, []);
 
   useEffect(() => { void load(); }, [load]);
 
-  function openCreate() {
-    setForm(EMPTY_SCHOOL_FORM);
-    setEditing(null);
-    setPanelError(null);
-    setPanelMode('create');
-  }
-
   function openEdit(s: SchoolRow) {
-    setForm({
+    setEditForm({
       name_en:         s.name_en         ?? '',
       name_ar:         s.name_ar         ?? '',
       oaaaqa_code:     s.oaaaqa_code     ?? '',
@@ -207,34 +269,89 @@ function SchoolsTab() {
       governorate:     s.governorate     ?? '',
       education_cycle: s.education_cycle ?? '',
     });
-    setEditing(s);
-    setPanelError(null);
-    setPanelMode('edit');
+    setEditingSchool(s);
+    setEditError(null);
   }
 
-  async function handleSave() {
-    setSaving(true);
-    setPanelError(null);
+  async function handleEditSave() {
+    if (!editingSchool) return;
+    setEditSaving(true);
+    setEditError(null);
     try {
-      const payload = {
-        name_en:         form.name_en         || null,
-        name_ar:         form.name_ar         || null,
-        oaaaqa_code:     form.oaaaqa_code     || null,
-        school_type:     form.school_type,
-        governorate:     form.governorate     || null,
-        education_cycle: form.education_cycle || null,
-      };
-      if (panelMode === 'create') {
-        await invokeAdmin('create_school', payload);
-      } else if (editing) {
-        await invokeAdmin('update_school', { school_id: editing.id, ...payload });
-      }
-      setPanelMode(null);
+      await invokeAdmin('update_school', {
+        school_id:       editingSchool.id,
+        name_en:         editForm.name_en         || null,
+        name_ar:         editForm.name_ar         || null,
+        oaaaqa_code:     editForm.oaaaqa_code     || null,
+        school_type:     editForm.school_type,
+        governorate:     editForm.governorate     || null,
+        education_cycle: editForm.education_cycle || null,
+      });
+      setEditingSchool(null);
       await load();
     } catch (e: unknown) {
-      setPanelError(e instanceof Error ? e.message : String(e));
+      setEditError(e instanceof Error ? e.message : String(e));
     } finally {
-      setSaving(false);
+      setEditSaving(false);
+    }
+  }
+
+  function openTierEdit(s: SchoolRow) {
+    if (tierEditId === s.id) { setTierEditId(null); return; }
+    setTierForm({
+      tier:        s.subscription_tier        ?? 'trial',
+      expiry_date: s.subscription_expires_at ? s.subscription_expires_at.slice(0, 10) : '',
+    });
+    setTierEditId(s.id);
+  }
+
+  async function handleTierSave(schoolId: string) {
+    setTierSaving(true);
+    try {
+      await invokeAdmin('update_subscription', {
+        school_id:   schoolId,
+        tier:        tierForm.tier,
+        expiry_date: tierForm.expiry_date || null,
+      });
+      setTierEditId(null);
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setTierSaving(false);
+    }
+  }
+
+  function openWizard() {
+    setWizard(EMPTY_WIZARD);
+    setWizardStep(1);
+    setWizardError(null);
+    setShowPw(false);
+    setWizardOpen(true);
+  }
+
+  async function handleWizardFinish() {
+    setWizardSaving(true);
+    setWizardError(null);
+    try {
+      await invokeAdmin('create_school_full', {
+        name_en:     wizard.name_en,
+        name_ar:     wizard.name_ar     || null,
+        school_type: wizard.school_type,
+        oaaaqa_code: wizard.oaaaqa_code || null,
+        governorate: wizard.governorate || null,
+        full_name:   wizard.full_name,
+        email:       wizard.email,
+        password:    wizard.password,
+        tier:        wizard.tier,
+        expiry_date: wizard.expiry_date || null,
+      });
+      setWizardOpen(false);
+      await load();
+    } catch (e: unknown) {
+      setWizardError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setWizardSaving(false);
     }
   }
 
@@ -243,12 +360,15 @@ function SchoolsTab() {
     navigate('/dashboard');
   }
 
+  const step1Valid = wizard.name_en.trim().length > 0;
+  const step2Valid = wizard.full_name.trim().length > 0 && wizard.email.trim().length > 0 && wizard.password.length >= 8;
+
   return (
     <div>
       <div className="flex items-center justify-between mb-5">
         <h2 className="text-lg font-semibold text-gray-800">All Schools ({schools.length})</h2>
         <button
-          onClick={openCreate}
+          onClick={openWizard}
           className="px-4 py-2 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54] transition-colors"
         >
           + New School
@@ -257,12 +377,12 @@ function SchoolsTab() {
 
       {error && <ErrorBanner message={error} />}
 
-      {loading ? <SkeletonTable cols={6} /> : (
+      {loading ? <SkeletonTable cols={8} /> : (
         <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
-                {['Name', 'OAAAQA Code', 'Type', 'Governorate', 'Cycle', 'Status', ''].map(h => (
+                {['Name', 'OAAAQA Code', 'Type', 'Governorate', 'Tier', 'Status', ''].map(h => (
                   <th key={h} className="text-left px-5 py-3 text-xs font-medium text-gray-500">{h}</th>
                 ))}
               </tr>
@@ -277,7 +397,57 @@ function SchoolsTab() {
                   <td className="px-5 py-3 text-gray-500 font-mono text-xs">{s.oaaaqa_code || '—'}</td>
                   <td className="px-5 py-3 text-gray-600 capitalize">{s.school_type || '—'}</td>
                   <td className="px-5 py-3 text-gray-500">{s.governorate || '—'}</td>
-                  <td className="px-5 py-3 text-gray-500">{s.education_cycle || '—'}</td>
+                  <td className="px-5 py-3 relative">
+                    <button
+                      onClick={() => openTierEdit(s)}
+                      className={`text-xs px-2 py-0.5 rounded-full font-medium border cursor-pointer transition-opacity hover:opacity-80 ${TIER_COLOURS[s.subscription_tier] ?? TIER_COLOURS.trial}`}
+                    >
+                      {TIER_LABELS[s.subscription_tier] ?? s.subscription_tier}
+                    </button>
+                    {tierEditId === s.id && (
+                      <div className="absolute z-30 top-9 left-0 bg-white border border-gray-200 rounded-xl shadow-xl p-4 w-64">
+                        <p className="text-xs font-semibold text-gray-700 mb-3">Update Subscription</p>
+                        <div className="space-y-3">
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Tier</label>
+                            <select
+                              value={tierForm.tier}
+                              onChange={e => setTierForm(f => ({ ...f, tier: e.target.value }))}
+                              className={inputCls}
+                            >
+                              {Object.entries(TIER_LABELS).map(([v, l]) => (
+                                <option key={v} value={v}>{l}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs text-gray-500 mb-1">Expiry Date</label>
+                            <input
+                              type="date"
+                              value={tierForm.expiry_date}
+                              onChange={e => setTierForm(f => ({ ...f, expiry_date: e.target.value }))}
+                              className={inputCls}
+                            />
+                          </div>
+                          <div className="flex gap-2 pt-1">
+                            <button
+                              onClick={() => void handleTierSave(s.id)}
+                              disabled={tierSaving}
+                              className="flex-1 py-1.5 bg-[#01696f] text-white text-xs font-medium rounded-lg hover:bg-[#0c4e54] disabled:opacity-50 flex items-center justify-center gap-1"
+                            >
+                              {tierSaving ? 'Saving…' : <><Check className="h-3 w-3" /> Save</>}
+                            </button>
+                            <button
+                              onClick={() => setTierEditId(null)}
+                              className="flex-1 py-1.5 border border-gray-200 text-gray-600 text-xs font-medium rounded-lg hover:bg-gray-50"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </td>
                   <td className="px-5 py-3">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                       s.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
@@ -299,56 +469,215 @@ function SchoolsTab() {
         </div>
       )}
 
-      {panelMode && (
+      {/* Edit school side panel */}
+      {editingSchool && (
         <SidePanel
-          title={panelMode === 'create' ? 'New School' : `Edit — ${editing?.name_en}`}
-          onClose={() => setPanelMode(null)}
+          title={`Edit — ${editingSchool.name_en}`}
+          onClose={() => setEditingSchool(null)}
         >
-          {panelError && <ErrorBanner message={panelError} />}
+          {editError && <ErrorBanner message={editError} />}
           <div className="space-y-4">
             <Field label="School Name (English) *">
-              <PanelInput value={form.name_en} onChange={v => setForm(f => ({ ...f, name_en: v }))} placeholder="Al Noor International School" />
+              <PanelInput value={editForm.name_en} onChange={v => setEditForm(f => ({ ...f, name_en: v }))} placeholder="Al Noor International School" />
             </Field>
             <Field label="School Name (Arabic)">
-              <PanelInput value={form.name_ar} onChange={v => setForm(f => ({ ...f, name_ar: v }))} dir="rtl" />
+              <PanelInput value={editForm.name_ar} onChange={v => setEditForm(f => ({ ...f, name_ar: v }))} dir="rtl" />
             </Field>
             <Field label="OAAAQA Code">
-              <PanelInput value={form.oaaaqa_code} onChange={v => setForm(f => ({ ...f, oaaaqa_code: v }))} placeholder="e.g. 12345" />
+              <PanelInput value={editForm.oaaaqa_code} onChange={v => setEditForm(f => ({ ...f, oaaaqa_code: v }))} placeholder="e.g. 12345" />
             </Field>
             <Field label="School Type">
-              <select value={form.school_type} onChange={e => setForm(f => ({ ...f, school_type: e.target.value }))} className={inputCls}>
+              <select value={editForm.school_type} onChange={e => setEditForm(f => ({ ...f, school_type: e.target.value }))} className={inputCls}>
                 <option value="government">Government</option>
-                <option value="public">Public</option>
                 <option value="private">Private</option>
               </select>
             </Field>
             <Field label="Governorate">
-              <PanelInput value={form.governorate} onChange={v => setForm(f => ({ ...f, governorate: v }))} placeholder="e.g. Muscat" />
+              <select value={editForm.governorate} onChange={e => setEditForm(f => ({ ...f, governorate: e.target.value }))} className={inputCls}>
+                <option value="">— Select —</option>
+                {OMAN_GOVERNORATES.map(g => <option key={g} value={g}>{g}</option>)}
+              </select>
             </Field>
             <Field label="Education Cycle">
-              <PanelInput value={form.education_cycle} onChange={v => setForm(f => ({ ...f, education_cycle: v }))} placeholder="e.g. Basic, Post-Basic" />
+              <PanelInput value={editForm.education_cycle} onChange={v => setEditForm(f => ({ ...f, education_cycle: v }))} placeholder="e.g. Basic, Post-Basic" />
             </Field>
           </div>
-
-          {panelMode === 'edit' && editing && (
-            <div className="mt-4 pt-4 border-t border-gray-100">
-              <button
-                onClick={() => { setPanelMode(null); handleViewAsAdmin(editing); }}
-                className="w-full py-2 border border-amber-300 text-amber-700 text-sm font-medium rounded-lg hover:bg-amber-50 transition-colors"
-              >
-                View as Admin →
-              </button>
-            </div>
-          )}
-
-          <div className="flex gap-3 mt-6">
-            <button onClick={handleSave} disabled={saving || !form.name_en} className={primaryBtn}>
-              {saving ? 'Saving…' : panelMode === 'create' ? 'Create School' : 'Save Changes'}
+          <div className="mt-4 pt-4 border-t border-gray-100">
+            <button
+              onClick={() => { setEditingSchool(null); handleViewAsAdmin(editingSchool); }}
+              className="w-full py-2 border border-amber-300 text-amber-700 text-sm font-medium rounded-lg hover:bg-amber-50 transition-colors"
+            >
+              View as Admin →
             </button>
-            <button onClick={() => setPanelMode(null)} className={secondaryBtn}>Cancel</button>
+          </div>
+          <div className="flex gap-3 mt-4">
+            <button onClick={() => void handleEditSave()} disabled={editSaving || !editForm.name_en} className={primaryBtn}>
+              {editSaving ? 'Saving…' : 'Save Changes'}
+            </button>
+            <button onClick={() => setEditingSchool(null)} className={secondaryBtn}>Cancel</button>
           </div>
         </SidePanel>
       )}
+
+      {/* School creation wizard */}
+      <Dialog open={wizardOpen} onOpenChange={open => { if (!wizardSaving) setWizardOpen(open); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>New School — Step {wizardStep} of 3</DialogTitle>
+          </DialogHeader>
+
+          {/* Step indicator */}
+          <div className="flex items-center gap-2 mb-4">
+            {[1, 2, 3].map(n => (
+              <div key={n} className="flex items-center gap-2">
+                <div className={`h-7 w-7 rounded-full flex items-center justify-center text-xs font-semibold shrink-0 ${
+                  n < wizardStep ? 'bg-[#01696f] text-white' : n === wizardStep ? 'bg-[#01696f] text-white ring-4 ring-[#01696f]/20' : 'bg-gray-100 text-gray-400'
+                }`}>
+                  {n < wizardStep ? <Check className="h-3.5 w-3.5" /> : n}
+                </div>
+                <span className={`text-xs ${n === wizardStep ? 'text-gray-900 font-medium' : 'text-gray-400'}`}>
+                  {n === 1 ? 'School Details' : n === 2 ? 'Admin User' : 'Review & Subscribe'}
+                </span>
+                {n < 3 && <div className="h-px w-6 bg-gray-200 mx-1" />}
+              </div>
+            ))}
+          </div>
+
+          {wizardError && <ErrorBanner message={wizardError} />}
+
+          {/* Step 1 */}
+          {wizardStep === 1 && (
+            <div className="space-y-4">
+              <Field label="School Name (English) *">
+                <PanelInput value={wizard.name_en} onChange={v => setWizard(w => ({ ...w, name_en: v }))} placeholder="Al Noor International School" />
+              </Field>
+              <Field label="School Name (Arabic)">
+                <PanelInput value={wizard.name_ar} onChange={v => setWizard(w => ({ ...w, name_ar: v }))} dir="rtl" />
+              </Field>
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="School Type">
+                  <select value={wizard.school_type} onChange={e => setWizard(w => ({ ...w, school_type: e.target.value }))} className={inputCls}>
+                    <option value="government">Government</option>
+                    <option value="private">Private</option>
+                  </select>
+                </Field>
+                <Field label="OAAAQA Code">
+                  <PanelInput value={wizard.oaaaqa_code} onChange={v => setWizard(w => ({ ...w, oaaaqa_code: v }))} placeholder="e.g. 12345" />
+                </Field>
+              </div>
+              <Field label="Governorate">
+                <select value={wizard.governorate} onChange={e => setWizard(w => ({ ...w, governorate: e.target.value }))} className={inputCls}>
+                  <option value="">— Select Governorate —</option>
+                  {OMAN_GOVERNORATES.map(g => <option key={g} value={g}>{g}</option>)}
+                </select>
+              </Field>
+            </div>
+          )}
+
+          {/* Step 2 */}
+          {wizardStep === 2 && (
+            <div className="space-y-4">
+              <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-700">
+                This user will be created as <strong>school_admin</strong> and can log in immediately with the temporary password.
+              </div>
+              <Field label="Full Name *">
+                <PanelInput value={wizard.full_name} onChange={v => setWizard(w => ({ ...w, full_name: v }))} placeholder="Ahmad Al-Rashidi" />
+              </Field>
+              <Field label="Email Address *">
+                <input
+                  type="email"
+                  value={wizard.email}
+                  onChange={e => setWizard(w => ({ ...w, email: e.target.value }))}
+                  placeholder="admin@school.edu.om"
+                  className={inputCls}
+                />
+              </Field>
+              <Field label="Temporary Password * (min 8 chars)">
+                <div className="relative">
+                  <input
+                    type={showPw ? 'text' : 'password'}
+                    value={wizard.password}
+                    onChange={e => setWizard(w => ({ ...w, password: e.target.value }))}
+                    placeholder="••••••••"
+                    className={`${inputCls} pr-10`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPw(p => !p)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+                {wizard.password.length > 0 && wizard.password.length < 8 && (
+                  <p className="text-xs text-red-500 mt-1">Password must be at least 8 characters</p>
+                )}
+              </Field>
+            </div>
+          )}
+
+          {/* Step 3 */}
+          {wizardStep === 3 && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <Field label="Subscription Tier">
+                  <select value={wizard.tier} onChange={e => setWizard(w => ({ ...w, tier: e.target.value }))} className={inputCls}>
+                    {Object.entries(TIER_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                  </select>
+                </Field>
+                <Field label="Expiry Date">
+                  <input
+                    type="date"
+                    value={wizard.expiry_date}
+                    onChange={e => setWizard(w => ({ ...w, expiry_date: e.target.value }))}
+                    className={inputCls}
+                  />
+                </Field>
+              </div>
+              {/* Summary card */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-3">
+                <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Review Summary</p>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                  <div><span className="text-gray-400 text-xs">School</span><p className="font-medium text-gray-900 truncate">{wizard.name_en}</p></div>
+                  {wizard.name_ar && <div><span className="text-gray-400 text-xs">Arabic Name</span><p className="font-medium text-gray-900" dir="rtl">{wizard.name_ar}</p></div>}
+                  <div><span className="text-gray-400 text-xs">Type</span><p className="text-gray-700 capitalize">{wizard.school_type}</p></div>
+                  {wizard.governorate && <div><span className="text-gray-400 text-xs">Governorate</span><p className="text-gray-700">{wizard.governorate}</p></div>}
+                  {wizard.oaaaqa_code && <div><span className="text-gray-400 text-xs">OAAAQA Code</span><p className="font-mono text-gray-700">{wizard.oaaaqa_code}</p></div>}
+                  <div><span className="text-gray-400 text-xs">Admin Name</span><p className="font-medium text-gray-900">{wizard.full_name}</p></div>
+                  <div><span className="text-gray-400 text-xs">Admin Email</span><p className="text-gray-700">{wizard.email}</p></div>
+                  <div><span className="text-gray-400 text-xs">Tier</span>
+                    <span className={`inline-block text-xs px-2 py-0.5 rounded-full font-medium border mt-0.5 ${TIER_COLOURS[wizard.tier] ?? TIER_COLOURS.trial}`}>
+                      {TIER_LABELS[wizard.tier]}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Navigation */}
+          <div className="flex gap-3 mt-2">
+            {wizardStep > 1 && (
+              <button onClick={() => setWizardStep(s => s - 1)} className={secondaryBtn} disabled={wizardSaving}>
+                ← Back
+              </button>
+            )}
+            {wizardStep < 3 ? (
+              <button
+                onClick={() => setWizardStep(s => s + 1)}
+                disabled={wizardStep === 1 ? !step1Valid : !step2Valid}
+                className={primaryBtn}
+              >
+                Next →
+              </button>
+            ) : (
+              <button onClick={() => void handleWizardFinish()} disabled={wizardSaving} className={primaryBtn}>
+                {wizardSaving ? 'Creating…' : 'Create School'}
+              </button>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -675,6 +1004,8 @@ function UsersTab() {
 // ─── Analytics Tab ────────────────────────────────────────────
 
 function AnalyticsTab() {
+  const navigate            = useNavigate();
+  const { setImpersonating } = useSchoolStore();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState<string | null>(null);
@@ -698,72 +1029,108 @@ function AnalyticsTab() {
   if (error)   return <ErrorBanner message={error} />;
   if (!analytics) return null;
 
+  const pieData = (analytics.schools_by_tier ?? []).map(({ tier, count }) => ({
+    name:  TIER_LABELS[tier] ?? tier,
+    value: count,
+    fill:  TIER_PIE_COLOURS[tier] ?? '#9ca3af',
+  }));
+
+  function fmtDate(d: string | null) {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
   return (
     <div className="space-y-6">
-      {/* KPI cards */}
+      {/* Row 1 — KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
-        <KpiCard label="Total Schools"            value={analytics.total_schools}             icon="🏫" />
-        <KpiCard label="Total Users"              value={analytics.total_users}               icon="👥" />
-        <KpiCard label="Active Academic Years"    value={analytics.active_academic_years}     icon="📅" />
-        <KpiCard label="Schools Needing Attention" value={analytics.schools_needing_attention} icon="⚠️" danger />
+        <KpiCard label="Active Schools"        value={analytics.total_schools}    icon="🏫" />
+        <KpiCard label="Total Users"           value={analytics.total_users}      icon="👥" />
+        <KpiCard label="SEDs Generated"        value={analytics.total_seds}       icon="📄" />
+        <KpiCard label="AI Requests (30d)"     value={analytics.ai_requests_30d}  icon="🤖" />
       </div>
 
-      {/* Indicator Regressions */}
-      <RegressionCard />
+      {/* Row 2 — Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* PieChart — schools by tier */}
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h3 className="text-sm font-semibold text-gray-800 mb-4">Schools by Subscription Tier</h3>
+          {pieData.length === 0 ? (
+            <p className="text-sm text-gray-400 text-center py-10">No data</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, value }) => `${name}: ${value}`} labelLine>
+                  {pieData.map((entry, i) => (
+                    <Cell key={i} fill={entry.fill} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          )}
+        </div>
 
-      {/* School breakdown table */}
+        {/* BarChart — SEDs per month */}
+        <div className="bg-white border border-gray-200 rounded-xl p-5">
+          <h3 className="text-sm font-semibold text-gray-800 mb-4">SEDs Generated — Last 6 Months</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={analytics.seds_by_month ?? []} margin={{ top: 0, right: 0, left: -10, bottom: 0 }}>
+              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
+              <Tooltip />
+              <Bar dataKey="count" fill="#01696f" radius={[4, 4, 0, 0]} name="SEDs" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Row 3 — Detailed schools table */}
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="text-sm font-semibold text-gray-800">School Breakdown</h3>
+          <h3 className="text-sm font-semibold text-gray-800">All Active Schools</h3>
         </div>
         <table className="w-full text-sm">
           <thead className="bg-gray-50">
             <tr>
-              {['School', 'Overall Judgement', 'Domain Completion', 'Last Calculated'].map(h => (
+              {['School', 'Governorate', 'Tier', 'Users', 'Last Activity', 'Expires', ''].map(h => (
                 <th key={h} className="text-left px-5 py-3 text-xs font-medium text-gray-500">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
-            {analytics.school_breakdown.map(s => (
-              <tr key={s.school_id} className="hover:bg-gray-50">
+            {(analytics.schools_detail ?? []).map(s => (
+              <tr key={s.id} className="hover:bg-gray-50">
                 <td className="px-5 py-3 font-medium text-gray-900">{s.name_en}</td>
+                <td className="px-5 py-3 text-gray-500 text-xs">{s.governorate || '—'}</td>
                 <td className="px-5 py-3">
-                  {s.overall_judgement != null ? (
-                    <span
-                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full text-white"
-                      style={{ backgroundColor: JUDGEMENT_COLORS[s.overall_judgement as JudgementLevel] }}
-                    >
-                      {s.overall_judgement} — {JUDGEMENT_LABELS[s.overall_judgement as JudgementLevel]}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-gray-400">Not calculated</span>
-                  )}
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium border ${TIER_COLOURS[s.subscription_tier] ?? TIER_COLOURS.trial}`}>
+                    {TIER_LABELS[s.subscription_tier] ?? s.subscription_tier}
+                  </span>
                 </td>
-                <td className="px-5 py-3">
-                  <div className="flex items-center gap-2">
-                    <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden w-24">
-                      <div
-                        className="h-full rounded-full bg-[#01696f]"
-                        style={{ width: `${s.domain_completion_pct}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-gray-600 font-medium">{s.domain_completion_pct}%</span>
-                  </div>
-                </td>
-                <td className="px-5 py-3 text-gray-400 text-xs">
-                  {s.last_activity
-                    ? new Date(s.last_activity).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                    : '—'}
+                <td className="px-5 py-3 text-gray-600 text-xs">{s.user_count}</td>
+                <td className="px-5 py-3 text-gray-400 text-xs">{fmtDate(s.last_activity)}</td>
+                <td className="px-5 py-3 text-gray-400 text-xs">{fmtDate(s.subscription_expires_at)}</td>
+                <td className="px-5 py-3 text-right whitespace-nowrap text-xs">
+                  <button
+                    onClick={() => { setImpersonating(s as unknown as School); navigate('/dashboard'); }}
+                    className="text-amber-600 hover:underline font-medium"
+                  >
+                    Impersonate
+                  </button>
                 </td>
               </tr>
             ))}
-            {!analytics.school_breakdown.length && (
-              <tr><td colSpan={4} className="px-5 py-8 text-center text-gray-400">No data yet.</td></tr>
+            {!(analytics.schools_detail ?? []).length && (
+              <tr><td colSpan={7} className="px-5 py-8 text-center text-gray-400">No data yet.</td></tr>
             )}
           </tbody>
         </table>
       </div>
+
+      {/* Regression card still shown below */}
+      <RegressionCard />
     </div>
   );
 }

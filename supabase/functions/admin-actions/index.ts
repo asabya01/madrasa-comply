@@ -283,53 +283,185 @@ serve(async (req) => {
       });
     }
 
+    // ── update_subscription ───────────────────────────────────────────────────
+    if (action === 'update_subscription') {
+      const { school_id, tier, expiry_date } = body as { school_id: string; tier: string; expiry_date?: string | null };
+      if (!school_id || !tier) return json({ error: 'school_id and tier are required' }, 400);
+
+      const { error } = await supabaseAdmin.from('schools').update({
+        subscription_tier:       tier,
+        subscription_expires_at: expiry_date || null,
+      }).eq('id', school_id);
+      if (error) return json({ error: error.message }, 400);
+
+      console.log(`[admin-actions] Updated subscription for school ${school_id} → ${tier}`);
+      return json({ success: true });
+    }
+
+    // ── create_school_full ────────────────────────────────────────────────────
+    if (action === 'create_school_full') {
+      const {
+        name_en, name_ar, school_type, oaaaqa_code, governorate,
+        full_name, email, password,
+        tier, expiry_date,
+      } = body as Record<string, string>;
+
+      if (!name_en || !email || !password) {
+        return json({ error: 'name_en, email and password are required' }, 400);
+      }
+
+      // 1. Create school
+      const { data: schoolData, error: schoolErr } = await supabaseAdmin
+        .from('schools')
+        .insert({
+          name_en,
+          name_ar:                 name_ar         || null,
+          school_type:             school_type     || 'government',
+          oaaaqa_code:             oaaaqa_code     || null,
+          governorate:             governorate     || null,
+          subscription_tier:       tier            || 'trial',
+          subscription_expires_at: expiry_date     || null,
+          is_active:               true,
+        })
+        .select('id')
+        .single();
+      if (schoolErr) return json({ error: schoolErr.message }, 400);
+      const schoolId = (schoolData as { id: string }).id;
+
+      // 2. Create auth user with known password
+      const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { full_name },
+      });
+      if (authErr) {
+        await supabaseAdmin.from('schools').delete().eq('id', schoolId);
+        return json({ error: authErr.message }, 400);
+      }
+      const newUserId = authData.user.id;
+
+      // 3. Insert profile
+      const { error: profileErr } = await supabaseAdmin.from('profiles').insert({
+        id:        newUserId,
+        full_name: full_name || null,
+        email,
+        role:      'school_admin',
+      });
+      if (profileErr) {
+        await supabaseAdmin.auth.admin.deleteUser(newUserId);
+        await supabaseAdmin.from('schools').delete().eq('id', schoolId);
+        return json({ error: profileErr.message }, 400);
+      }
+
+      // 4. Insert school_member
+      await supabaseAdmin.from('school_members').insert({
+        school_id: schoolId,
+        user_id:   newUserId,
+        role:      'school_admin',
+        status:    'active',
+      });
+
+      // 5. Get framework version
+      const { data: fwVer } = await supabaseAdmin
+        .from('framework_versions')
+        .select('id')
+        .eq('version_code', 'OAAAQA-2024')
+        .maybeSingle();
+
+      // 6. Insert default academic year
+      await supabaseAdmin.from('academic_years').insert({
+        school_id:            schoolId,
+        label:                '2024-2025',
+        is_current:           true,
+        framework_version_id: (fwVer as { id: string } | null)?.id ?? null,
+      });
+
+      console.log(`[admin-actions] Created school ${name_en} with admin ${email}`);
+      return json({ success: true, school_id: schoolId, user_id: newUserId });
+    }
+
     // ── get_analytics ─────────────────────────────────────────────────────────
     if (action === 'get_analytics') {
-      const [schoolsRes, usersRes, activeYearsRes, judgementsRes, domainJudgementsRes] =
+      const now      = new Date();
+      const ago30d   = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString();
+      const ago6mo   = new Date(now);
+      ago6mo.setMonth(ago6mo.getMonth() - 6);
+
+      const [schoolsRes, usersRes, sedsRes, aiRes, tierRes, sedsMonthRes, membersRes, judgementsRes] =
         await Promise.all([
-          supabaseAdmin.from('schools').select('id, name_en', { count: 'exact' }).eq('is_active', true),
+          supabaseAdmin.from('schools')
+            .select('id, name_en, governorate, subscription_tier, subscription_expires_at', { count: 'exact' })
+            .eq('is_active', true),
           supabaseAdmin.from('profiles').select('*', { count: 'exact', head: true }),
-          supabaseAdmin.from('academic_years').select('*', { count: 'exact', head: true }).eq('is_current', true),
+          supabaseAdmin.from('sed_documents').select('*', { count: 'exact', head: true }),
+          supabaseAdmin.from('ai_feedback').select('*', { count: 'exact', head: true }).gte('created_at', ago30d),
+          supabaseAdmin.from('schools').select('subscription_tier').eq('is_active', true),
+          supabaseAdmin.from('sed_documents').select('created_at').gte('created_at', ago6mo.toISOString()),
+          supabaseAdmin.from('school_members').select('school_id').eq('status', 'active'),
           supabaseAdmin.from('overall_judgements')
-            .select('school_id, judgement, calculated_at')
+            .select('school_id, calculated_at')
             .order('calculated_at', { ascending: false }),
-          supabaseAdmin.from('domain_judgements')
-            .select('school_id, domain_id, judgement'),
         ]);
 
-      const latestJudgement = new Map<string, number>();
-      const latestCalcAt    = new Map<string, string>();
-      for (const j of (judgementsRes.data ?? []) as Array<{ school_id: string; judgement: number; calculated_at: string }>) {
-        if (!latestJudgement.has(j.school_id)) {
-          latestJudgement.set(j.school_id, j.judgement);
-          latestCalcAt.set(j.school_id, j.calculated_at);
-        }
+      // schools_by_tier
+      const tierCounts: Record<string, number> = {};
+      for (const s of (tierRes.data ?? []) as Array<{ subscription_tier: string }>) {
+        const t = s.subscription_tier || 'trial';
+        tierCounts[t] = (tierCounts[t] || 0) + 1;
+      }
+      const schools_by_tier = Object.entries(tierCounts).map(([tier, count]) => ({ tier, count }));
+
+      // seds_by_month (last 6 months)
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const monthKeys: string[] = [];
+      for (let i = 5; i >= 0; i--) {
+        const d = new Date(now);
+        d.setMonth(d.getMonth() - i);
+        monthKeys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+      }
+      const monthCounts: Record<string, number> = Object.fromEntries(monthKeys.map(k => [k, 0]));
+      for (const doc of (sedsMonthRes.data ?? []) as Array<{ created_at: string }>) {
+        const d   = new Date(doc.created_at);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        if (key in monthCounts) monthCounts[key]++;
+      }
+      const seds_by_month = monthKeys.map(k => ({
+        month: monthNames[parseInt(k.split('-')[1], 10) - 1],
+        count: monthCounts[k],
+      }));
+
+      // user count per school
+      const membersBySchool: Record<string, number> = {};
+      for (const m of (membersRes.data ?? []) as Array<{ school_id: string }>) {
+        membersBySchool[m.school_id] = (membersBySchool[m.school_id] || 0) + 1;
       }
 
-      const ratedDomains = new Map<string, Set<string>>();
-      for (const dj of (domainJudgementsRes.data ?? []) as Array<{ school_id: string; domain_id: string; judgement: number | null }>) {
-        if (dj.judgement != null) {
-          if (!ratedDomains.has(dj.school_id)) ratedDomains.set(dj.school_id, new Set());
-          ratedDomains.get(dj.school_id)!.add(dj.domain_id);
-        }
+      // last activity per school
+      const lastActivity: Record<string, string> = {};
+      for (const j of (judgementsRes.data ?? []) as Array<{ school_id: string; calculated_at: string }>) {
+        if (!lastActivity[j.school_id]) lastActivity[j.school_id] = j.calculated_at;
       }
 
-      const schoolsNeedingAttention = [...latestJudgement.entries()].filter(([, j]) => j >= 4).length;
-
-      const breakdown = ((schoolsRes.data ?? []) as Array<{ id: string; name_en: string }>).map(s => ({
-        school_id:            s.id,
-        name_en:              s.name_en,
-        overall_judgement:    latestJudgement.get(s.id) ?? null,
-        domain_completion_pct: Math.round(((ratedDomains.get(s.id)?.size ?? 0) / 5) * 100),
-        last_activity:        latestCalcAt.get(s.id) ?? null,
+      type SchoolRow = { id: string; name_en: string; governorate: string | null; subscription_tier: string; subscription_expires_at: string | null };
+      const schools_detail = ((schoolsRes.data ?? []) as SchoolRow[]).map(s => ({
+        id:                      s.id,
+        name_en:                 s.name_en,
+        governorate:             s.governorate,
+        subscription_tier:       s.subscription_tier || 'trial',
+        subscription_expires_at: s.subscription_expires_at,
+        user_count:              membersBySchool[s.id] ?? 0,
+        last_activity:           lastActivity[s.id]  ?? null,
       }));
 
       return json({
-        total_schools:              schoolsRes.count          ?? 0,
-        total_users:                usersRes.count             ?? 0,
-        active_academic_years:      activeYearsRes.count       ?? 0,
-        schools_needing_attention:  schoolsNeedingAttention,
-        school_breakdown:           breakdown,
+        total_schools:    schoolsRes.count ?? 0,
+        total_users:      usersRes.count   ?? 0,
+        total_seds:       sedsRes.count    ?? 0,
+        ai_requests_30d:  aiRes.count      ?? 0,
+        schools_by_tier,
+        seds_by_month,
+        schools_detail,
       });
     }
 

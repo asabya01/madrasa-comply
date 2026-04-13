@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Plus, Trash2, Save, TrendingUp, Users, FileSpreadsheet, Loader2, LineChart as LineChartIcon } from 'lucide-react';
+import { Plus, Trash2, Save, TrendingUp, Users, FileSpreadsheet, Loader2, LineChart as LineChartIcon, Upload } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { JudgementBadge } from '../components/ui/judgement-badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
 import { useSchoolStore } from '../stores/schoolStore';
 import { supabase } from '../lib/supabase';
 import {
@@ -16,6 +17,292 @@ import {
 import { useToast } from '../components/ui/toast';
 import { exportMinistryMasteryExcel } from '../lib/exportMinistryExcel';
 import { TrendTab } from '../components/TrendTab';
+
+// ─── CSV Import ───────────────────────────────────────────────
+
+const CSV_SUBJECTS = [
+  'Islamic Education', 'Arabic Language', 'English Language',
+  'Mathematics', 'Science', 'Social Studies',
+] as const;
+
+const CSV_HEADERS = ['subject', 'grade', 'academic_year', 'total_students', 'students_at_75', 'total_days_possible', 'days_attended'];
+
+interface CsvRow {
+  subject: string;
+  grade: string;
+  academic_year: string;
+  total_students: string;
+  students_at_75: string;
+  total_days_possible: string;
+  days_attended: string;
+  _errors: string[];
+  _valid: boolean;
+}
+
+function validateCsvRow(r: Omit<CsvRow, '_errors' | '_valid'>): string[] {
+  const errors: string[] = [];
+  if (!(CSV_SUBJECTS as readonly string[]).includes(r.subject)) errors.push('Invalid subject');
+  if (!r.grade.trim()) errors.push('Grade is empty');
+  if (!/^\d{4}-\d{4}$/.test(r.academic_year)) errors.push('academic_year must be YYYY-YYYY');
+  const ts = parseInt(r.total_students, 10);
+  if (!Number.isInteger(ts) || ts <= 0) errors.push('total_students must be positive integer');
+  const s75 = parseInt(r.students_at_75, 10);
+  if (!Number.isInteger(s75) || s75 < 0) errors.push('students_at_75 must be non-negative integer');
+  if (Number.isInteger(ts) && Number.isInteger(s75) && s75 > ts) errors.push('students_at_75 > total_students');
+  const tdp = parseInt(r.total_days_possible, 10);
+  if (!Number.isInteger(tdp) || tdp <= 0) errors.push('total_days_possible must be positive integer');
+  const da = parseInt(r.days_attended, 10);
+  if (!Number.isInteger(da) || da < 0) errors.push('days_attended must be non-negative integer');
+  if (Number.isInteger(tdp) && Number.isInteger(da) && da > tdp) errors.push('days_attended > total_days_possible');
+  return errors;
+}
+
+function downloadTemplate() {
+  const header = CSV_HEADERS.join(',');
+  const example = 'Mathematics,Grade 5,2024-2025,30,22,180,170';
+  const blob = new Blob([`${header}\n${example}\n`], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'madrasa-comply-performance-template.csv';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function CsvImportDialog({
+  open,
+  onClose,
+  schoolId,
+  academicYear,
+  onSuccess,
+}: {
+  open: boolean;
+  onClose: () => void;
+  schoolId: string;
+  academicYear: string;
+  onSuccess: () => void;
+}) {
+  const { showToast } = useToast();
+  const [step, setStep]         = useState<1 | 2 | 3>(1);
+  const [rows, setRows]         = useState<CsvRow[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
+
+  function handleClose() {
+    if (!importing) { setStep(1); setRows([]); setImportError(null); onClose(); }
+  }
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+      if (lines.length < 2) return;
+      // Skip header line
+      const dataLines = lines.slice(1);
+      const parsed: CsvRow[] = dataLines.map(line => {
+        const parts = line.split(',');
+        const [subject = '', grade = '', academic_year = '', total_students = '', students_at_75 = '', total_days_possible = '', days_attended = ''] = parts;
+        const raw = { subject: subject.trim(), grade: grade.trim(), academic_year: academic_year.trim(), total_students: total_students.trim(), students_at_75: students_at_75.trim(), total_days_possible: total_days_possible.trim(), days_attended: days_attended.trim() };
+        const _errors = validateCsvRow(raw);
+        return { ...raw, _errors, _valid: _errors.length === 0 };
+      });
+      setRows(parsed);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
+  async function handleImport() {
+    const valid = rows.filter(r => r._valid);
+    if (!valid.length) return;
+    setImporting(true);
+    setImportError(null);
+    try {
+      const payload = valid.map(r => ({
+        school_id:      schoolId,
+        academic_year:  r.academic_year,
+        grade_label:    r.grade,
+        subject:        r.subject,
+        semester:       'annual' as const,
+        total_students: parseInt(r.total_students, 10),
+        students_at_75: parseInt(r.students_at_75, 10),
+        updated_at:     new Date().toISOString(),
+      }));
+      const { error } = await supabase
+        .from('student_performance')
+        .upsert(payload, { onConflict: 'school_id,academic_year,grade_label,subject,semester' });
+      if (error) throw new Error(error.message);
+      showToast(`Imported ${valid.length} rows successfully`, 'success');
+      onSuccess();
+      handleClose();
+    } catch (err: unknown) {
+      setImportError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  const validCount  = rows.filter(r => r._valid).length;
+  const errorCount  = rows.filter(r => !r._valid).length;
+  const allValid    = rows.length > 0 && errorCount === 0;
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) handleClose(); }}>
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Import Performance Data — Step {step} of 3</DialogTitle>
+        </DialogHeader>
+
+        {/* Step indicator */}
+        <div className="flex items-center gap-2 mb-4 text-xs">
+          {(['Template', 'Upload & Validate', 'Confirm'] as const).map((label, i) => (
+            <div key={label} className="flex items-center gap-2">
+              <div className={`h-6 w-6 rounded-full flex items-center justify-center font-semibold shrink-0 ${step > i + 1 ? 'bg-[#01696f] text-white' : step === i + 1 ? 'bg-[#01696f] text-white ring-4 ring-[#01696f]/20' : 'bg-gray-100 text-gray-400'}`}>
+                {step > i + 1 ? '✓' : i + 1}
+              </div>
+              <span className={step === i + 1 ? 'text-gray-900 font-medium' : 'text-gray-400'}>{label}</span>
+              {i < 2 && <div className="h-px w-6 bg-gray-200 mx-1" />}
+            </div>
+          ))}
+        </div>
+
+        {importError && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{importError}</div>
+        )}
+
+        {/* Step 1 */}
+        {step === 1 && (
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Download the CSV template, fill in your performance data, then upload it in the next step.
+            </p>
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+              <p className="text-xs font-semibold text-gray-600 mb-2">Template headers:</p>
+              <code className="text-xs text-[#01696f] bg-white border border-gray-200 px-3 py-2 rounded block font-mono">
+                {CSV_HEADERS.join(', ')}
+              </code>
+              <p className="text-xs text-gray-400 mt-2">
+                subject must be one of the 6 OAAAQA subjects. academic_year format: 2024-2025.
+              </p>
+            </div>
+            <button
+              onClick={downloadTemplate}
+              className="flex items-center gap-2 px-4 py-2 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54] transition-colors"
+            >
+              <FileSpreadsheet className="h-4 w-4" /> Download CSV Template
+            </button>
+          </div>
+        )}
+
+        {/* Step 2 */}
+        {step === 2 && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:border-[#01696f] hover:text-[#01696f] cursor-pointer bg-white transition-colors">
+                <Upload className="h-4 w-4" />
+                Choose CSV File
+                <input type="file" accept=".csv" onChange={handleFile} className="hidden" />
+              </label>
+              {rows.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${allValid ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                    {validCount} valid
+                  </span>
+                  {errorCount > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">
+                      {errorCount} errors
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {rows.length > 0 && (
+              <div className="border border-gray-200 rounded-xl overflow-hidden">
+                <div className="overflow-x-auto max-h-64">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        {CSV_HEADERS.map(h => (
+                          <th key={h} className="text-left px-3 py-2 font-medium text-gray-500 whitespace-nowrap">{h}</th>
+                        ))}
+                        <th className="text-left px-3 py-2 font-medium text-gray-500">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {rows.map((r, i) => (
+                        <tr key={i} className={r._valid ? '' : 'bg-red-50'}>
+                          <td className="px-3 py-2 text-gray-700">{r.subject}</td>
+                          <td className="px-3 py-2 text-gray-700">{r.grade}</td>
+                          <td className="px-3 py-2 text-gray-700">{r.academic_year}</td>
+                          <td className="px-3 py-2 text-gray-700">{r.total_students}</td>
+                          <td className="px-3 py-2 text-gray-700">{r.students_at_75}</td>
+                          <td className="px-3 py-2 text-gray-700">{r.total_days_possible}</td>
+                          <td className="px-3 py-2 text-gray-700">{r.days_attended}</td>
+                          <td className="px-3 py-2">
+                            {r._valid
+                              ? <span className="text-green-600 font-medium">✓</span>
+                              : <span className="text-red-600">{r._errors.join('; ')}</span>}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Step 3 */}
+        {step === 3 && (
+          <div className="space-y-4">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+              <p className="text-sm font-semibold text-gray-800 mb-2">Ready to import</p>
+              <p className="text-sm text-gray-600">
+                <span className="font-semibold text-[#01696f]">{validCount} rows</span> will be upserted into{' '}
+                <code className="text-xs bg-white border border-gray-200 px-1.5 py-0.5 rounded">student_performance</code>.
+              </p>
+              <p className="text-xs text-gray-400 mt-2">
+                School: {schoolId} · Academic Year filter applied. All rows will use semester = annual.
+                Existing records with the same school, year, grade, subject and semester will be updated.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Navigation */}
+        <div className="flex gap-3 mt-4">
+          {step > 1 && (
+            <button onClick={() => setStep(s => (s - 1) as 1 | 2 | 3)} disabled={importing} className="flex-1 py-2 border border-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
+              ← Back
+            </button>
+          )}
+          {step < 3 ? (
+            <button
+              onClick={() => setStep(s => (s + 1) as 1 | 2 | 3)}
+              disabled={step === 2 && !allValid}
+              className="flex-1 py-2 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54] disabled:opacity-50 transition-colors"
+            >
+              {step === 2 ? `Import ${validCount} valid rows →` : 'Next →'}
+            </button>
+          ) : (
+            <button
+              onClick={() => void handleImport()}
+              disabled={importing}
+              className="flex-1 py-2 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54] disabled:opacity-50 transition-colors"
+            >
+              {importing ? 'Importing…' : `Confirm & Import ${validCount} rows`}
+            </button>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 // ─── Constants ───────────────────────────────────────────────
 
@@ -129,6 +416,7 @@ function ProficiencyTab({ onExport }: { onExport: (semester: Semester) => void }
   const queryClient = useQueryClient();
   const [semester, setSemester] = useState<Semester>('semester_1');
   const [exporting, setExporting] = useState(false);
+  const [csvOpen, setCsvOpen] = useState(false);
 
   const { data: dbRows = [], isLoading } = useQuery({
     queryKey: ['student-performance', school?.id, academicYear, semester],
@@ -227,21 +515,40 @@ function ProficiencyTab({ onExport }: { onExport: (semester: Semester) => void }
 
   return (
     <div className="space-y-4">
-      {/* Semester selector + export button */}
+      {/* Semester selector + action buttons */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <SemesterSelector value={semester} onChange={setSemester} rows={rows} />
-        <button
-          onClick={handleExport}
-          disabled={exporting}
-          className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:border-[#01696f] hover:text-[#01696f] bg-white transition-colors disabled:opacity-50"
-        >
-          {exporting ? (
-            <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
-          ) : (
-            <><FileSpreadsheet className="h-4 w-4" /> Export Ministry Format</>
-          )}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setCsvOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:border-[#01696f] hover:text-[#01696f] bg-white transition-colors"
+          >
+            <Upload className="h-4 w-4" /> Import CSV
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 text-gray-700 hover:border-[#01696f] hover:text-[#01696f] bg-white transition-colors disabled:opacity-50"
+          >
+            {exporting ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
+            ) : (
+              <><FileSpreadsheet className="h-4 w-4" /> Export Ministry Format</>
+            )}
+          </button>
+        </div>
       </div>
+
+      {/* CSV import dialog */}
+      {school && (
+        <CsvImportDialog
+          open={csvOpen}
+          onClose={() => setCsvOpen(false)}
+          schoolId={school.id}
+          academicYear={academicYear ?? ''}
+          onSuccess={() => queryClient.invalidateQueries({ queryKey: ['student-performance'] })}
+        />
+      )}
 
       {/* Summary banner */}
       {rows.length > 0 && (
