@@ -32,6 +32,13 @@ export interface OverallFeedbackPayload {
   schoolId?: string;
 }
 
+export interface DomainNarrativePayload {
+  action: 'draft_domain_narrative';
+  school_id: string;
+  domain_id: string;
+  academic_year?: string;
+}
+
 export type FeedbackPayload = IndicatorFeedbackPayload | OverallFeedbackPayload;
 
 export interface IndicatorFeedbackResult {
@@ -84,6 +91,33 @@ export function useAIFeedback() {
 
       if (!data) throw new Error('No response received from AI feedback function');
 
+      return data;
+    },
+  });
+}
+
+// ─── useDomainNarrative ──────────────────────────────────────
+
+export interface DomainNarrativeResult {
+  narrative: string;
+  feedbackId?: string | null;
+}
+
+export function useDomainNarrative() {
+  return useMutation<DomainNarrativeResult, Error, DomainNarrativePayload>({
+    mutationFn: async (payload) => {
+      const { data, error } = await supabase.functions.invoke<DomainNarrativeResult>(
+        'ai-feedback',
+        { body: payload }
+      );
+      if (error) {
+        throw new Error(
+          (error as any).message ||
+          (error as any).context?.message ||
+          'Domain narrative request failed'
+        );
+      }
+      if (!data) throw new Error('No response received from AI function');
       return data;
     },
   });

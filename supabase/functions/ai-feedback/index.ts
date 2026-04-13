@@ -9,6 +9,22 @@ const corsHeaders = {
 
 const RATE_LIMIT = 20; // requests per 24 h per user
 
+const DOMAIN_NAMES: Record<string, string> = {
+  '1': 'Academic Achievement',
+  '2': 'Personal Development',
+  '3': 'Teaching & Assessment',
+  '4': 'School Climate',
+  '5': 'Leadership & Governance',
+};
+
+const RATING_LABELS: Record<number, string> = {
+  1: 'Outstanding',
+  2: 'Good',
+  3: 'Satisfactory',
+  4: 'Unsatisfactory',
+  5: 'Needs Urgent Intervention',
+};
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
@@ -41,38 +57,16 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // 2. Rate limit — max RATE_LIMIT requests per rolling 24 h (FR-AI-04)
-    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const { count, error: countErr } = await serviceClient
-      .from('ai_feedback')
-      .select('id', { count: 'exact', head: true })
-      .eq('created_by', user.id)
-      .gte('generated_at', since);
-
-    if (countErr) console.error('[ai-feedback] rate-limit count error:', countErr.message);
-
-    if ((count ?? 0) >= RATE_LIMIT) {
-      return new Response(
-        JSON.stringify({ error: `Daily AI feedback limit reached (${RATE_LIMIT}/day). Try again tomorrow.` }),
-        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // 3. Build the prompt
     const body = await req.json();
     const { scope, action } = body;
-    let prompt = '';
 
-    // ── Language check action (lightweight, returns plain suggestion) ──
+    // ── Language check action (lightweight, bypasses rate limit) ──
     if (action === 'check_evaluative_language') {
       const { indicatorId, indicatorDescription, rating, narrative } = body;
-      const ratingLabels: Record<number, string> = {
-        1: 'Outstanding', 2: 'Good', 3: 'Satisfactory', 4: 'Unsatisfactory', 5: 'Needs Urgent Intervention',
-      };
       const langPrompt = `You are an OAAAQA school quality evaluator reviewing a school's self-evaluation narrative.
 
 Indicator: ${indicatorId} — ${indicatorDescription}
-School's self-rating: ${rating}/5 (${ratingLabels[rating] ?? rating})
+School's self-rating: ${rating}/5 (${RATING_LABELS[rating] ?? rating})
 Current narrative: "${narrative}"
 
 Your task:
@@ -95,6 +89,132 @@ Your task:
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    // 2. Rate limit — max RATE_LIMIT requests per rolling 24 h (FR-AI-04)
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { count, error: countErr } = await serviceClient
+      .from('ai_feedback')
+      .select('id', { count: 'exact', head: true })
+      .eq('created_by', user.id)
+      .gte('generated_at', since);
+
+    if (countErr) console.error('[ai-feedback] rate-limit count error:', countErr.message);
+
+    if ((count ?? 0) >= RATE_LIMIT) {
+      return new Response(
+        JSON.stringify({ error: `Daily AI feedback limit reached (${RATE_LIMIT}/day). Try again tomorrow.` }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ── Domain narrative drafter ──────────────────────────────
+    if (action === 'draft_domain_narrative') {
+      const { school_id, academic_year, domain_id } = body;
+
+      if (!school_id || !domain_id) {
+        return new Response(JSON.stringify({ error: 'school_id and domain_id are required' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const domainName = DOMAIN_NAMES[String(domain_id)] ?? `Domain ${domain_id}`;
+
+      // Fetch all indicators for this domain
+      const { data: indicators, error: indErr } = await serviceClient
+        .from('indicators')
+        .select('id, description_en')
+        .eq('domain_id', String(domain_id))
+        .order('id');
+
+      if (indErr || !indicators?.length) {
+        return new Response(JSON.stringify({ error: 'No indicators found for this domain' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
+      const indicatorIds = indicators.map((i: { id: string }) => i.id);
+
+      // Fetch ratings for those indicators
+      const ratingsQuery = serviceClient
+        .from('indicator_ratings')
+        .select('indicator_id, rating, strengths, improvement_areas, self_eval_notes')
+        .eq('school_id', school_id)
+        .in('indicator_id', indicatorIds);
+
+      if (academic_year) ratingsQuery.eq('academic_year', academic_year);
+
+      const { data: ratings, error: ratErr } = await ratingsQuery;
+      if (ratErr) console.error('[ai-feedback] ratings fetch error:', ratErr.message);
+
+      const ratingsMap: Record<string, { rating: number; strengths: string; improvement_areas: string; self_eval_notes: string }> = {};
+      for (const r of ratings ?? []) {
+        ratingsMap[r.indicator_id] = r;
+      }
+
+      const ratedCount = Object.keys(ratingsMap).length;
+
+      // Build indicator lines for the prompt
+      const indicatorLines = indicators.map((ind: { id: string; description_en: string }) => {
+        const r = ratingsMap[ind.id];
+        if (!r) return `${ind.id}: Not yet rated — ${ind.description_en}`;
+        const ratingLabel = RATING_LABELS[r.rating] ?? String(r.rating);
+        const parts = [`${ind.id}: ${ratingLabel}`];
+        if (r.strengths)         parts.push(`Strengths: ${r.strengths}`);
+        if (r.improvement_areas) parts.push(`Areas for development: ${r.improvement_areas}`);
+        if (r.self_eval_notes)   parts.push(`Notes: ${r.self_eval_notes}`);
+        return parts.join(' | ');
+      }).join('\n');
+
+      const narrativePrompt = `You are an OAAAQA school quality advisor helping a school write its Self-Evaluation Document (SED).
+
+Write a formal evaluative narrative paragraph for Domain ${domain_id} — ${domainName}.
+
+The paragraph will appear directly in the SED, so it must:
+- Use OAAAQA evaluative language: outstanding, effective, strong, good, satisfactory, areas for development, requires improvement, significant weaknesses
+- Be evaluative (explain impact and quality), not merely descriptive
+- Reference specific indicators by code where relevant
+- Reflect the distribution of ratings honestly
+- Be 150–200 words
+
+Indicator ratings and evidence (${ratedCount}/${indicators.length} rated):
+${indicatorLines}
+
+Write the narrative paragraph only — no headings, no bullet points, no JSON.`;
+
+      const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
+      const narrativeResponse = await anthropic.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 600,
+        messages: [{ role: 'user', content: narrativePrompt }],
+      });
+
+      const narrative = narrativeResponse.content[0].type === 'text'
+        ? narrativeResponse.content[0].text.trim()
+        : '';
+
+      // Persist to ai_feedback
+      const { data: inserted } = await serviceClient
+        .from('ai_feedback')
+        .insert({
+          school_id,
+          feedback_scope: 'domain_narrative',
+          scope_id: String(domain_id),
+          academic_year: academic_year ?? null,
+          prompt_text: narrativePrompt,
+          response_text: narrative,
+          accepted: false,
+          created_by: user.id,
+        })
+        .select('id')
+        .single();
+
+      return new Response(JSON.stringify({ narrative, feedbackId: inserted?.id ?? null }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 3. Build the prompt for scope-based actions
+    let prompt = '';
 
     if (scope === 'indicator') {
       const {
@@ -164,7 +284,7 @@ Provide a JSON response:
     }
 
     if (!prompt) {
-      return new Response(JSON.stringify({ error: `Unknown scope: ${scope}` }), {
+      return new Response(JSON.stringify({ error: `Unknown scope/action: ${scope ?? action}` }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }

@@ -1,6 +1,6 @@
 import { useParams, Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ChevronRight, ChevronDown } from 'lucide-react';
+import { ChevronRight, ChevronDown, Sparkles, Copy, Check, Loader2 } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -9,6 +9,7 @@ import { Progress } from '../components/ui/progress';
 import { useJudgements } from '../hooks/useJudgements';
 import { useSchoolStore } from '../stores/schoolStore';
 import { JUDGEMENT_LABELS, JUDGEMENT_COLORS, type JudgementLevel } from '../lib/judgement';
+import { useDomainNarrative } from '../hooks/useAIFeedback';
 import type { Domain, Standard, Indicator } from '../types';
 
 export function DomainDetailPage() {
@@ -16,6 +17,9 @@ export function DomainDetailPage() {
   const { school } = useSchoolStore();
   const { judgements } = useJudgements();
   const [openStandards, setOpenStandards] = useState<Set<string>>(new Set());
+  const [narrative, setNarrative] = useState('');
+  const [copied, setCopied] = useState(false);
+  const domainNarrative = useDomainNarrative();
 
   const { data: domain } = useQuery({
     queryKey: ['domain', domainId],
@@ -93,11 +97,60 @@ export function DomainDetailPage() {
             </div>
             <JudgementBadge level={domainLevel} size="md" />
           </div>
-          <div className="mt-3 flex items-center gap-3">
+          <div className="mt-3 flex items-center gap-3 flex-wrap">
             <span className={`text-xs px-2 py-1 rounded-full ${domain.weight === 'high' ? 'bg-[#a12c7b]/10 text-[#a12c7b]' : 'bg-blue-50 text-blue-700'}`}>
               {domain.weight === 'high' ? 'High weight — directly impacts overall judgement' : 'Medium weight'}
             </span>
+            <button
+              onClick={async () => {
+                if (!school || !domainId) return;
+                const result = await domainNarrative.mutateAsync({
+                  action: 'draft_domain_narrative',
+                  school_id: school.id,
+                  domain_id: domainId,
+                });
+                setNarrative(result.narrative);
+              }}
+              disabled={domainNarrative.isPending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full bg-[#01696f]/10 text-[#01696f] hover:bg-[#01696f]/20 transition-colors disabled:opacity-50"
+            >
+              {domainNarrative.isPending ? (
+                <><Loader2 className="h-3.5 w-3.5 animate-spin" />Drafting…</>
+              ) : (
+                <><Sparkles className="h-3.5 w-3.5" />✨ Draft Domain Narrative</>
+              )}
+            </button>
           </div>
+
+          {domainNarrative.isError && (
+            <p className="mt-3 text-xs text-red-600">
+              {domainNarrative.error?.message ?? 'Failed to generate narrative.'}
+            </p>
+          )}
+
+          {narrative && (
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-medium text-[#6b7280]">AI-drafted SED narrative — review and edit before pasting</span>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(narrative);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 2000);
+                  }}
+                  className="inline-flex items-center gap-1 text-xs text-[#01696f] hover:underline"
+                >
+                  {copied ? <><Check className="h-3.5 w-3.5" />Copied!</> : <><Copy className="h-3.5 w-3.5" />Copy to clipboard</>}
+                </button>
+              </div>
+              <textarea
+                readOnly
+                value={narrative}
+                rows={6}
+                className="w-full text-sm text-[#1a1a1a] bg-gray-50 border border-[#e2e0db] rounded-lg p-3 resize-none leading-relaxed focus:outline-none"
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
 
