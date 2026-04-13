@@ -90,7 +90,7 @@ export default function IndicatorsPage() {
   const { school, academicYear, profile } = useSchoolStore();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
-  const { isSuperAdmin, isSchoolAdmin, isHOD } = usePermissions();
+  const { isSuperAdmin } = usePermissions();
   const { userRole } = useSchoolStore();
   const allowedDomains = useHodDomains();
 

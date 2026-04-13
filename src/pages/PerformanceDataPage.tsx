@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, Save, TrendingUp, Users, FileSpreadsheet, Loader2, LineChart as LineChartIcon, Upload, PieChart as PieChartIcon } from 'lucide-react';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Cell,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
 } from 'recharts';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '../components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -1273,7 +1273,7 @@ function CohortTab() {
         <CardContent>
           <CohortTable
             headers={['Total Boys', 'Boys ≥75%', 'Boys Rate', 'Total Girls', 'Girls ≥75%', 'Girls Rate', 'Gap']}
-            getRow={(subj, r) => {
+            getRow={(_subj, r) => {
               const boysRate = r ? calcRate(r.students_at_75_male, r.total_students_male) : null;
               const girlsRate = r ? calcRate(r.students_at_75_female, r.total_students_female) : null;
               const gap = boysRate != null && girlsRate != null ? boysRate - girlsRate : null;
@@ -1304,7 +1304,7 @@ function CohortTab() {
             <BarChart data={genderChartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} unit="%" domain={[0, 100]} />
-              <Tooltip formatter={(v: number) => [`${v}%`]} />
+              <Tooltip formatter={(v) => [`${(v as number ?? 0).toFixed(1)}%`]} />
               <Legend />
               <Bar dataKey="Boys" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={32} />
               <Bar dataKey="Girls" fill="#ec4899" radius={[4, 4, 0, 0]} maxBarSize={32} />
@@ -1321,7 +1321,7 @@ function CohortTab() {
         <CardContent>
           <CohortTable
             headers={['Total Omani', 'Omani ≥75%', 'Omani Rate', 'Total Non-Omani', 'Non-Omani ≥75%', 'Non-Omani Rate', 'Gap']}
-            getRow={(subj, r) => {
+            getRow={(_subj, r) => {
               const omaniRate = r ? calcRate(r.students_at_75_omani, r.total_students_omani) : null;
               const nonOmaniRate = r ? calcRate(r.students_at_75_non_omani, r.total_students_non_omani) : null;
               const gap = omaniRate != null && nonOmaniRate != null ? omaniRate - nonOmaniRate : null;
@@ -1352,7 +1352,7 @@ function CohortTab() {
             <BarChart data={natChartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} unit="%" domain={[0, 100]} />
-              <Tooltip formatter={(v: number) => [`${v}%`]} />
+              <Tooltip formatter={(v) => [`${(v as number ?? 0).toFixed(1)}%`]} />
               <Legend />
               <Bar dataKey="Omani" fill="#01696f" radius={[4, 4, 0, 0]} maxBarSize={32} />
               <Bar dataKey="Non-Omani" fill="#d19900" radius={[4, 4, 0, 0]} maxBarSize={32} />

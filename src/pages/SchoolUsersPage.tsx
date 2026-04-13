@@ -127,7 +127,6 @@ function StaffCsvImportDialog({
   onSuccess: () => void;
 }) {
   const { showToast } = useToast();
-  const { data: session } = { data: null } as { data: { access_token: string } | null };
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [rows, setRows] = useState<StaffCsvRow[]>([]);
   const [importing, setImporting] = useState(false);
