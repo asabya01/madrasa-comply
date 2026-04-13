@@ -25,6 +25,7 @@ import IndicatorsPage from './pages/IndicatorsPage';
 import TeacherSelfAssessmentPage from './pages/TeacherSelfAssessmentPage';
 import TeacherHomePage from './pages/TeacherHomePage';
 import ClassroomObservationsPage from './pages/ClassroomObservationsPage';
+import CPDLogPage from './pages/CPDLogPage';
 import JudgementsPage from './pages/JudgementsPage';
 import PerformanceDataPage from './pages/PerformanceDataPage';
 import SurveysPage from './pages/SurveysPage';
@@ -128,6 +129,7 @@ function App() {
         <Route path="/teacher-home"          element={<TeacherHomePage />} />
         <Route path="/teacher-assessment"   element={<TeacherSelfAssessmentPage />} />
         <Route path="/observations"         element={<ClassroomObservationsPage />} />
+        <Route path="/cpd-log"           element={<CPDLogPage />} />
         <Route path="/judgements"        element={<JudgementsPage />} />
         <Route path="/surveys"           element={<SurveysPage />} />
         <Route path="/performance-data"  element={<PerformanceDataPage />} />
