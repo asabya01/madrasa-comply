@@ -613,10 +613,10 @@ const SECRETS = [
     where: 'Vercel → Project → Settings → Environment Variables',
   },
   {
-    name: 'ANTHROPIC_API_KEY',
-    description: 'Anthropic Claude API key — used by ai-feedback Edge Function',
+    name: 'GEMINI_API_KEY',
+    description: 'Google Gemini API key — used by ai-feedback and generate-insights Edge Functions',
     configured: null, // server-side only, cannot verify from client
-    where: 'supabase secrets set ANTHROPIC_API_KEY=sk-ant-...',
+    where: 'supabase secrets set GEMINI_API_KEY=AIza...',
   },
   {
     name: 'SUPABASE_SERVICE_ROLE_KEY',

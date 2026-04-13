@@ -131,34 +131,21 @@ Return ONLY valid JSON with these exact keys:
 
 Make recommended_actions specific and actionable for an Omani school context. Do not include any explanation outside the JSON object.`;
 
-    // 7. Call OpenAI
-    const openaiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openaiKey) throw new Error('OPENAI_API_KEY is not set');
-
-    const openaiRes = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${openaiKey}`,
-      },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        response_format: { type: 'json_object' },
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
-      }),
-    });
-
-    if (!openaiRes.ok) {
-      const errText = await openaiRes.text();
-      throw new Error(`OpenAI error ${openaiRes.status}: ${errText}`);
-    }
-
-    const openaiData = await openaiRes.json() as {
-      choices: Array<{ message: { content: string } }>;
-    };
-
-    const rawContent = openaiData.choices?.[0]?.message?.content ?? '{}';
+    // 7. Call Gemini
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: 'application/json' },
+        }),
+      }
+    );
+    const geminiData = await geminiResponse.json();
+    const rawContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!rawContent) throw new Error('No response from Gemini');
     const parsed = JSON.parse(rawContent) as {
       strengths: string[];
       improvement_areas: string[];
@@ -182,7 +169,7 @@ Make recommended_actions specific and actionable for an Omani school context. Do
       ...row,
       school_id,
       academic_year,
-      model_version: 'gpt-4o-mini',
+      model_version: 'gemini-2.0-flash',
     }));
 
     const { error: insertErr } = await adminClient.from('ai_insights').insert(insightRows);

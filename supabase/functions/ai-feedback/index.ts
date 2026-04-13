@@ -1,6 +1,5 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import Anthropic from 'npm:@anthropic-ai/sdk';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -76,15 +75,21 @@ Your task:
 4. Respond in the same language as the input narrative (Arabic if Arabic, English if English).
 5. Return ONLY valid JSON: { "suggestion": "your rewritten narrative here" }`;
 
-      const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
-      const langResponse = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 400,
-        messages: [{ role: 'user', content: langPrompt }],
-      });
-      const langContent = langResponse.content[0].type === 'text' ? langResponse.content[0].text : '{}';
-      const langJson = langContent.match(/\{[\s\S]*\}/);
-      const langResult = langJson ? JSON.parse(langJson[0]) : { suggestion: langContent.trim() };
+      const geminiLangRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: langPrompt }] }],
+            generationConfig: { responseMimeType: 'application/json' },
+          }),
+        }
+      );
+      const geminiLangData = await geminiLangRes.json();
+      const langContent = geminiLangData.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!langContent) throw new Error('No response from Gemini');
+      const langResult = JSON.parse(langContent);
       return new Response(JSON.stringify(langResult), {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -181,16 +186,20 @@ ${indicatorLines}
 
 Write the narrative paragraph only — no headings, no bullet points, no JSON.`;
 
-      const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
-      const narrativeResponse = await anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 600,
-        messages: [{ role: 'user', content: narrativePrompt }],
-      });
-
-      const narrative = narrativeResponse.content[0].type === 'text'
-        ? narrativeResponse.content[0].text.trim()
-        : '';
+      const geminiNarrRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: narrativePrompt }] }],
+            generationConfig: { responseMimeType: 'text/plain' },
+          }),
+        }
+      );
+      const geminiNarrData = await geminiNarrRes.json();
+      const narrative = geminiNarrData.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (!narrative) throw new Error('No response from Gemini');
 
       // Persist to ai_feedback
       const { data: inserted } = await serviceClient
@@ -289,15 +298,21 @@ Provide a JSON response:
       });
     }
 
-    // 4. Call Anthropic
-    const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
-    const response = await anthropic.messages.create({
-      model: 'claude-3-5-sonnet-20241022',
-      max_tokens: 1500,
-      messages: [{ role: 'user', content: prompt }],
-    });
-
-    const content = response.content[0].type === 'text' ? response.content[0].text : '';
+    // 4. Call Gemini
+    const geminiResponse = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${Deno.env.get('GEMINI_API_KEY')}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { responseMimeType: 'application/json' },
+        }),
+      }
+    );
+    const geminiData = await geminiResponse.json();
+    const content = geminiData.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!content) throw new Error('No response from Gemini');
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     const feedback = jsonMatch ? JSON.parse(jsonMatch[0]) : { error: 'Parse failed', raw: content };
 
