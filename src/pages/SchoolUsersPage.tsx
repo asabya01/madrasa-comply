@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
@@ -428,6 +429,7 @@ function StaffCsvImportDialog({
 
 export default function SchoolUsersPage() {
   const { school } = useSchoolStore();
+  const { t } = useTranslation();
   const { isSchoolAdmin } = usePermissions();
 
   const [users, setUsers]           = useState<UserRow[]>([]);

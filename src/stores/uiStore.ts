@@ -1,6 +1,8 @@
 import { create } from 'zustand';
+import i18n from '../i18n/index';
 
-const RTL_KEY = 'madrasa_rtl';
+const RTL_KEY  = 'madrasa_rtl';
+const LANG_KEY = 'madrasa_lang';
 
 interface UIState {
   sidebarOpen: boolean;
@@ -8,6 +10,8 @@ interface UIState {
   toggleSidebar: () => void;
   rtl: boolean;
   setRtl: (val: boolean) => void;
+  lang: 'en' | 'ar';
+  setLanguage: (lang: 'en' | 'ar') => void;
 }
 
 function applyDir(rtl: boolean) {
@@ -16,7 +20,8 @@ function applyDir(rtl: boolean) {
 }
 
 // Apply persisted preference immediately on module load
-const storedRtl = localStorage.getItem(RTL_KEY) === 'true';
+const storedLang = (localStorage.getItem(LANG_KEY) as 'en' | 'ar') || 'en';
+const storedRtl  = storedLang === 'ar';
 applyDir(storedRtl);
 
 export const useUIStore = create<UIState>((set) => ({
@@ -24,9 +29,21 @@ export const useUIStore = create<UIState>((set) => ({
   setSidebarOpen: (open) => set({ sidebarOpen: open }),
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   rtl: storedRtl,
+  lang: storedLang,
   setRtl: (val) => {
-    localStorage.setItem(RTL_KEY, String(val));
+    const lang = val ? 'ar' : 'en';
+    localStorage.setItem(RTL_KEY,  String(val));
+    localStorage.setItem(LANG_KEY, lang);
     applyDir(val);
-    set({ rtl: val });
+    i18n.changeLanguage(lang);
+    set({ rtl: val, lang });
+  },
+  setLanguage: (lang) => {
+    const rtl = lang === 'ar';
+    localStorage.setItem(LANG_KEY, lang);
+    localStorage.setItem(RTL_KEY,  String(rtl));
+    applyDir(rtl);
+    i18n.changeLanguage(lang);
+    set({ lang, rtl });
   },
 }));

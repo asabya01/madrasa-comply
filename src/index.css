@@ -37,7 +37,19 @@
   }
 }
 
-/* ─── RTL sidebar / main content layout ──────────────────────── */
+/* ─── RTL layout ──────────────────────────────────────────────── */
+[dir="rtl"] {
+  text-align: right;
+  font-family: 'Noto Sans Arabic', 'Segoe UI', system-ui, sans-serif;
+}
+
+[dir="rtl"] h1,
+[dir="rtl"] h2,
+[dir="rtl"] h3,
+[dir="rtl"] h4 {
+  font-family: 'Noto Sans Arabic', 'Instrument Serif', Georgia, serif;
+}
+
 [dir="rtl"] aside.sidebar-fixed {
   left: auto;
   right: 0;

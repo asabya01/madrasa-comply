@@ -6,6 +6,7 @@ import {
   MessageSquare, CalendarCheck, GraduationCap, Upload, UserCheck,
 } from 'lucide-react';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../../lib/supabase';
 import { useSchoolStore } from '../../stores/schoolStore';
 import { useSchool } from '../../hooks/useSchool';
@@ -56,7 +57,8 @@ export function Sidebar() {
   const { allMemberships, switchSchool } = useSchool();
   const { isSuperAdmin, isSchoolAdmin, isHOD, isTeacher, isChainAdmin } = usePermissions();
   const { isOnline, pendingCount } = useOfflineQueue();
-  const { rtl, setRtl } = useUIStore();
+  const { rtl, setLanguage } = useUIStore();
+  const { t } = useTranslation();
   const [schoolMenuOpen, setSchoolMenuOpen] = useState(false);
 
   const multiSchool = allMemberships.length > 1;
@@ -105,13 +107,13 @@ export function Sidebar() {
           </div>
         )}
 
-        {/* RTL / LTR language toggle */}
+        {/* Language toggle */}
         <div className="mt-2">
           <button
-            onClick={() => setRtl(!rtl)}
+            onClick={() => setLanguage(rtl ? 'en' : 'ar')}
             className="text-xs px-2 py-0.5 rounded-full border border-slate-600 text-slate-400 hover:text-white hover:border-slate-400 transition-colors"
           >
-            {rtl ? 'English' : 'عربي'}
+            {t('nav.language')}
           </button>
         </div>
 
@@ -202,7 +204,7 @@ export function Sidebar() {
           className="flex items-center gap-3 w-full px-2 py-2 text-sm text-white/70 hover:text-white transition-colors rtl:flex-row-reverse"
         >
           <LogOut className="h-4 w-4" />
-          Sign Out
+          {t('nav.signOut')}
         </button>
       </div>
     </aside>

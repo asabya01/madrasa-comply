@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -166,6 +167,7 @@ function DomainCard({
 
 export default function JudgementsPage() {
   const { school, academicYear } = useSchoolStore();
+  const { t } = useTranslation();
   const { judgements, isLoading } = useJudgements();
   const queryClient = useQueryClient();
   const [recalculating, setRecalculating] = useState(false);

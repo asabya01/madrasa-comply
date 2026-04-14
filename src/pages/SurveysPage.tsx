@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -130,6 +131,7 @@ function useResponseCounts(templateIds: string[]) {
 
 export default function SurveysPage() {
   const [resultsTemplateId, setResultsTemplateId] = useState<string | null>(null);
+  const { t, i18n } = useTranslation();
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">

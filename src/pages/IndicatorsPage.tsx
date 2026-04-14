@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
@@ -88,6 +89,7 @@ async function callNotify(
 
 export default function IndicatorsPage() {
   const { school, academicYear, profile } = useSchoolStore();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { isSuperAdmin } = usePermissions();

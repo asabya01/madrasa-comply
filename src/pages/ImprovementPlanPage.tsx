@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -154,6 +155,7 @@ function generateCSV(
 
 export default function ImprovementPlanPage() {
   const { school, academicYear } = useSchoolStore();
+  const { t, i18n } = useTranslation();
   const [showArchived, setShowArchived] = useState(false);
   const [filterStatus, setFilterStatus] = useState<AFIStatus | 'all'>('all');
   const [filterDomain, setFilterDomain] = useState<string>('all');

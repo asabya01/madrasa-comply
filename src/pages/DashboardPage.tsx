@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Calendar, ExternalLink, ChevronDown, ChevronRight, Share2, AlertTriangle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
@@ -230,6 +231,7 @@ export function DashboardPage() {
   const { school, profile, academicYear } = useSchoolStore();
   const { judgements, isLoading } = useJudgements();
   const { isSchoolAdmin, isSuperAdmin, isHOD } = usePermissions();
+  const { t, i18n } = useTranslation();
   const [shareCopied, setShareCopied] = useState(false);
 
   function handleSharePublic() {
@@ -354,14 +356,19 @@ export function DashboardPage() {
         <div className="flex items-start gap-3 px-4 py-3 rounded-lg border bg-red-900 border-red-900 text-white">
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-white" />
           <div className="flex-1">
-            <p className="text-sm font-semibold">Your subscription has expired.</p>
+            <p className="text-sm font-semibold">
+              {t('banners.expired', {
+                date: subscriptionExpiresAt
+                  ? new Date(subscriptionExpiresAt).toLocaleDateString(i18n.language === 'ar' ? 'ar-OM' : 'en-GB')
+                  : '',
+              })}
+            </p>
             <p className="text-xs mt-0.5 text-red-200">
-              Access to platform features has been restricted.{' '}
               <a
                 href="mailto:hello@asabya.com?subject=Madrasa Comply Renewal - Subscription expired"
                 className="underline text-white font-semibold"
               >
-                Contact us to renew →
+                {t('banners.renewNow')} →
               </a>
             </p>
           </div>
@@ -374,15 +381,14 @@ export function DashboardPage() {
           <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" />
           <div className="flex-1">
             <p className="text-sm font-semibold">
-              Your trial expires in {daysUntilExpiry} day{daysUntilExpiry !== 1 ? 's' : ''}.
+              {t('banners.trialWarning', { days: daysUntilExpiry ?? 0 })}
             </p>
             <p className="text-xs mt-0.5 text-amber-700">
-              Upgrade before your trial ends to keep full access.{' '}
               <a
                 href="mailto:hello@asabya.com?subject=Madrasa Comply Upgrade - Please advise on pricing"
                 className="underline font-semibold text-amber-900"
               >
-                Get in touch →
+                {t('banners.upgradePlan')} →
               </a>
             </p>
           </div>

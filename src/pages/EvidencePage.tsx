@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { FolderOpen, Search, Upload, FileText, Image, Table, File, Trash2, Link2, X, ChevronRight } from 'lucide-react';
@@ -213,6 +214,7 @@ function CoverageWidget() {
 
 export function EvidencePage() {
   const [search, setSearch] = useState('');
+  const { t } = useTranslation();
   const [dragOver, setDragOver] = useState(false);
   const [linkingFile, setLinkingFile] = useState<EvidenceFile | null>(null);
   const { data: evidenceFiles, isLoading } = useEvidence();

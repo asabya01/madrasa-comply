@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, Save, TrendingUp, Users, FileSpreadsheet, Loader2, LineChart as LineChartIcon, Upload, PieChart as PieChartIcon } from 'lucide-react';
@@ -1380,6 +1381,7 @@ function CohortTab() {
 
 export default function PerformanceDataPage() {
   const { school, academicYear } = useSchoolStore();
+  const { t, i18n } = useTranslation();
   const { showToast } = useToast();
 
   const handleExport = async (semester: 'semester_1' | 'semester_2' | 'annual') => {

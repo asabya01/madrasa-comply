@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { useState, useRef, useCallback, useMemo, Fragment } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { List, CalendarDays, ChevronDown, ChevronUp, Link2, RotateCcw } from 'lucide-react';
@@ -268,6 +269,7 @@ function useDomain3Framework() {
 
 export default function ClassroomObservationsPage() {
   const { school, profile } = useSchoolStore();
+  const { t, i18n } = useTranslation();
   const perms = usePermissions();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
