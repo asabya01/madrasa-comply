@@ -1,5 +1,6 @@
 import { TrendingUp, FileCheck, FolderOpen, ClipboardList, AlertTriangle, ArrowRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from '../ui/card';
 import { JudgementBadge } from '../ui/judgement-badge';
 import { Progress } from '../ui/progress';
@@ -19,6 +20,7 @@ export function KPICards({
   overallJudgement, ratedCount, totalCount,
   evidenceCount, pendingActions, totalActions, overdueActions,
 }: KPICardsProps) {
+  const { t } = useTranslation();
   const compliancePercent = ratingToPercent(overallJudgement);
   const navigate = useNavigate();
 
@@ -37,7 +39,7 @@ export function KPICards({
             <JudgementBadge level={overallJudgement} />
           </div>
           <div className="text-2xl font-bold text-[#1a1a1a]">{compliancePercent}%</div>
-          <div className="text-xs text-[#6b7280] mt-0.5">Overall Compliance Score</div>
+          <div className="text-xs text-[#6b7280] mt-0.5">{t('dashboard.overallCompliance')}</div>
           <ArrowRight className="h-4 w-4 text-gray-400 absolute bottom-3 right-3" />
         </CardContent>
       </Card>
@@ -52,10 +54,10 @@ export function KPICards({
             <div className="h-9 w-9 rounded-lg bg-blue-50 flex items-center justify-center">
               <FileCheck className="h-5 w-5 text-blue-600" />
             </div>
-            <span className="text-xs text-[#6b7280]">{totalCount} total</span>
+            <span className="text-xs text-[#6b7280]">{t('dashboard.total', { count: totalCount })}</span>
           </div>
           <div className="text-2xl font-bold text-[#1a1a1a]">{ratedCount}</div>
-          <div className="text-xs text-[#6b7280] mt-0.5 mb-2">Indicators Rated</div>
+          <div className="text-xs text-[#6b7280] mt-0.5 mb-2">{t('sef.indicatorsRated2')}</div>
           <Progress value={totalCount ? (ratedCount / totalCount) * 100 : 0} className="h-1.5" />
           <ArrowRight className="h-4 w-4 text-gray-400 absolute bottom-3 right-3" />
         </CardContent>
@@ -73,7 +75,7 @@ export function KPICards({
             </div>
           </div>
           <div className="text-2xl font-bold text-[#1a1a1a]">{evidenceCount}</div>
-          <div className="text-xs text-[#6b7280] mt-0.5">Evidence Files Uploaded</div>
+          <div className="text-xs text-[#6b7280] mt-0.5">{t('dashboard.evidenceUploaded')}</div>
           <ArrowRight className="h-4 w-4 text-gray-400 absolute bottom-3 right-3" />
         </CardContent>
       </Card>
@@ -91,12 +93,12 @@ export function KPICards({
             {overdueActions > 0 && (
               <span className="flex items-center gap-1 text-xs text-red-600 font-medium">
                 <AlertTriangle className="h-3 w-3" />
-                {overdueActions} overdue
+                {t('dashboard.overdueActions', { count: overdueActions })}
               </span>
             )}
           </div>
           <div className="text-2xl font-bold text-[#1a1a1a]">{pendingActions}</div>
-          <div className="text-xs text-[#6b7280] mt-0.5">Pending Actions of {totalActions}</div>
+          <div className="text-xs text-[#6b7280] mt-0.5">{t('dashboard.pendingActionsOf', { total: totalActions })}</div>
           <ArrowRight className="h-4 w-4 text-gray-400 absolute bottom-3 right-3" />
         </CardContent>
       </Card>

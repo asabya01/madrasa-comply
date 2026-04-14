@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Upload, FileText, AlertCircle, CheckCircle2, Loader2, X } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { supabase } from '../lib/supabase';
@@ -132,6 +133,7 @@ function splitCSVLine(line: string): string[] {
 type ImportState = 'idle' | 'previewing' | 'importing' | 'done' | 'error';
 
 export default function StudentImportPage() {
+  const { t } = useTranslation();
   const { school, profile } = useSchoolStore();
   const [dragOver, setDragOver]       = useState(false);
   const [rows, setRows]               = useState<ParsedRow[]>([]);
@@ -258,9 +260,9 @@ export default function StudentImportPage() {
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-[#1a1a1a]">Import Student Performance Data</h1>
+        <h1 className="text-2xl font-bold text-[#1a1a1a]">{t('import.title')}</h1>
         <p className="text-sm text-[#6b7280] mt-1">
-          Upload a CSV to bulk-populate Performance Data. Valid rows are upserted; errors are shown before you confirm.
+          {t('import.subtitle')}
         </p>
       </div>
 
@@ -277,7 +279,7 @@ export default function StudentImportPage() {
               onDrop={handleDrop}
             >
               <Upload className="h-10 w-10 text-[#6b7280] mx-auto mb-3" />
-              <p className="text-sm font-medium text-[#1a1a1a]">Drag and drop a CSV file here</p>
+              <p className="text-sm font-medium text-[#1a1a1a]">{t('import.dragDrop')}</p>
               <p className="text-xs text-[#6b7280] mt-1 mb-4">
                 Required columns: <code className="bg-gray-100 px-1 rounded">grade</code>,{' '}
                 <code className="bg-gray-100 px-1 rounded">subject</code>,{' '}
@@ -295,7 +297,7 @@ export default function StudentImportPage() {
                   className="hidden"
                   onChange={handleFileInput}
                 />
-                Browse CSV
+                {t('import.browseCSV')}
               </label>
               {globalError && (
                 <p className="text-xs text-red-600 mt-3">{globalError}</p>
@@ -309,7 +311,7 @@ export default function StudentImportPage() {
       {state === 'idle' && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Expected CSV Format</CardTitle>
+            <CardTitle className="text-sm">{t('import.expectedFormat')}</CardTitle>
           </CardHeader>
           <CardContent>
             <pre className="text-xs bg-gray-50 rounded-lg p-4 overflow-x-auto text-gray-700 leading-relaxed">
@@ -333,7 +335,7 @@ Grade 2,Science,29,18,72,2024/2025`}
               <FileText className="h-4 w-4 text-[#6b7280]" />
               <span className="text-sm font-medium text-[#1a1a1a]">{fileName}</span>
               <span className="text-xs text-[#6b7280]">
-                {rows.length} row{rows.length !== 1 ? 's' : ''} parsed
+                {rows.length !== 1 ? t('import.rowsParsedPlural', { count: rows.length }) : t('import.rowsParsed', { count: rows.length })}
               </span>
             </div>
             <button
@@ -342,7 +344,7 @@ Grade 2,Science,29,18,72,2024/2025`}
               className="text-xs text-[#6b7280] hover:text-[#1a1a1a] flex items-center gap-1"
             >
               <X className="h-3.5 w-3.5" />
-              Clear
+              {t('import.clear')}
             </button>
           </div>
 
@@ -350,12 +352,12 @@ Grade 2,Science,29,18,72,2024/2025`}
           <div className="flex gap-3">
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 border border-green-200 rounded-full text-xs font-medium text-green-700">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              {validRows.length} valid
+              {t('import.validRows', { count: validRows.length })}
             </div>
             {invalidRows.length > 0 && (
               <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 border border-red-200 rounded-full text-xs font-medium text-red-700">
                 <AlertCircle className="h-3.5 w-3.5" />
-                {invalidRows.length} with errors
+                {t('import.withErrors', { count: invalidRows.length })}
               </div>
             )}
           </div>
@@ -366,7 +368,7 @@ Grade 2,Science,29,18,72,2024/2025`}
               <CardHeader>
                 <CardTitle className="text-sm text-red-700 flex items-center gap-1.5">
                   <AlertCircle className="h-4 w-4" />
-                  Rows with errors (will be skipped)
+                  {t('import.rowsWithErrors')}
                 </CardTitle>
               </CardHeader>
               <CardContent>
@@ -374,10 +376,10 @@ Grade 2,Science,29,18,72,2024/2025`}
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b border-gray-100">
-                        <th className="text-left py-2 px-3 font-medium text-gray-500">Row</th>
-                        <th className="text-left py-2 px-3 font-medium text-gray-500">Grade</th>
-                        <th className="text-left py-2 px-3 font-medium text-gray-500">Subject</th>
-                        <th className="text-left py-2 px-3 font-medium text-gray-500">Errors</th>
+                        <th className="text-left py-2 px-3 font-medium text-gray-500">{t('import.colRow')}</th>
+                        <th className="text-left py-2 px-3 font-medium text-gray-500">{t('import.colGrade')}</th>
+                        <th className="text-left py-2 px-3 font-medium text-gray-500">{t('import.colSubject')}</th>
+                        <th className="text-left py-2 px-3 font-medium text-gray-500">{t('import.colErrors')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -400,20 +402,20 @@ Grade 2,Science,29,18,72,2024/2025`}
           {validRows.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle className="text-sm">Preview — {validRows.length} rows to import</CardTitle>
+                <CardTitle className="text-sm">{t('import.preview', { count: validRows.length })}</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto max-h-80 overflow-y-auto">
                   <table className="w-full text-xs">
                     <thead className="sticky top-0 bg-white">
                       <tr className="border-b border-gray-100">
-                        <th className="text-left py-2 px-3 font-medium text-gray-500">Academic Year</th>
-                        <th className="text-left py-2 px-3 font-medium text-gray-500">Grade</th>
-                        <th className="text-left py-2 px-3 font-medium text-gray-500">Subject</th>
-                        <th className="text-right py-2 px-3 font-medium text-gray-500">Total</th>
-                        <th className="text-right py-2 px-3 font-medium text-gray-500">At 75%</th>
-                        <th className="text-right py-2 px-3 font-medium text-gray-500">Rate</th>
-                        <th className="text-right py-2 px-3 font-medium text-gray-500">Nat. Avg</th>
+                        <th className="text-left py-2 px-3 font-medium text-gray-500">{t('import.colAcademicYear')}</th>
+                        <th className="text-left py-2 px-3 font-medium text-gray-500">{t('import.colGrade')}</th>
+                        <th className="text-left py-2 px-3 font-medium text-gray-500">{t('import.colSubject')}</th>
+                        <th className="text-right py-2 px-3 font-medium text-gray-500">{t('import.colTotal')}</th>
+                        <th className="text-right py-2 px-3 font-medium text-gray-500">{t('import.colAt75')}</th>
+                        <th className="text-right py-2 px-3 font-medium text-gray-500">{t('import.colRate')}</th>
+                        <th className="text-right py-2 px-3 font-medium text-gray-500">{t('import.colNatAvg')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -453,12 +455,12 @@ Grade 2,Science,29,18,72,2024/2025`}
                 {state === 'importing' ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Importing…
+                    {t('import.importing')}
                   </>
                 ) : (
                   <>
                     <Upload className="h-4 w-4" />
-                    Confirm Import ({validRows.length} rows)
+                    {t('import.confirmImport', { count: validRows.length })}
                   </>
                 )}
               </button>
@@ -472,7 +474,7 @@ Grade 2,Science,29,18,72,2024/2025`}
         <Card>
           <CardContent className="py-10 text-center">
             <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
-            <h2 className="text-lg font-semibold text-[#1a1a1a] mb-1">Import Complete</h2>
+            <h2 className="text-lg font-semibold text-[#1a1a1a] mb-1">{t('import.importComplete')}</h2>
             <p className="text-sm text-[#6b7280]">
               {importedCount} row{importedCount !== 1 ? 's' : ''} imported successfully.
               {errorCount > 0 && ` ${errorCount} row${errorCount !== 1 ? 's' : ''} skipped due to errors.`}
@@ -481,7 +483,7 @@ Grade 2,Science,29,18,72,2024/2025`}
               onClick={handleReset}
               className="mt-6 inline-flex items-center gap-2 px-4 py-2 border border-[#e2e0db] rounded-lg text-sm text-[#1a1a1a] hover:bg-gray-50 transition-colors"
             >
-              Import Another File
+              {t('import.importAnotherFile')}
             </button>
           </CardContent>
         </Card>
@@ -492,13 +494,13 @@ Grade 2,Science,29,18,72,2024/2025`}
         <Card>
           <CardContent className="py-10 text-center">
             <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-            <h2 className="text-lg font-semibold text-[#1a1a1a] mb-1">Import Failed</h2>
+            <h2 className="text-lg font-semibold text-[#1a1a1a] mb-1">{t('import.importFailed')}</h2>
             <p className="text-sm text-red-600">{globalError}</p>
             <button
               onClick={handleReset}
               className="mt-6 inline-flex items-center gap-2 px-4 py-2 border border-[#e2e0db] rounded-lg text-sm text-[#1a1a1a] hover:bg-gray-50 transition-colors"
             >
-              Try Again
+              {t('import.tryAgain')}
             </button>
           </CardContent>
         </Card>

@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { supabase } from '../../lib/supabase';
 import { useSchoolStore } from '../../stores/schoolStore';
 import { ratingToPercent } from '../../lib/judgement';
 
 export function ComplianceTrend() {
+  const { t } = useTranslation();
   const { school } = useSchoolStore();
 
   const { data: snapshots } = useQuery({
@@ -25,7 +27,7 @@ export function ComplianceTrend() {
   if (!snapshots?.length) {
     return (
       <div className="h-40 flex items-center justify-center">
-        <p className="text-sm text-[#6b7280]">No trend data yet. Compliance snapshots will appear here.</p>
+        <p className="text-sm text-[#6b7280]">{t('dashboard.noTrendData')}</p>
       </div>
     );
   }
@@ -42,7 +44,7 @@ export function ComplianceTrend() {
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e0db" />
           <XAxis dataKey="date" tick={{ fontSize: 11 }} />
           <YAxis domain={[0, 100]} tick={{ fontSize: 11 }} unit="%" />
-          <Tooltip formatter={(val) => [`${val}%`, 'Compliance']} />
+          <Tooltip formatter={(val) => [`${val}%`, t('dashboard.compliance')]} />
           <Line type="monotone" dataKey="score" stroke="#01696f" strokeWidth={2} dot={{ r: 3 }} />
         </LineChart>
       </ResponsiveContainer>

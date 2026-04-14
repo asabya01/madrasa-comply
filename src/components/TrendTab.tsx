@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -69,6 +70,7 @@ function SubjectTrendCard({ subject, yearLabels, yearData }: {
   yearLabels: string[];
   yearData: Map<string, Map<Subject, number | null>>;
 }) {
+  const { t } = useTranslation();
   const chartData = yearLabels.map((label) => ({
     year: label,
     rate: yearData.get(label)?.get(subject) ?? null,
@@ -117,8 +119,8 @@ function SubjectTrendCard({ subject, yearLabels, yearData }: {
             }}
             contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }}
           />
-          <ReferenceLine y={70} stroke="#6b7280" strokeDasharray="4 3" label={{ value: 'Outstanding', position: 'right', fontSize: 10, fill: '#6b7280' }} />
-          <ReferenceLine y={60} stroke="#d19900" strokeDasharray="4 3" label={{ value: 'Good', position: 'right', fontSize: 10, fill: '#d19900' }} />
+          <ReferenceLine y={70} stroke="#6b7280" strokeDasharray="4 3" label={{ value: t('judgements.outstanding'), position: 'right', fontSize: 10, fill: '#6b7280' }} />
+          <ReferenceLine y={60} stroke="#d19900" strokeDasharray="4 3" label={{ value: t('judgements.good'), position: 'right', fontSize: 10, fill: '#d19900' }} />
           <Line
             type="monotone"
             dataKey="rate"
@@ -165,16 +167,17 @@ function SummaryTable({ yearLabels, yearData }: {
   yearLabels: string[];
   yearData: Map<string, Map<Subject, number | null>>;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm border border-gray-200 rounded-xl overflow-hidden">
         <thead className="bg-gray-50">
           <tr>
-            <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">Subject</th>
+            <th className="text-left px-3 py-2 text-xs font-medium text-gray-500">{t('trend.subject')}</th>
             {yearLabels.map((y) => (
               <th key={y} className="text-center px-3 py-2 text-xs font-medium text-gray-500">{y}</th>
             ))}
-            <th className="text-center px-3 py-2 text-xs font-medium text-gray-500">Progress</th>
+            <th className="text-center px-3 py-2 text-xs font-medium text-gray-500">{t('trend.progress')}</th>
           </tr>
         </thead>
         <tbody>
@@ -225,6 +228,7 @@ function SummaryTable({ yearLabels, yearData }: {
 // ─── Main TrendTab ────────────────────────────────────────────
 
 export function TrendTab() {
+  const { t } = useTranslation();
   const { school } = useSchoolStore();
 
   const { data: rawPerf = [], isLoading: perfLoading } = useQuery({
@@ -294,7 +298,7 @@ export function TrendTab() {
   if (yearLabels.length === 0 || rawPerf.length === 0) {
     return (
       <div className="text-center py-16 text-sm text-gray-400">
-        No multi-year data available. Enter performance data for at least one academic year.
+        {t('trend.noData')}
       </div>
     );
   }
@@ -313,7 +317,7 @@ export function TrendTab() {
       </div>
 
       <div>
-        <h3 className="text-sm font-semibold text-gray-900 mb-3">Year-on-Year Summary</h3>
+        <h3 className="text-sm font-semibold text-gray-900 mb-3">{t('trend.yearOnYearSummary')}</h3>
         <SummaryTable yearLabels={yearLabels} yearData={yearData} />
       </div>
     </div>

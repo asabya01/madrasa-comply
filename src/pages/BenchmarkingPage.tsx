@@ -436,7 +436,7 @@ export default function BenchmarkingPage() {
               <CardContent>
                 {snapsLoading ? (
                   <div className="h-56 flex items-center justify-center text-sm text-gray-400 animate-pulse">
-                    Loading chart…
+                    {t('benchmarking.loadingChart')}
                   </div>
                 ) : !latestSnapshot ? (
                   <div className="h-56 flex flex-col items-center justify-center text-center text-sm text-gray-400">
