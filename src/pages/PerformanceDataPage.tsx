@@ -29,6 +29,21 @@ const CSV_SUBJECTS = [
   'Mathematics', 'Science', 'Social Studies',
 ] as const;
 
+const SUBJECT_AR: Record<string, string> = {
+  'Islamic Education':  'التربية الإسلامية',
+  'Arabic Language':    'اللغة العربية',
+  'English Language':   'اللغة الإنجليزية',
+  'Mathematics':        'الرياضيات',
+  'Science':            'العلوم',
+  'Social Studies':     'الدراسات الاجتماعية',
+  // Common aliases
+  'Arabic':             'اللغة العربية',
+  'English':            'اللغة الإنجليزية',
+  'ICT':                'تقنية المعلومات والاتصالات',
+  'Physical Education': 'التربية البدنية',
+  'Art':                'التربية الفنية',
+};
+
 const CSV_HEADERS_REQUIRED = ['subject', 'grade', 'academic_year', 'total_students', 'students_at_75', 'total_days_possible', 'days_attended'];
 const CSV_HEADERS_COHORT   = ['total_students_male', 'students_at_75_male', 'total_students_female', 'students_at_75_female', 'total_students_omani', 'students_at_75_omani', 'total_students_non_omani', 'students_at_75_non_omani'];
 const CSV_HEADERS = [...CSV_HEADERS_REQUIRED, ...CSV_HEADERS_COHORT];
@@ -1123,6 +1138,9 @@ function CohortDataDialog({
 
 function CohortTab() {
   const { school, academicYear, profile } = useSchoolStore();
+  const { i18n } = useTranslation();
+  const isAr = i18n.language === 'ar';
+  const displaySubject = (name: string) => isAr ? (SUBJECT_AR[name] || name) : name;
   const { showToast } = useToast();
   const queryClient = useQueryClient();
   const [semester, setSemester] = useState<Semester>('semester_1');
@@ -1241,7 +1259,7 @@ function CohortTab() {
               const cells = getRow(subj, r);
               return (
                 <tr key={subj} className="hover:bg-gray-50">
-                  <td className="px-3 py-2 font-medium text-gray-700">{subj}</td>
+                  <td className="px-3 py-2 font-medium text-gray-700">{displaySubject(subj)}</td>
                   {cells.map((cell, i) => (
                     <td key={i} className="px-3 py-2 text-right tabular-nums text-gray-600">{cell}</td>
                   ))}
@@ -1382,6 +1400,8 @@ function CohortTab() {
 export default function PerformanceDataPage() {
   const { school, academicYear } = useSchoolStore();
   const { t, i18n } = useTranslation();
+  const isAr = i18n.language === 'ar';
+  const displaySubject = (name: string) => isAr ? (SUBJECT_AR[name] || name) : name;
   const { showToast } = useToast();
 
   const handleExport = async (semester: 'semester_1' | 'semester_2' | 'annual') => {

@@ -1,4 +1,5 @@
-import { JUDGEMENT_LABELS, JUDGEMENT_COLORS, type JudgementLevel } from '../../lib/judgement';
+import { useTranslation } from 'react-i18next';
+import { JUDGEMENT_LABELS, JUDGEMENT_LABELS_AR, JUDGEMENT_COLORS, type JudgementLevel } from '../../lib/judgement';
 import { cn } from '../../lib/utils';
 
 interface JudgementBadgeProps {
@@ -8,7 +9,10 @@ interface JudgementBadgeProps {
 }
 
 export function JudgementBadge({ level, size = 'sm', className }: JudgementBadgeProps) {
+  const { i18n } = useTranslation();
+  const isAr = i18n.language === 'ar';
   const color = JUDGEMENT_COLORS[level];
+  const label = isAr ? JUDGEMENT_LABELS_AR[level] : JUDGEMENT_LABELS[level];
 
   return (
     <span
@@ -21,7 +25,7 @@ export function JudgementBadge({ level, size = 'sm', className }: JudgementBadge
       )}
       style={{ backgroundColor: color }}
     >
-      {JUDGEMENT_LABELS[level]}
+      {label}
     </span>
   );
 }

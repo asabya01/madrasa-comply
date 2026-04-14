@@ -20,15 +20,15 @@ interface UserRow {
   joined_at: string | null;
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  school_admin:       'School Admin',
-  principal:          'Principal',
-  vice_principal:     'Vice Principal',
-  senior_management:  'Senior Mgmt',
-  head_of_department: 'HOD',
-  quality_coordinator:'QC',
-  teacher:            'Teacher',
-  auditor:            'Viewer',
+const ROLE_LABELS: Record<string, { en: string; ar: string }> = {
+  school_admin:       { en: 'School Admin',         ar: 'مدير المدرسة' },
+  principal:          { en: 'Principal',             ar: 'المدير' },
+  vice_principal:     { en: 'Vice Principal',        ar: 'وكيل المدرسة' },
+  senior_management:  { en: 'Senior Mgmt',           ar: 'الإدارة العليا' },
+  head_of_department: { en: 'HOD',                   ar: 'رئيس القسم' },
+  quality_coordinator:{ en: 'QC',                    ar: 'منسق الجودة' },
+  teacher:            { en: 'Teacher',               ar: 'معلم' },
+  auditor:            { en: 'Viewer',                ar: 'المراجع' },
 };
 
 const ROLE_COLORS: Record<string, string> = {
@@ -429,7 +429,8 @@ function StaffCsvImportDialog({
 
 export default function SchoolUsersPage() {
   const { school } = useSchoolStore();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isAr = i18n.language === 'ar';
   const { isSchoolAdmin } = usePermissions();
 
   const [users, setUsers]           = useState<UserRow[]>([]);
@@ -593,7 +594,7 @@ export default function SchoolUsersPage() {
                     <td className="px-5 py-3 text-gray-500 text-xs">{u.email || '—'}</td>
                     <td className="px-5 py-3">
                       <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ROLE_COLORS[u.role] ?? 'bg-gray-100 text-gray-600'}`}>
-                        {ROLE_LABELS[u.role] ?? u.role}
+                        {(isAr ? ROLE_LABELS[u.role]?.ar : ROLE_LABELS[u.role]?.en) ?? u.role}
                       </span>
                     </td>
                     <td className="px-5 py-3 text-gray-500 text-xs">{u.department || '—'}</td>

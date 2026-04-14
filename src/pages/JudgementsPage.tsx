@@ -9,17 +9,17 @@ import { JudgementBadge } from '../components/ui/judgement-badge';
 import { useJudgements } from '../hooks/useJudgements';
 import { useSchoolStore } from '../stores/schoolStore';
 import {
-  JUDGEMENT_LABELS, JUDGEMENT_COLORS, type JudgementLevel, type TraceStep,
+  JUDGEMENT_LABELS, JUDGEMENT_LABELS_AR, JUDGEMENT_COLORS, type JudgementLevel, type TraceStep,
 } from '../lib/judgement';
 
 // ─── Domain metadata ──────────────────────────────────────────
 
-const DOMAINS: { id: string; name: string; weight: 'high' | 'medium' }[] = [
-  { id: '1', name: 'Academic Achievement',               weight: 'high'   },
-  { id: '2', name: 'Personal Development',               weight: 'medium' },
-  { id: '3', name: 'Teaching and Assessment',            weight: 'high'   },
-  { id: '4', name: 'School Climate and Learning Env.',   weight: 'medium' },
-  { id: '5', name: 'Leadership, Management & Gov.',      weight: 'high'   },
+const DOMAINS: { id: string; name: string; name_ar: string; weight: 'high' | 'medium' }[] = [
+  { id: '1', name: 'Academic Achievement',               name_ar: 'الإنجاز الدراسي',             weight: 'high'   },
+  { id: '2', name: 'Personal Development',               name_ar: 'النمو الشخصي',                weight: 'medium' },
+  { id: '3', name: 'Teaching and Assessment',            name_ar: 'التدريس والتقويم',             weight: 'high'   },
+  { id: '4', name: 'School Climate and Learning Env.',   name_ar: 'مناخ المدرسة وبيئة التعلم',   weight: 'medium' },
+  { id: '5', name: 'Leadership, Management & Gov.',      name_ar: 'القيادة والإدارة والحوكمة',   weight: 'high'   },
 ];
 
 // Background tints per judgement level
@@ -167,7 +167,8 @@ function DomainCard({
 
 export default function JudgementsPage() {
   const { school, academicYear } = useSchoolStore();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isAr = i18n.language === 'ar';
   const { judgements, isLoading } = useJudgements();
   const queryClient = useQueryClient();
   const [recalculating, setRecalculating] = useState(false);
@@ -243,7 +244,7 @@ export default function JudgementsPage() {
                 Overall School Performance
               </p>
               <p className="text-3xl font-bold text-white">
-                {JUDGEMENT_LABELS[overall]}
+                {isAr ? JUDGEMENT_LABELS_AR[overall] : JUDGEMENT_LABELS[overall]}
               </p>
               <p className="text-sm text-white/80 mt-1">
                 {judgements?.ratedCount ?? 0} of {judgements?.totalCount ?? 0} indicators rated
@@ -274,7 +275,7 @@ export default function JudgementsPage() {
                   <DomainCard
                     key={domain.id}
                     domainId={domain.id}
-                    name={domain.name}
+                    name={isAr ? domain.name_ar : domain.name}
                     weight={domain.weight}
                     judgement={level}
                     traceSteps={dr?.trace ?? []}

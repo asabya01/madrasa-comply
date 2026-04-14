@@ -24,6 +24,22 @@ export const JUDGEMENT_LABELS_SHORT: Record<JudgementLevel, string> = {
   5: 'NUI',
 };
 
+export const JUDGEMENT_LABELS_AR: Record<JudgementLevel, string> = {
+  1: 'متميز',
+  2: 'جيد',
+  3: 'مقبول',
+  4: 'ضعيف',
+  5: 'يحتاج إلى تدخل سريع',
+};
+
+export const JUDGEMENT_LABELS_SHORT_AR: Record<JudgementLevel, string> = {
+  1: 'متميز',
+  2: 'جيد',
+  3: 'مقبول',
+  4: 'ضعيف',
+  5: 'تدخل سريع',
+};
+
 export const JUDGEMENT_COLORS: Record<JudgementLevel, string> = {
   1: '#437a22',  // green
   2: '#006494',  // blue
@@ -31,6 +47,11 @@ export const JUDGEMENT_COLORS: Record<JudgementLevel, string> = {
   4: '#da7101',  // orange
   5: '#a12c7b',  // maroon
 };
+
+/** Get judgement label in current language */
+export function getJudgementLabelLocalized(level: JudgementLevel, lang: string): string {
+  return lang === 'ar' ? JUDGEMENT_LABELS_AR[level] : JUDGEMENT_LABELS[level];
+}
 
 // ─── PSD Table 10 — Evaluative terms ──────────────────────────
 

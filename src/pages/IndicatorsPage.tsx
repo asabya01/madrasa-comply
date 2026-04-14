@@ -90,6 +90,7 @@ async function callNotify(
 export default function IndicatorsPage() {
   const { school, academicYear, profile } = useSchoolStore();
   const { t, i18n } = useTranslation();
+  const isAr = i18n.language === 'ar';
   const queryClient = useQueryClient();
   const { showToast } = useToast();
   const { isSuperAdmin } = usePermissions();
@@ -449,7 +450,9 @@ export default function IndicatorsPage() {
               <div key={domain.id}>
                 <div className="mb-4">
                   <h2 className="text-base font-semibold text-gray-800">
-                    Domain {domain.id}: {domain.name_en}
+                    {isAr
+                      ? `${domain.name_ar || domain.name_en} :${domain.id}`
+                      : `Domain ${domain.id}: ${domain.name_en}`}
                   </h2>
                   <p className="text-xs text-gray-400 capitalize mt-0.5">
                     Weight: {domain.weight} · {domain.key_category}
@@ -523,6 +526,8 @@ function StandardCard({
   onSetDraft: (id: string, patch: Partial<DraftRating>) => void;
   onSave: () => void;
 }) {
+  const { i18n } = useTranslation();
+  const isAr = i18n.language === 'ar';
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
       {/* Standard header */}
@@ -532,7 +537,7 @@ function StandardCard({
             {standard.id}
           </span>
           <span className="text-sm font-semibold text-gray-800 truncate">
-            {standard.name_en}
+            {isAr ? (standard.name_ar || standard.name_en) : standard.name_en}
           </span>
           {standard.is_primary && (
             <span className="shrink-0 text-xs px-1.5 py-0.5 bg-[#01696f]/10 text-[#01696f] rounded font-medium">
@@ -601,6 +606,8 @@ function IndicatorRow({
   onSetDraft: (id: string, patch: Partial<DraftRating>) => void;
 }) {
   const [notesOpen, setNotesOpen] = useState(false);
+  const { i18n } = useTranslation();
+  const isAr = i18n.language === 'ar';
 
   const displayRating = draft.rating;
   const dbTimestamp = savedAt ?? (saved?.rated_at ? new Date(saved.rated_at) : null);
@@ -615,7 +622,9 @@ function IndicatorRow({
 
         {/* Description + notes */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-gray-700 leading-relaxed">{indicator.description_en}</p>
+          <p className="text-sm text-gray-700 leading-relaxed">
+            {isAr ? (indicator.description_ar || indicator.description_en) : indicator.description_en}
+          </p>
 
           {/* Notes toggle */}
           {notesOpen ? (

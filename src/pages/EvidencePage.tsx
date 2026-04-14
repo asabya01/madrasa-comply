@@ -46,13 +46,18 @@ function useFramework() {
   });
 }
 
-const DOMAIN_NAMES: Record<string, string> = {
-  '1': 'Academic Achievement', '2': 'Personal Development',
-  '3': 'Teaching & Assessment', '4': 'School Climate', '5': 'Leadership & Governance',
+const DOMAIN_NAMES: Record<string, { en: string; ar: string }> = {
+  '1': { en: 'Academic Achievement',    ar: 'الإنجاز الدراسي' },
+  '2': { en: 'Personal Development',    ar: 'النمو الشخصي' },
+  '3': { en: 'Teaching & Assessment',   ar: 'التدريس والتقويم' },
+  '4': { en: 'School Climate',          ar: 'مناخ المدرسة وبيئة التعلم' },
+  '5': { en: 'Leadership & Governance', ar: 'القيادة والإدارة والحوكمة' },
 };
 
 function LinkIndicatorModal({ file, onClose }: LinkModalProps) {
   const { data: tree, isLoading } = useFramework();
+  const { i18n } = useTranslation();
+  const isAr = i18n.language === 'ar';
   const linkEvidence = useLinkEvidence();
   const [selectedDomain, setSelectedDomain] = useState<string | null>(null);
   const [selectedStandard, setSelectedStandard] = useState<string | null>(null);
@@ -106,7 +111,7 @@ function LinkIndicatorModal({ file, onClose }: LinkModalProps) {
                     >
                       <span className="block text-base font-bold">{d}</span>
                       <span className="block leading-tight mt-0.5" style={{ fontSize: '9px' }}>
-                        {DOMAIN_NAMES[d].split(' ')[0]}
+                        {isAr ? DOMAIN_NAMES[d]?.ar?.split(' ')[0] : DOMAIN_NAMES[d]?.en?.split(' ')[0]}
                       </span>
                     </button>
                   ))}
