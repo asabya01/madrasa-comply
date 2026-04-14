@@ -54,6 +54,14 @@ Check with: ls supabase/migrations/ | sort | tail -5
 - profiles — one row per auth user
   Columns: id, full_name, email, role, is_super_admin,
   is_sed_team, is_active (DEFAULT true), created_at
+  NOTE: profiles.email is NULL — email is stored in auth.users.
+  Always use the profiles_with_email VIEW (migration 055) when
+  email is needed. Never query profiles.email directly.
+- profiles_with_email — VIEW joining profiles + auth.users
+  Columns: id, full_name, email, role, is_super_admin,
+  is_sed_team, is_active, created_at
+  Use this instead of profiles whenever email is required.
+  Granted SELECT to authenticated role.
 - schools — one row per school
 - school_members — links profiles to schools with a role
 - domains — 5 OAAAQA domains (has arabic_name column)
@@ -272,7 +280,17 @@ Located in: supabase/functions/
 Deployed via: supabase functions deploy <name>
 
 Key functions:
-- admin-actions — super admin operations (toggle_user_active etc.)
+- admin-actions — super admin operations. Supported actions:
+  - update_user — updates full_name, email, role, is_super_admin
+    (email updates both profiles and auth.users via Admin API)
+  - toggle_user_active — sets profiles.is_active + school_members.status
+  - reassign_user_school — deletes all school_members for user,
+    inserts new membership with given school_id and role
+  - reset_user_password — sets new password via Admin API
+  - delete_user — removes school_members, profile, and auth user
+  - create_school_full — creates school + principal user in one step
+  - update_school — updates school metadata fields
+  - update_subscription — sets subscription_tier + expiry date
 - notify — creates notification rows
 - generate-insights — AI benchmarking insights (OpenAI)
 
@@ -319,6 +337,13 @@ Set in Vercel dashboard AND .env.local for local dev:
 ## Notifications 400 (fixed)
 - Query selected is_active which didn't exist on notifications
 - Fix: aligned SELECT to actual table columns
+
+## profiles.email always null (fixed migration 055)
+- Supabase Auth stores email in auth.users, not profiles
+- profiles.email column exists but is always NULL
+- Fix: profiles_with_email VIEW joins profiles + auth.users
+- All Super Admin user queries now use this view
+- Never query profiles.email directly — use the view
 
 ## Signup FK failure (fixed April 2026)
 - Recursive RLS policy on profiles broke profile upsert
