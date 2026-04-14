@@ -18,12 +18,12 @@ import { usePermissions } from '../hooks/usePermissions';
 import { supabase } from '../lib/supabase';
 import { JUDGEMENT_COLORS, JUDGEMENT_LABELS_SHORT, type JudgementLevel } from '../lib/judgement';
 
-const DOMAIN_NAMES: Record<string, string> = {
-  '1': 'Academic Achievement',
-  '2': 'Personal Development',
-  '3': 'Teaching & Assessment',
-  '4': 'School Climate',
-  '5': 'Leadership & Governance',
+const DOMAIN_NAMES: Record<string, { en: string; ar: string }> = {
+  '1': { en: 'Academic Achievement',   ar: 'الإنجاز الدراسي' },
+  '2': { en: 'Personal Development',   ar: 'النمو الشخصي' },
+  '3': { en: 'Teaching & Assessment',  ar: 'التدريس والتقويم' },
+  '4': { en: 'School Climate',         ar: 'مناخ المدرسة' },
+  '5': { en: 'Leadership & Gov.',      ar: 'القيادة والحوكمة' },
 };
 
 // ─── Staff Performance Overview (admin/HOD only) ─────────────
@@ -232,6 +232,7 @@ export function DashboardPage() {
   const { judgements, isLoading } = useJudgements();
   const { isSchoolAdmin, isSuperAdmin, isHOD } = usePermissions();
   const { t, i18n } = useTranslation();
+  const isAr = i18n.language === 'ar';
   const [shareCopied, setShareCopied] = useState(false);
 
   function handleSharePublic() {
@@ -420,7 +421,7 @@ export function DashboardPage() {
             className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#01696f] border border-[#01696f]/30 rounded-lg hover:bg-[#01696f]/5 transition-colors"
           >
             <Share2 className="h-3.5 w-3.5" />
-            {shareCopied ? 'Public link copied!' : 'Share Public Summary'}
+            {shareCopied ? t('dashboard.publicLinkCopied') : t('dashboard.sharePublicSummary')}
           </button>
         </div>
       )}
@@ -466,8 +467,8 @@ export function DashboardPage() {
           <Calendar className="h-5 w-5 shrink-0" />
           <span className="text-sm font-medium">
             {daysUntilAudit > 0
-              ? `${daysUntilAudit} days until OAAAQA audit`
-              : 'Audit date has passed'}
+              ? t('dashboard.daysUntilAudit', { count: daysUntilAudit })
+              : t('dashboard.auditDatePassed')}
           </span>
           <Link to="/audit-prep" className="ml-auto text-xs underline flex items-center gap-1">
             View preparation <ExternalLink className="h-3 w-3" />
@@ -476,9 +477,9 @@ export function DashboardPage() {
       ) : (
         <div className="flex items-center gap-3 px-4 py-3 rounded-lg border border-dashed border-[#e2e0db] bg-white">
           <Calendar className="h-5 w-5 text-[#6b7280] shrink-0" />
-          <span className="text-sm text-[#6b7280]">No audit date set</span>
+          <span className="text-sm text-[#6b7280]">{t('dashboard.noAuditDate')}</span>
           <Link to="/audit-prep" className="ml-auto text-xs text-[#01696f] underline flex items-center gap-1 font-medium">
-            Set audit date <ExternalLink className="h-3 w-3" />
+            {t('dashboard.setAuditDate')} <ExternalLink className="h-3 w-3" />
           </Link>
         </div>
       )}
@@ -498,8 +499,8 @@ export function DashboardPage() {
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-semibold font-sans">Self-Evaluation Progress</CardTitle>
-            <span className="text-xs text-[#6b7280]">{judgements?.ratedCount || 0} / {judgements?.totalCount || 0} indicators rated</span>
+            <CardTitle className="text-base font-semibold font-sans">{t('dashboard.selfEvalProgress')}</CardTitle>
+            <span className="text-xs text-[#6b7280]">{t('dashboard.indicatorsRated', { rated: judgements?.ratedCount || 0, total: judgements?.totalCount || 0 })}</span>
           </div>
         </CardHeader>
         <CardContent>
@@ -514,7 +515,7 @@ export function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold font-sans">Domain Compliance Radar</CardTitle>
+            <CardTitle className="text-base font-semibold font-sans">{t('dashboard.domainComplianceRadar')}</CardTitle>
           </CardHeader>
           <CardContent>
             <DomainRadar domainJudgements={(judgements?.domains || {}) as Record<string, JudgementLevel>} />
@@ -523,7 +524,7 @@ export function DashboardPage() {
 
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold font-sans">Compliance Trend</CardTitle>
+            <CardTitle className="text-base font-semibold font-sans">{t('dashboard.complianceTrend')}</CardTitle>
           </CardHeader>
           <CardContent>
             <ComplianceTrend />
@@ -534,17 +535,17 @@ export function DashboardPage() {
       {/* Domain summary */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold font-sans">Domain Judgements</CardTitle>
+          <CardTitle className="text-base font-semibold font-sans">{t('dashboard.domainJudgements')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-            {Object.entries(DOMAIN_NAMES).map(([id, name]) => {
+            {Object.entries(DOMAIN_NAMES).map(([id, names]) => {
               const level = ((judgements?.domains as Record<string, JudgementLevel> || {})[id] || 3) as JudgementLevel;
               return (
                 <Link key={id} to={`/domains/${id}`} className="block">
                   <div className="p-3 rounded-lg border border-[#e2e0db] hover:border-[#01696f] transition-colors">
-                    <div className="text-xs text-[#6b7280] mb-1">Domain {id}</div>
-                    <div className="text-sm font-medium text-[#1a1a1a] mb-2 leading-tight">{name}</div>
+                    <div className="text-xs text-[#6b7280] mb-1">{t('dashboard.domain')} {id}</div>
+                    <div className="text-sm font-medium text-[#1a1a1a] mb-2 leading-tight">{isAr ? names.ar : names.en}</div>
                     <JudgementBadge level={level} size="sm" />
                   </div>
                 </Link>
@@ -559,7 +560,7 @@ export function DashboardPage() {
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold font-sans">Evidence Coverage</CardTitle>
+              <CardTitle className="text-base font-semibold font-sans">{t('dashboard.evidenceCoverage')}</CardTitle>
             </div>
           </CardHeader>
           <CardContent>
@@ -570,8 +571,8 @@ export function DashboardPage() {
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold font-sans">Top Action Items</CardTitle>
-              <Link to="/improvement-plan" className="text-xs text-[#01696f] hover:underline">View all</Link>
+              <CardTitle className="text-base font-semibold font-sans">{t('dashboard.topActionItems')}</CardTitle>
+              <Link to="/improvement-plan" className="text-xs text-[#01696f] hover:underline">{t('dashboard.viewAll')}</Link>
             </div>
           </CardHeader>
           <CardContent>
@@ -585,7 +586,7 @@ export function DashboardPage() {
         <Card>
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base font-semibold font-sans">Staff Performance Overview</CardTitle>
+              <CardTitle className="text-base font-semibold font-sans">{t('dashboard.staffPerformance')}</CardTitle>
               <span className="text-xs text-gray-400">
                 Domain 3 — Teaching & Assessment
                 {isHOD && profile?.department ? ` · ${profile.department}` : ''}

@@ -61,6 +61,34 @@ export function Sidebar() {
   const { t } = useTranslation();
   const [schoolMenuOpen, setSchoolMenuOpen] = useState(false);
 
+  function getNavLabel(label: string): string {
+    const map: Record<string, string> = {
+      'Home':                 t('nav.home'),
+      'Self-Assessment':      t('nav.selfAssessment'),
+      'Chain Dashboard':      t('nav.chain'),
+      'Dashboard':            t('nav.dashboard'),
+      'Domains & Standards':  t('nav.domainsAndStandards'),
+      'Self-Evaluation':      t('nav.selfEvaluation'),
+      'Observations':         t('nav.observations'),
+      'CPD Log':              t('nav.cpdLog'),
+      'Appraisals':           t('nav.appraisals'),
+      'Benchmarking':         t('nav.benchmarking'),
+      'Judgements':           t('nav.judgements'),
+      'Surveys':              t('nav.surveys'),
+      'Performance Data':     t('nav.performance'),
+      'Import Data':          t('nav.importData'),
+      'Evidence Library':     t('nav.evidence'),
+      'Improvement Plan':     t('nav.improvement'),
+      'Audit Preparation':    t('nav.auditPrep'),
+      'Review Visits':        t('nav.reviewVisits'),
+      'Governance':           t('nav.governance'),
+      'Reports':              t('nav.reports'),
+      'Settings':             t('nav.settings'),
+      'School Users':         t('nav.schoolUsers'),
+    };
+    return map[label] ?? label;
+  }
+
   const multiSchool = allMemberships.length > 1;
 
   // Derive which abstract role bucket this user falls into
@@ -170,7 +198,7 @@ export function Sidebar() {
             }
           >
             <ShieldAlert className="h-4 w-4 shrink-0" />
-            Admin Panel
+            {t('nav.adminPanel')}
           </NavLink>
         )}
 
@@ -189,7 +217,7 @@ export function Sidebar() {
             }
           >
             <Icon className="h-4 w-4 shrink-0" />
-            {label}
+            {getNavLabel(label)}
           </NavLink>
         ))}
       </nav>
