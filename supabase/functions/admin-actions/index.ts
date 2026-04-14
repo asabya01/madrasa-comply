@@ -345,6 +345,28 @@ serve(async (req) => {
       return json({ success: true });
     }
 
+    // ── reassign_user_school ──────────────────────────────────────────────────
+    if (action === 'reassign_user_school') {
+      const { user_id, school_id, role } = body as { user_id: string; school_id: string; role: string };
+      if (!user_id || !school_id || !role) return json({ error: 'user_id, school_id, and role are required' }, 400);
+
+      // Remove all existing school memberships for this user
+      const { error: delErr } = await supabaseAdmin
+        .from('school_members')
+        .delete()
+        .eq('user_id', user_id);
+      if (delErr) return json({ error: delErr.message }, 400);
+
+      // Insert new membership
+      const { error: insErr } = await supabaseAdmin
+        .from('school_members')
+        .insert({ user_id, school_id, role, status: 'active' });
+      if (insErr) return json({ error: insErr.message }, 400);
+
+      console.log(`[admin-actions] Reassigned user ${user_id} → school ${school_id} role ${role}`);
+      return json({ success: true });
+    }
+
     // ── toggle_user_active ────────────────────────────────────────────────────
     if (action === 'toggle_user_active') {
       const { user_id, set_active } = body as { user_id: string; set_active: boolean };

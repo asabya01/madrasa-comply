@@ -701,6 +701,7 @@ const ROLE_OPTIONS = [
 
 function UsersTab() {
   const [users, setUsers]         = useState<UserRow[]>([]);
+  const [schoolsList, setSchoolsList] = useState<Array<{ id: string; name_en: string }>>([]);
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState<string | null>(null);
   const [filterText, setFilterText] = useState('');
@@ -710,7 +711,10 @@ function UsersTab() {
 
   // Edit dialog
   const [editUser, setEditUser]   = useState<UserRow | null>(null);
-  const [editForm, setEditForm]   = useState({ full_name: '', email: '', role: '' });
+  const [editForm, setEditForm]   = useState({
+    full_name: '', email: '', role: '', school_id: '',
+    is_active: true, is_super_admin: false,
+  });
   const [editSaving, setEditSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
@@ -733,7 +737,7 @@ function UsersTab() {
     setLoading(true);
     setError(null);
     const [profilesRes, membershipsRes, schoolsRes] = await Promise.all([
-      supabase.from('profiles')
+      supabase.from('profiles_with_email')
         .select('id, full_name, email, role, is_super_admin, is_sed_team, is_active, created_at')
         .order('created_at', { ascending: false })
         .limit(500),
@@ -746,7 +750,10 @@ function UsersTab() {
 
     if (profilesRes.error) { setError(profilesRes.error.message); setLoading(false); return; }
 
-    const schoolMap = Object.fromEntries((schoolsRes.data ?? []).map(s => [s.id, s.name_en as string]));
+    const schools = (schoolsRes.data ?? []) as Array<{ id: string; name_en: string }>;
+    setSchoolsList(schools);
+
+    const schoolMap = Object.fromEntries(schools.map(s => [s.id, s.name_en]));
     const memberMap: Record<string, Array<{ role: string; status: string; school_id: string }>> = {};
     for (const m of membershipsRes.data ?? []) {
       if (!memberMap[m.user_id]) memberMap[m.user_id] = [];
@@ -799,7 +806,14 @@ function UsersTab() {
   // ── Edit user ──────────────────────────────────────────────
   function openEdit(u: UserRow) {
     setEditUser(u);
-    setEditForm({ full_name: u.full_name ?? '', email: u.email ?? '', role: u.role });
+    setEditForm({
+      full_name:    u.full_name    ?? '',
+      email:        u.email        ?? '',
+      role:         u.role,
+      school_id:    u.school_id    ?? '',
+      is_active:    u.is_active,
+      is_super_admin: u.is_super_admin,
+    });
     setEditError(null);
     setMenuOpenId(null);
   }
@@ -809,12 +823,33 @@ function UsersTab() {
     setEditSaving(true);
     setEditError(null);
     try {
+      // 1. Update profile fields (name, email, role, is_super_admin)
       await invokeAdmin('update_user', {
-        user_id:   editUser.user_id,
-        full_name: editForm.full_name || null,
-        email:     editForm.email     || undefined,
-        role:      editForm.role      || undefined,
+        user_id:       editUser.user_id,
+        full_name:     editForm.full_name     || null,
+        email:         editForm.email         || undefined,
+        role:          editForm.role          || undefined,
+        is_super_admin: editForm.is_super_admin,
       });
+
+      // 2. Reassign school if it changed
+      const schoolChanged = editForm.school_id && editForm.school_id !== editUser.school_id;
+      if (schoolChanged) {
+        await invokeAdmin('reassign_user_school', {
+          user_id:   editUser.user_id,
+          school_id: editForm.school_id,
+          role:      editForm.role || editUser.role,
+        });
+      }
+
+      // 3. Toggle active if it changed
+      if (editForm.is_active !== editUser.is_active) {
+        await invokeAdmin('toggle_user_active', {
+          user_id:    editUser.user_id,
+          set_active: editForm.is_active,
+        });
+      }
+
       setEditUser(null);
       await load();
     } catch (e: unknown) {
@@ -1010,25 +1045,90 @@ function UsersTab() {
 
       {/* Edit User Dialog */}
       <Dialog open={!!editUser} onOpenChange={open => { if (!open && !editSaving) setEditUser(null); }}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Edit User</DialogTitle>
+            <DialogTitle>Edit User — {editUser?.full_name ?? editUser?.email}</DialogTitle>
           </DialogHeader>
           {editError && <ErrorBanner message={editError} />}
           <div className="space-y-4">
             <Field label="Full Name">
-              <input type="text" value={editForm.full_name} onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))} className={inputCls} placeholder="Ahmad Al-Rashidi" />
+              <input
+                type="text"
+                value={editForm.full_name}
+                onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))}
+                className={inputCls}
+                placeholder="Ahmad Al-Rashidi"
+              />
             </Field>
             <Field label="Email">
-              <input type="email" value={editForm.email} onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))} className={inputCls} placeholder="user@school.edu.om" />
+              <input
+                type="email"
+                value={editForm.email}
+                onChange={e => setEditForm(f => ({ ...f, email: e.target.value }))}
+                className={inputCls}
+                placeholder="user@school.edu.om"
+              />
             </Field>
             <Field label="Role">
-              <select value={editForm.role} onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))} className={inputCls}>
-                {ROLE_OPTIONS.map(r => <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>)}
+              <select
+                value={editForm.role}
+                onChange={e => setEditForm(f => ({ ...f, role: e.target.value }))}
+                className={inputCls}
+              >
+                {ROLE_OPTIONS.map(r => (
+                  <option key={r} value={r}>{r.replace(/_/g, ' ')}</option>
+                ))}
               </select>
             </Field>
+            <Field label="School Assignment">
+              <select
+                value={editForm.school_id}
+                onChange={e => setEditForm(f => ({ ...f, school_id: e.target.value }))}
+                className={inputCls}
+              >
+                <option value="">— No school (super admin / platform user) —</option>
+                {schoolsList.map(s => (
+                  <option key={s.id} value={s.id}>{s.name_en}</option>
+                ))}
+              </select>
+              {editForm.school_id && editForm.school_id !== editUser?.school_id && (
+                <p className="text-xs text-amber-600 mt-1">
+                  ⚠ Changing school will remove all existing memberships and create a new one.
+                </p>
+              )}
+            </Field>
+            <div className="grid grid-cols-2 gap-4 pt-1">
+              <div className="flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2.5">
+                <span className="text-sm font-medium text-gray-700">Active</span>
+                <button
+                  type="button"
+                  onClick={() => setEditForm(f => ({ ...f, is_active: !f.is_active }))}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                    editForm.is_active ? 'bg-[#01696f]' : 'bg-gray-200'
+                  }`}
+                >
+                  <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+                    editForm.is_active ? 'translate-x-4' : 'translate-x-0.5'
+                  }`} />
+                </button>
+              </div>
+              <div className="flex items-center justify-between border border-gray-200 rounded-lg px-3 py-2.5">
+                <span className="text-sm font-medium text-gray-700">Super Admin</span>
+                <button
+                  type="button"
+                  onClick={() => setEditForm(f => ({ ...f, is_super_admin: !f.is_super_admin }))}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                    editForm.is_super_admin ? 'bg-amber-500' : 'bg-gray-200'
+                  }`}
+                >
+                  <span className={`inline-block h-3.5 w-3.5 rounded-full bg-white shadow transition-transform ${
+                    editForm.is_super_admin ? 'translate-x-4' : 'translate-x-0.5'
+                  }`} />
+                </button>
+              </div>
+            </div>
           </div>
-          <div className="flex gap-3 mt-4">
+          <div className="flex gap-3 mt-5">
             <button onClick={() => void handleEditSave()} disabled={editSaving} className={primaryBtn}>
               {editSaving ? 'Saving…' : 'Save Changes'}
             </button>
