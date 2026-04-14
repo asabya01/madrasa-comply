@@ -81,11 +81,26 @@ function App() {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
       if (!session) {
         setProfile(null);
         setSchool(null);
+      }
+      // Enforce is_active: sign out and redirect if deactivated
+      if (event === 'SIGNED_IN' && session) {
+        supabase
+          .from('profiles')
+          .select('is_active')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data }) => {
+            if (data && data.is_active === false) {
+              supabase.auth.signOut().then(() => {
+                window.location.href = '/login?reason=inactive';
+              });
+            }
+          });
       }
     });
 
