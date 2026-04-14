@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Calendar, AlertTriangle, Clock, CheckCircle2,
@@ -79,6 +80,15 @@ function fmtDate(d: string) {
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function ReviewVisitsPage() {
+  const { t } = useTranslation();
+  const visitTypeLabel = (type: string) => {
+    const map: Record<string, string> = {
+      external_review: t('reviewVisits.externalReview'),
+      follow_up_1: t('reviewVisits.followUp1'),
+      follow_up_2: t('reviewVisits.followUp2'),
+    };
+    return map[type] ?? type;
+  };
   const { school } = useSchoolStore();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
@@ -201,7 +211,7 @@ export default function ReviewVisitsPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Review Visits</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">{t('reviewVisits.title')}</h1>
         <p className="text-sm text-gray-500 mt-1">
           Track external review visits, follow-up deadlines, and progress reports.
         </p>
@@ -214,39 +224,39 @@ export default function ReviewVisitsPage() {
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
-            <CardTitle className="text-base font-semibold font-sans">Record Visit</CardTitle>
+            <CardTitle className="text-base font-semibold font-sans">{t('reviewVisits.recordVisit')}</CardTitle>
             <button
               onClick={() => setFormOpen((o) => !o)}
               className="flex items-center gap-1.5 text-sm text-[#01696f] hover:text-[#0c4e54] font-medium"
             >
-              {formOpen ? <><ChevronUp className="h-4 w-4" /> Hide</> : <><Calendar className="h-4 w-4" /> New Visit</>}
+              {formOpen ? <><ChevronUp className="h-4 w-4" /> {t('reviewVisits.hide')}</> : <><Calendar className="h-4 w-4" /> {t('reviewVisits.newVisit')}</>}
             </button>
           </div>
         </CardHeader>
         {formOpen && (
           <CardContent className="pt-0 space-y-4">
             <div className="grid grid-cols-2 gap-4">
-              <Field label="Visit Date">
+              <Field label={t('reviewVisits.visitDate')}>
                 <input
                   type="date" value={visitDate} onChange={(e) => setVisitDate(e.target.value)}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#01696f]"
                 />
               </Field>
-              <Field label="Visit Type">
+              <Field label={t('reviewVisits.visitType')}>
                 <select value={visitType} onChange={(e) => setVisitType(e.target.value as ReviewVisit['visit_type'])} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#01696f]">
-                  {Object.entries(VISIT_TYPE_LABELS).map(([v, l]) => (
-                    <option key={v} value={v}>{l}</option>
+                  {Object.keys(VISIT_TYPE_LABELS).map((v) => (
+                    <option key={v} value={v}>{visitTypeLabel(v)}</option>
                   ))}
                 </select>
               </Field>
             </div>
 
-            <Field label="Overall Judgement">
+            <Field label={t('reviewVisits.overallJudgement')}>
               <JSelect value={overallJ} onChange={setOverallJ} />
             </Field>
 
             <div>
-              <p className="text-xs font-semibold text-gray-600 mb-2">Domain Judgements</p>
+              <p className="text-xs font-semibold text-gray-600 mb-2">{t('reviewVisits.domainJudgements')}</p>
               <div className="grid grid-cols-5 gap-2">
                 {(['1', '2', '3', '4', '5'] as const).map((id) => (
                   <div key={id}>
@@ -257,7 +267,7 @@ export default function ReviewVisitsPage() {
               </div>
             </div>
 
-            <Field label="Reviewer Recommendations">
+            <Field label={t('reviewVisits.reviewerRecommendations')}>
               <textarea
                 value={recommendations}
                 onChange={(e) => setRecommendations(e.target.value)}
@@ -281,7 +291,7 @@ export default function ReviewVisitsPage() {
                 className="flex items-center gap-2 px-5 py-2.5 bg-[#01696f] text-white text-sm font-semibold rounded-xl hover:bg-[#0c4e54] disabled:opacity-60 transition-colors"
               >
                 {saveMutation.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Calendar className="h-4 w-4" />}
-                Save Visit
+                {t('reviewVisits.saveVisit')}
               </button>
             </div>
           </CardContent>
@@ -292,7 +302,7 @@ export default function ReviewVisitsPage() {
       {deadlineVisits.length > 0 && (
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold font-sans">Annex 4 — Progress Reports</CardTitle>
+            <CardTitle className="text-base font-semibold font-sans">{t('reviewVisits.annex4')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
             {deadlineVisits.map((v) => {
@@ -303,17 +313,17 @@ export default function ReviewVisitsPage() {
                   <FileText className="h-5 w-5 text-[#01696f] shrink-0" />
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-gray-900">
-                      {VISIT_TYPE_LABELS[v.visit_type]} — {fmtDate(v.visit_date)}
+                      {visitTypeLabel(v.visit_type)} — {fmtDate(v.visit_date)}
                     </p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      Follow-up deadline: {fmtDate(v.followup_deadline!)} ·{' '}
+                      {t('reviewVisits.followUpDeadline')}: {fmtDate(v.followup_deadline!)} ·{' '}
                       <span className={days < 0 ? 'text-red-600 font-semibold' : days < 30 ? 'text-red-500' : 'text-amber-600'}>
-                        {days < 0 ? `${Math.abs(days)}d overdue` : `${days}d remaining`}
+                        {days < 0 ? t('reviewVisits.daysOverdue', { days: Math.abs(days) }) : t('reviewVisits.daysRemaining', { days })}
                       </span>
                     </p>
                     {existing?.generated_at && (
                       <p className="text-xs text-green-600 mt-0.5">
-                        Last generated: {fmtDate(existing.generated_at)}
+                        {t('reviewVisits.lastGenerated')}: {fmtDate(existing.generated_at)}
                       </p>
                     )}
                   </div>
@@ -322,7 +332,7 @@ export default function ReviewVisitsPage() {
                     className="flex items-center gap-1.5 px-3 py-1.5 border border-[#01696f] text-[#01696f] text-xs font-medium rounded-lg hover:bg-[#01696f]/5 transition-colors shrink-0"
                   >
                     <FileText className="h-3.5 w-3.5" />
-                    {existing ? 'Regenerate' : 'Prepare Report'}
+                    {existing ? t('reviewVisits.regenerate') : t('reviewVisits.prepareReport')}
                   </button>
                 </div>
               );
@@ -337,14 +347,14 @@ export default function ReviewVisitsPage() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-semibold font-sans">
-                Progress Report — {fmtDate(reportVisit.visit_date)}
+                {t('reviewVisits.progressReport')} — {fmtDate(reportVisit.visit_date)}
               </CardTitle>
-              <button onClick={() => setReportVisitId(null)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+              <button onClick={() => setReportVisitId(null)} className="text-xs text-gray-400 hover:text-gray-600">{t('actions.cancel')}</button>
             </div>
             <div className="flex gap-3 mt-1 text-xs text-gray-500">
               <span>{school?.name_en}</span>
               <span>·</span>
-              <span>Original: {JUDGEMENT_LABELS[reportVisit.overall_judgement as JudgementLevel]}</span>
+              <span>{t('reviewVisits.original')}: {JUDGEMENT_LABELS[reportVisit.overall_judgement as JudgementLevel]}</span>
             </div>
           </CardHeader>
           <CardContent className="pt-0 space-y-6">
@@ -354,21 +364,21 @@ export default function ReviewVisitsPage() {
                 <p className="text-sm font-semibold text-gray-900">
                   Domain {domainId}: {DOMAIN_NAMES[domainId]}
                 </p>
-                <Field label="Actions taken since review">
+                <Field label={t('reviewVisits.actionsTaken')}>
                   <textarea
                     value={reportForm.domains[domainId]?.actionsTaken ?? ''}
                     onChange={(e) => setDomainField(domainId, 'actionsTaken', e.target.value)}
                     rows={3} placeholder="Describe actions taken…" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#01696f] resize-none"
                   />
                 </Field>
-                <Field label="Evidence of improvement">
+                <Field label={t('reviewVisits.evidenceImprovement')}>
                   <textarea
                     value={reportForm.domains[domainId]?.evidenceSummary ?? ''}
                     onChange={(e) => setDomainField(domainId, 'evidenceSummary', e.target.value)}
                     rows={2} placeholder="Reference evidence files by name or describe evidence…" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#01696f] resize-none"
                   />
                 </Field>
-                <Field label="Current self-assessed judgement">
+                <Field label={t('reviewVisits.currentJudgement')}>
                   <JSelect
                     value={reportForm.domains[domainId]?.currentJudgement ?? 3}
                     onChange={(v) => setDomainField(domainId, 'currentJudgement', v)}
@@ -378,7 +388,7 @@ export default function ReviewVisitsPage() {
             ))}
 
             {/* Overall narrative */}
-            <Field label="Overall summary (English)">
+            <Field label={t('reviewVisits.overallSummaryEn')}>
               <textarea
                 value={reportForm.summaryEn}
                 onChange={(e) => setReportForm((f) => ({ ...f, summaryEn: e.target.value }))}
@@ -386,7 +396,7 @@ export default function ReviewVisitsPage() {
                 className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#01696f] resize-none"
               />
             </Field>
-            <Field label="الملخص العام (عربي)">
+            <Field label={t('reviewVisits.overallSummaryAr')}>
               <textarea
                 value={reportForm.summaryAr}
                 onChange={(e) => setReportForm((f) => ({ ...f, summaryAr: e.target.value }))}
@@ -401,8 +411,8 @@ export default function ReviewVisitsPage() {
               className="w-full flex items-center justify-center gap-2 py-3 bg-[#01696f] text-white text-sm font-semibold rounded-xl hover:bg-[#0c4e54] disabled:opacity-60 transition-colors"
             >
               {generatingReport
-                ? <><RefreshCw className="h-4 w-4 animate-spin" /> Generating…</>
-                : <><FileText className="h-4 w-4" /> Generate DOCX</>}
+                ? <><RefreshCw className="h-4 w-4 animate-spin" /> {t('reviewVisits.generating')}</>
+                : <><FileText className="h-4 w-4" /> {t('reviewVisits.generateDocx')}</>}
             </button>
           </CardContent>
         </Card>
@@ -411,13 +421,13 @@ export default function ReviewVisitsPage() {
       {/* ── Section 4: Past Visits ──────────────────────────── */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-base font-semibold font-sans">Past Visits</CardTitle>
+          <CardTitle className="text-base font-semibold font-sans">{t('reviewVisits.pastVisits')}</CardTitle>
         </CardHeader>
         <CardContent className="pt-0">
           {visits.length === 0 ? (
             <div className="text-center py-10">
               <Calendar className="h-8 w-8 text-gray-200 mx-auto mb-2" />
-              <p className="text-sm text-gray-400">No review visits recorded yet.</p>
+              <p className="text-sm text-gray-400">{t('reviewVisits.noVisitsYet')}</p>
             </div>
           ) : (
             <div className="divide-y divide-gray-100">
@@ -429,18 +439,18 @@ export default function ReviewVisitsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="text-sm font-medium text-gray-900">{fmtDate(v.visit_date)}</p>
-                        <span className="text-xs text-gray-500">{VISIT_TYPE_LABELS[v.visit_type]}</span>
+                        <span className="text-xs text-gray-500">{visitTypeLabel(v.visit_type)}</span>
                         <JudgementBadge level={j} />
                       </div>
                       {v.followup_deadline && (
                         <p className="text-xs text-gray-400 mt-0.5">
-                          Follow-up deadline: {fmtDate(v.followup_deadline)}
+                          {t('reviewVisits.followUpDeadline')}: {fmtDate(v.followup_deadline)}
                         </p>
                       )}
                     </div>
                     {existing && (
                       <span className="flex items-center gap-1 text-xs text-green-600">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Report ready
+                        <CheckCircle2 className="h-3.5 w-3.5" /> {t('reviewVisits.reportReady')}
                       </span>
                     )}
                   </div>
@@ -457,6 +467,7 @@ export default function ReviewVisitsPage() {
 // ─── Follow-up Banner ─────────────────────────────────────────
 
 function FollowUpBanner({ visit }: { visit: ReviewVisit }) {
+  const { t } = useTranslation();
   const days = daysUntil(visit.followup_deadline!);
   const overdue = days < 0;
   const critical = !overdue && days < 30;
@@ -473,13 +484,13 @@ function FollowUpBanner({ visit }: { visit: ReviewVisit }) {
       <div>
         <p className={`text-sm font-semibold ${text}`}>
           {overdue
-            ? `OVERDUE — Follow-up visit was required by ${fmtDate(visit.followup_deadline!)}`
-            : `Follow-up visit required by ${fmtDate(visit.followup_deadline!)}`}
+            ? t('reviewVisits.overdueTitle', { date: fmtDate(visit.followup_deadline!) })
+            : t('reviewVisits.followUpRequired', { date: fmtDate(visit.followup_deadline!) })}
         </p>
         <p className={`text-xs mt-0.5 ${overdue ? 'text-white/80' : critical ? 'text-red-600' : 'text-amber-700'}`}>
           {overdue
-            ? `${Math.abs(days)} day${Math.abs(days) !== 1 ? 's' : ''} overdue — immediate action required`
-            : `${days} day${days !== 1 ? 's' : ''} remaining`}
+            ? t('reviewVisits.overdueDetail', { days: Math.abs(days) })
+            : t('reviewVisits.remainingDays', { days })}
         </p>
       </div>
     </div>

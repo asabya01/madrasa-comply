@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Calendar, CheckSquare, Square, Plus, AlertTriangle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -10,6 +11,7 @@ import { useToast } from '../components/ui/toast';
 import type { AuditChecklistItem, AuditSettings } from '../types';
 
 export function AuditPrepPage() {
+  const { t } = useTranslation();
   const { school } = useSchoolStore();
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -128,10 +130,10 @@ export function AuditPrepPage() {
           <div className="flex items-center gap-4">
             <Calendar className="h-6 w-6 text-[#01696f]" />
             <div className="flex-1">
-              <h3 className="text-sm font-semibold text-[#1a1a1a]">Expected Audit Date</h3>
+              <h3 className="text-sm font-semibold text-[#1a1a1a]">{t('auditPrep.expectedAuditDate')}</h3>
               {daysUntil !== null && (
                 <p className={`text-sm mt-0.5 ${daysUntil <= 30 ? 'text-red-600 font-medium' : daysUntil <= 90 ? 'text-amber-600' : 'text-[#437a22]'}`}>
-                  {daysUntil > 0 ? `${daysUntil} days until audit` : 'Audit date has passed'}
+                  {daysUntil > 0 ? t('auditPrep.daysUntilAudit', { days: daysUntil }) : t('auditPrep.auditDatePassed')}
                 </p>
               )}
             </div>
@@ -152,8 +154,8 @@ export function AuditPrepPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle className="font-sans">Pre-Audit Checklist</CardTitle>
-            <span className="text-sm text-[#6b7280]">{completedCount}/{checklist?.length || 0} completed</span>
+            <CardTitle className="font-sans">{t('auditPrep.preAuditChecklist')}</CardTitle>
+            <span className="text-sm text-[#6b7280]">{t('auditPrep.completedOf', { done: completedCount, total: checklist?.length || 0 })}</span>
           </div>
         </CardHeader>
         <CardContent className="pt-0">
@@ -201,7 +203,7 @@ export function AuditPrepPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-500" />
-              <CardTitle className="font-sans">Evidence Gap Report ({evidenceGaps.length} indicators)</CardTitle>
+              <CardTitle className="font-sans">{t('auditPrep.evidenceGapReport', { n: evidenceGaps.length })}</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="pt-0">
@@ -226,7 +228,7 @@ export function AuditPrepPage() {
           <CardHeader>
             <div className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-red-500" />
-              <CardTitle className="font-sans">Risk Radar — Unsatisfactory/NUI Indicators</CardTitle>
+              <CardTitle className="font-sans">{t('auditPrep.riskRadar')}</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="pt-0">
@@ -234,7 +236,7 @@ export function AuditPrepPage() {
               {riskIndicators.map((r: any) => (
                 <div key={r.indicator_id} className={`flex items-center gap-3 p-2.5 rounded-lg ${r.rating === 5 ? 'bg-[#a12c7b]/10' : 'bg-[#da7101]/10'}`}>
                   <span className={`text-xs font-medium px-2 py-0.5 rounded text-white ${r.rating === 5 ? 'bg-[#a12c7b]' : 'bg-[#da7101]'}`}>
-                    {r.rating === 5 ? 'NUI' : 'Unsatisfactory'}
+                    {r.rating === 5 ? t('auditPrep.nui') : t('auditPrep.unsatisfactory')}
                   </span>
                   <span className="text-xs font-mono text-[#6b7280]">{r.indicator_id}</span>
                   <span className="text-xs text-[#1a1a1a] truncate">{r.indicators?.description_en}</span>

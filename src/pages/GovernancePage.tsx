@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2, Upload, RefreshCw, FileText, Link2, AlertTriangle, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -70,12 +71,13 @@ async function linkAsEvidence(
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function GovernancePage() {
+  const { t } = useTranslation();
   const [tab, setTab] = useState<'staff' | 'policies'>('staff');
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Governance</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">{t('governance.title')}</h1>
         <p className="text-sm text-gray-500 mt-1">
           Accountability registers and policy documentation for OAAAQA Standard 5.5.
         </p>
@@ -83,8 +85,8 @@ export default function GovernancePage() {
 
       <div className="flex gap-1 p-1 bg-gray-100 rounded-xl w-fit">
         {([
-          { key: 'staff',    label: 'Staff Roles & Responsibilities' },
-          { key: 'policies', label: 'Policies & Regulations' },
+          { key: 'staff',    label: t('governance.staffRoles') },
+          { key: 'policies', label: t('governance.policies') },
         ] as const).map(({ key, label }) => (
           <button
             key={key}
@@ -109,6 +111,7 @@ export default function GovernancePage() {
 // ─── Staff Roles Tab (Indicator 5.5.1) ───────────────────────
 
 function StaffRolesTab() {
+  const { t } = useTranslation();
   const { school } = useSchoolStore();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
@@ -227,7 +230,7 @@ function StaffRolesTab() {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-semibold font-sans flex items-center gap-2">
-          Staff Roles & Responsibilities
+          {t('governance.staffRoles')}
           <span className="text-xs font-normal text-gray-400">Indicator 5.5.1</span>
         </CardTitle>
         <p className="text-xs text-gray-400 mt-0.5">
@@ -243,10 +246,10 @@ function StaffRolesTab() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-[24%]">Job Title</th>
-                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-[38%]">Responsibilities</th>
-                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-[20%]">Assigned User</th>
-                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-[12%]">Evidence</th>
+                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-[24%]">{t('governance.jobTitle')}</th>
+                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-[38%]">{t('governance.responsibilities')}</th>
+                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-[20%]">{t('governance.assignedUser')}</th>
+                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-[12%]">{t('governance.evidence')}</th>
                     <th className="w-8" />
                   </tr>
                 </thead>
@@ -283,7 +286,7 @@ function StaffRolesTab() {
                           }}
                           className={cls}
                         >
-                          <option value="">— Unassigned —</option>
+                          <option value="">{t('governance.unassigned')}</option>
                           {members.map((m) => (
                             <option key={m.user_id} value={m.user_id}>
                               {m.profiles?.full_name ?? m.user_id.slice(0, 8)}
@@ -300,7 +303,7 @@ function StaffRolesTab() {
                           {linkingId === row.id
                             ? <Loader2 className="h-3 w-3 animate-spin" />
                             : <Link2 className="h-3 w-3" />}
-                          Link
+                          {t('governance.link')}
                         </button>
                       </td>
                       <td className="py-1.5 px-1 text-center">
@@ -320,7 +323,7 @@ function StaffRolesTab() {
 
             {rows.length === 0 && (
               <div className="text-center py-6 text-sm text-gray-400">
-                No roles defined yet. Click "Add Row" to start.
+                {t('governance.noRoles')}
               </div>
             )}
 
@@ -331,7 +334,7 @@ function StaffRolesTab() {
                 className="flex items-center gap-1.5 text-sm text-[#01696f] hover:text-[#0c4e54] font-medium transition-colors"
               >
                 {addMutation.isPending ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                Add Role
+                {t('governance.addRole')}
               </button>
             </div>
           </>
@@ -344,6 +347,7 @@ function StaffRolesTab() {
 // ─── Policies Tab (Indicator 5.5.2) ──────────────────────────
 
 function PoliciesTab() {
+  const { t } = useTranslation();
   const { school } = useSchoolStore();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
@@ -462,7 +466,7 @@ function PoliciesTab() {
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-semibold font-sans flex items-center gap-2">
-          Policies & Regulations Register
+          {t('governance.policyRegister')}
           <span className="text-xs font-normal text-gray-400">Indicator 5.5.2</span>
         </CardTitle>
         <p className="text-xs text-gray-400 mt-0.5">
@@ -479,10 +483,10 @@ function PoliciesTab() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-[36%]">Policy Title</th>
-                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-[18%]">Last Review</th>
-                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-[18%]">File</th>
-                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-[14%]">Evidence</th>
+                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-[36%]">{t('governance.policyTitle')}</th>
+                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-[18%]">{t('governance.lastReview')}</th>
+                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-[18%]">{t('governance.file')}</th>
+                    <th className="text-left py-2 px-2 text-xs font-semibold text-gray-500 w-[14%]">{t('governance.evidence')}</th>
                     <th className="w-8" />
                   </tr>
                 </thead>
@@ -503,7 +507,7 @@ function PoliciesTab() {
                             </span>
                             {overdue && (
                               <span className="flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200">
-                                <AlertTriangle className="h-2.5 w-2.5" /> Overdue
+                                <AlertTriangle className="h-2.5 w-2.5" /> {t('governance.overdue')}
                               </span>
                             )}
                           </div>
@@ -518,7 +522,7 @@ function PoliciesTab() {
                               {policy.file_name.length > 20 ? `${policy.file_name.slice(0, 20)}…` : policy.file_name}
                             </button>
                           ) : (
-                            <span className="text-xs text-gray-300">No file</span>
+                            <span className="text-xs text-gray-300">{t('governance.noFile')}</span>
                           )}
                         </td>
                         <td className="py-2 px-2">
@@ -530,7 +534,7 @@ function PoliciesTab() {
                             {linkingId === policy.id
                               ? <Loader2 className="h-3 w-3 animate-spin" />
                               : <Link2 className="h-3 w-3" />}
-                            Link
+                            {t('governance.link')}
                           </button>
                         </td>
                         <td className="py-2 px-1 text-center">
@@ -553,7 +557,7 @@ function PoliciesTab() {
 
             {policies.length === 0 && !addingNew && (
               <div className="text-center py-6 text-sm text-gray-400">
-                No policies recorded yet. Add one to start building your register.
+                {t('governance.noPolicies')}
               </div>
             )}
 
@@ -563,7 +567,7 @@ function PoliciesTab() {
                 <h4 className="text-sm font-medium text-gray-900">Add Policy</h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Policy Title *</label>
+                    <label className="text-xs text-gray-500 mb-1 block">{t('governance.policyTitle')} *</label>
                     <input
                       type="text"
                       value={addingNewTitle}
@@ -573,7 +577,7 @@ function PoliciesTab() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500 mb-1 block">Last Review Date</label>
+                    <label className="text-xs text-gray-500 mb-1 block">{t('governance.lastReviewDate')}</label>
                     <input
                       type="date"
                       value={addingNewDate}
@@ -583,7 +587,7 @@ function PoliciesTab() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Policy Document (PDF / DOCX)</label>
+                  <label className="text-xs text-gray-500 mb-1 block">{t('governance.policyDocument')}</label>
                   <div className="flex items-center gap-2">
                     <input
                       type="file"
@@ -598,11 +602,11 @@ function PoliciesTab() {
                       className="flex items-center gap-1.5 px-3 py-1.5 border border-gray-200 text-xs font-medium text-gray-600 rounded-lg hover:bg-gray-50 transition-colors"
                     >
                       <Upload className="h-3.5 w-3.5" />
-                      {addingNewFile ? addingNewFile.name : 'Choose file…'}
+                      {addingNewFile ? addingNewFile.name : t('actions.chooseFile')}
                     </button>
                     {addingNewFile && (
                       <button type="button" onClick={() => setAddingNewFile(null)} className="text-xs text-gray-400 hover:text-red-500">
-                        Remove
+                        {t('governance.remove')}
                       </button>
                     )}
                   </div>
@@ -614,13 +618,13 @@ function PoliciesTab() {
                     className="flex items-center gap-1.5 px-4 py-1.5 bg-[#01696f] text-white text-sm rounded-lg hover:bg-[#0c4e54] disabled:opacity-50 transition-colors"
                   >
                     {savingNew ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                    Save Policy
+                    {t('governance.savePolicy')}
                   </button>
                   <button
                     onClick={() => { setAddingNew(false); setAddingNewTitle(''); setAddingNewDate(''); setAddingNewFile(null); }}
                     className="px-4 py-1.5 text-sm text-gray-600 rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors"
                   >
-                    Cancel
+                    {t('actions.cancel')}
                   </button>
                 </div>
               </div>
@@ -629,7 +633,7 @@ function PoliciesTab() {
                 onClick={() => setAddingNew(true)}
                 className="flex items-center gap-1.5 text-sm text-[#01696f] hover:text-[#0c4e54] font-medium transition-colors"
               >
-                <Plus className="h-4 w-4" /> Add Policy
+                <Plus className="h-4 w-4" /> {t('governance.addPolicy')}
               </button>
             )}
           </>

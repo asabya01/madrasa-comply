@@ -32,12 +32,14 @@ interface IndicatorRow {
   id: string;
   standard_id: string;
   description_en: string;
+  description_ar?: string | null;
   order_num: number;
 }
 
 interface StandardRow {
   id: string;
   name_en: string;
+  name_ar?: string | null;
   is_primary: boolean;
   order_num: number;
 }
@@ -945,6 +947,7 @@ function CoachingPanel({
 // ─── Cycle Timeline ───────────────────────────────────────────
 
 function CycleTimeline({ chain, onClose }: { chain: Observation[]; onClose: () => void }) {
+  const { t } = useTranslation();
   if (chain.length < 2) return null;
 
   return (
@@ -1015,7 +1018,7 @@ function CycleTimeline({ chain, onClose }: { chain: Observation[]; onClose: () =
                           {avg} avg
                         </span>
                       ) : (
-                        <span className="text-xs text-gray-400">Not rated</span>
+                        <span className="text-xs text-gray-400">{t('sef.notRated')}</span>
                       )}
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium ${OBS_STATUS_STYLES[obs.obs_status ?? 'completed'].bg} ${OBS_STATUS_STYLES[obs.obs_status ?? 'completed'].text}`}>
                         {OBS_STATUS_STYLES[obs.obs_status ?? 'completed'].label}
@@ -1080,6 +1083,8 @@ function ObservationForm({
   onSave: () => void;
   onCancel: () => void;
 }) {
+  const { t, i18n } = useTranslation();
+  const isAr = i18n.language === 'ar';
   const rated = ratedCount(form.ratings);
   const total = framework?.indicators.length ?? 0;
 
@@ -1089,17 +1094,17 @@ function ObservationForm({
       <div className="grid grid-cols-3 gap-4">
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Teacher *
+            {t('observations.teacherLabel')} *
           </label>
           <select
             value={form.teacher_id}
             onChange={e => setForm(f => ({ ...f, teacher_id: e.target.value, class_id: '' }))}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01696f]"
           >
-            <option value="">Select teacher…</option>
-            {teachers.map(t => (
-              <option key={t.user_id} value={t.user_id}>
-                {t.full_name ?? t.email ?? t.user_id}
+            <option value="">{t('observations.selectTeacher')}</option>
+            {teachers.map(tc => (
+              <option key={tc.user_id} value={tc.user_id}>
+                {tc.full_name ?? tc.email ?? tc.user_id}
               </option>
             ))}
           </select>
@@ -1107,7 +1112,7 @@ function ObservationForm({
 
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Class
+            {t('observations.class')}
           </label>
           <select
             value={form.class_id}
@@ -1116,10 +1121,10 @@ function ObservationForm({
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01696f] disabled:bg-gray-50 disabled:text-gray-400"
           >
             {!form.teacher_id ? (
-              <option value="">Select a teacher first</option>
+              <option value="">{t('observations.selectTeacherFirst')}</option>
             ) : (
               <>
-                <option value="">No class (general)</option>
+                <option value="">{t('observations.noClass')}</option>
                 {classes.map(c => (
                   <option key={c.id} value={c.id}>
                     {c.label} — {c.subject}
@@ -1132,7 +1137,7 @@ function ObservationForm({
 
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Observed At *
+            {t('observations.observedAt')} *
           </label>
           <input
             type="datetime-local"
@@ -1147,7 +1152,7 @@ function ObservationForm({
       <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50/40 border border-blue-100 rounded-xl">
         <div>
           <label className="block text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">
-            Schedule Date <span className="text-blue-400 font-normal">(optional — plan ahead)</span>
+            {t('observations.scheduleDate')} <span className="text-blue-400 font-normal">({t('actions.optional')} — {t('observations.planAhead')})</span>
           </label>
           <input
             type="date"
@@ -1158,14 +1163,14 @@ function ObservationForm({
         </div>
         <div>
           <label className="block text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1.5">
-            Assigned Observer <span className="text-blue-400 font-normal">(optional)</span>
+            {t('observations.assignedObserver')} <span className="text-blue-400 font-normal">({t('actions.optional')})</span>
           </label>
           <select
             value={form.assigned_observer}
             onChange={e => setForm(f => ({ ...f, assigned_observer: e.target.value }))}
             className="w-full border border-blue-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
           >
-            <option value="">Unassigned</option>
+            <option value="">{t('observations.unassigned')}</option>
             {observers.map(o => (
               <option key={o.user_id} value={o.user_id}>
                 {o.full_name ?? o.email ?? o.user_id}
@@ -1179,9 +1184,9 @@ function ObservationForm({
       <div>
         <div className="flex items-center justify-between mb-3">
           <label className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            Domain 3 Indicator Ratings
+            {t('observations.indicatorRatings')}
           </label>
-          <span className="text-xs text-gray-400">{rated}/{total} rated</span>
+          <span className="text-xs text-gray-400">{t('sef.ratedOf', { rated, total })}</span>
         </div>
 
         {!framework ? (
@@ -1194,10 +1199,12 @@ function ObservationForm({
                 <div key={std.id} className="border border-gray-100 rounded-xl overflow-hidden">
                   <div className="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
                     <span className="text-xs font-bold text-gray-400 font-mono">{std.id}</span>
-                    <span className="text-xs font-semibold text-gray-700">{std.name_en}</span>
+                    <span className="text-xs font-semibold text-gray-700">
+                      {isAr ? (std.name_ar || std.name_en) : std.name_en}
+                    </span>
                     {std.is_primary && (
                       <span className="text-xs px-1.5 py-0.5 bg-[#01696f]/10 text-[#01696f] rounded font-medium">
-                        Primary
+                        {t('sef.primary')}
                       </span>
                     )}
                   </div>
@@ -1208,7 +1215,7 @@ function ObservationForm({
                           {ind.id}
                         </span>
                         <p className="flex-1 text-xs text-gray-600 leading-relaxed min-w-0">
-                          {ind.description_en}
+                          {isAr ? (ind.description_ar || ind.description_en) : ind.description_en}
                         </p>
                         <RatingButtons
                           value={form.ratings[ind.id] ?? null}
@@ -1230,7 +1237,7 @@ function ObservationForm({
       {/* Qualitative notes */}
       <div>
         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-          Qualitative Notes
+          {t('observations.qualitativeNotes')}
         </label>
         <textarea
           value={form.qualitative_notes}
@@ -1244,7 +1251,7 @@ function ObservationForm({
       {/* Evidence attachments */}
       <div>
         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-          Evidence Attachments
+          {t('observations.evidenceAttachments')}
         </label>
         <div className="space-y-1.5">
           {form.attachPaths.map(p => (
@@ -1287,14 +1294,14 @@ function ObservationForm({
           onClick={onCancel}
           className="px-4 py-2 text-sm text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50"
         >
-          Cancel
+          {t('actions.cancel')}
         </button>
         <button
           onClick={onSave}
           disabled={saving}
           className="px-5 py-2 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54] disabled:opacity-50"
         >
-          {saving ? <InlineSpinner /> : 'Save Observation'}
+          {saving ? <InlineSpinner /> : t('observations.saveObservation')}
         </button>
       </div>
     </div>
@@ -1312,15 +1319,17 @@ function ObservationDetail({
   onDelete: () => void;
   onOpenPath: (path: string) => void;
 }) {
+  const { t, i18n } = useTranslation();
+  const isAr = i18n.language === 'ar';
   const statusStyle  = OBS_STATUS_STYLES[obs.obs_status ?? 'completed'];
   const coachStyle   = COACHING_STATUS_STYLES[obs.coaching_status ?? 'none'];
   return (
     <div className="space-y-5">
       {/* Meta */}
       <div className="grid grid-cols-3 gap-4 text-sm">
-        <MetaField label="Teacher"     value={obs.teacher?.full_name ?? '—'} />
-        <MetaField label="Class"       value={obs.class ? `${obs.class.label} · ${obs.class.subject}` : 'General observation'} />
-        <MetaField label="Observed At" value={formatDate(obs.observed_at)} />
+        <MetaField label={t('observations.teacherLabel')} value={obs.teacher?.full_name ?? '—'} />
+        <MetaField label={t('observations.class')} value={obs.class ? `${obs.class.label} · ${obs.class.subject}` : t('observations.noClass')} />
+        <MetaField label={t('observations.observedAt')} value={formatDate(obs.observed_at)} />
         <MetaField label="Observer"    value={obs.observer?.full_name ?? '—'} />
         <MetaField
           label="Rated"
@@ -1375,7 +1384,7 @@ function ObservationDetail({
       {/* Domain 3 ratings */}
       {framework && Object.keys(obs.domain3_ratings ?? {}).length > 0 && (
         <div className="space-y-3">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Indicator Ratings</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{t('observations.indicatorRatings')}</p>
           {framework.standards.map(std => {
             const indicators = framework.indicators.filter(i => i.standard_id === std.id);
             const anyRated = indicators.some(i => obs.domain3_ratings?.[i.id] != null);
@@ -1384,7 +1393,9 @@ function ObservationDetail({
               <div key={std.id} className="border border-gray-100 rounded-xl overflow-hidden">
                 <div className="px-4 py-2 bg-gray-50 border-b border-gray-100">
                   <span className="text-xs font-bold text-gray-400 font-mono mr-2">{std.id}</span>
-                  <span className="text-xs font-semibold text-gray-700">{std.name_en}</span>
+                  <span className="text-xs font-semibold text-gray-700">
+                    {isAr ? (std.name_ar || std.name_en) : std.name_en}
+                  </span>
                 </div>
                 <div className="divide-y divide-gray-50">
                   {indicators.map(ind => {
@@ -1394,7 +1405,9 @@ function ObservationDetail({
                     return (
                       <div key={ind.id} className="flex items-center gap-4 px-4 py-2.5">
                         <span className="text-xs font-mono font-bold text-gray-400 w-12 shrink-0">{ind.id}</span>
-                        <p className="flex-1 text-xs text-gray-600 min-w-0 truncate">{ind.description_en}</p>
+                        <p className="flex-1 text-xs text-gray-600 min-w-0 truncate">
+                          {isAr ? (ind.description_ar || ind.description_en) : ind.description_en}
+                        </p>
                         <span
                           className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold text-white"
                           style={{ backgroundColor: JUDGEMENT_COLORS[level] }}
@@ -1414,7 +1427,7 @@ function ObservationDetail({
       {/* Qualitative notes */}
       {obs.qualitative_notes && (
         <div>
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Qualitative Notes</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">{t('observations.qualitativeNotes')}</p>
           <p className="text-sm text-gray-700 bg-gray-50 rounded-xl px-4 py-3 leading-relaxed whitespace-pre-wrap">
             {obs.qualitative_notes}
           </p>

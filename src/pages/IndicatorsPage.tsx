@@ -348,7 +348,7 @@ export default function IndicatorsPage() {
       <div className="bg-white border-b border-gray-200 px-8 py-6">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Indicator Ratings</h1>
+            <h1 className="text-2xl font-semibold text-gray-900">{t('sef.indicatorRatings')}</h1>
             <p className="text-sm text-gray-500 mt-1">
               {school.name_en} · {academicYear}
             </p>
@@ -420,7 +420,7 @@ export default function IndicatorsPage() {
                     : 'text-gray-600 hover:bg-gray-100'
                 }`}
               >
-                Domain {d.id}
+                {t('dashboard.domain')} {d.id}
                 <span
                   className={`text-xs px-1.5 py-0.5 rounded-full ${
                     activeTab === d.id
@@ -455,7 +455,7 @@ export default function IndicatorsPage() {
                       : `Domain ${domain.id}: ${domain.name_en}`}
                   </h2>
                   <p className="text-xs text-gray-400 capitalize mt-0.5">
-                    Weight: {domain.weight} · {domain.key_category}
+                    {t('domains.weight')}: {domain.weight} · {domain.key_category}
                   </p>
                 </div>
 
@@ -526,7 +526,7 @@ function StandardCard({
   onSetDraft: (id: string, patch: Partial<DraftRating>) => void;
   onSave: () => void;
 }) {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isAr = i18n.language === 'ar';
   return (
     <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
@@ -541,14 +541,14 @@ function StandardCard({
           </span>
           {standard.is_primary && (
             <span className="shrink-0 text-xs px-1.5 py-0.5 bg-[#01696f]/10 text-[#01696f] rounded font-medium">
-              Primary
+              {t('sef.primary')}
             </span>
           )}
         </div>
 
         <div className="flex items-center gap-3 shrink-0 ml-4">
           <span className="text-xs text-gray-400">
-            {ratedCount}/{indicators.length} rated
+            {t('sef.ratedOf', { rated: ratedCount, total: indicators.length })}
           </span>
           <button
             onClick={onSave}
@@ -562,12 +562,12 @@ function StandardCard({
             {isSaving ? (
               <>
                 <Spinner />
-                Saving…
+                {t('sef.saving')}
               </>
             ) : dirtyCount > 0 ? (
-              `Save ${dirtyCount} change${dirtyCount > 1 ? 's' : ''}`
+              `${t('sef.save')} ${dirtyCount} ${dirtyCount > 1 ? t('sef.changes') : t('sef.change')}`
             ) : (
-              '✓ Saved'
+              t('sef.savedCheck')
             )}
           </button>
         </div>
@@ -606,7 +606,7 @@ function IndicatorRow({
   onSetDraft: (id: string, patch: Partial<DraftRating>) => void;
 }) {
   const [notesOpen, setNotesOpen] = useState(false);
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isAr = i18n.language === 'ar';
 
   const displayRating = draft.rating;
@@ -633,7 +633,7 @@ function IndicatorRow({
               value={draft.notes}
               onChange={e => onSetDraft(indicator.id, { notes: e.target.value })}
               onBlur={() => !draft.notes && setNotesOpen(false)}
-              placeholder="Add evaluation notes…"
+              placeholder={t('sef.notesPlaceholder')}
               rows={2}
               className="mt-2 w-full border border-gray-200 rounded-lg px-3 py-2 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-[#01696f] text-gray-700 placeholder-gray-400"
             />
@@ -645,7 +645,7 @@ function IndicatorRow({
               {draft.notes ? (
                 <span className="text-gray-600 italic line-clamp-1">{draft.notes}</span>
               ) : (
-                '+ Add notes'
+                t('sef.addNotes')
               )}
             </button>
           )}
@@ -653,7 +653,7 @@ function IndicatorRow({
           {/* Last saved timestamp */}
           {dbTimestamp && (
             <p className="mt-1 text-xs text-gray-400">
-              Last saved {formatRelative(dbTimestamp)}
+              {t('sef.lastSaved', { time: formatRelative(dbTimestamp) })}
             </p>
           )}
         </div>
@@ -692,7 +692,7 @@ function IndicatorRow({
               {JUDGEMENT_LABELS_SHORT[displayRating as JudgementLevel]}
             </span>
           ) : (
-            <span className="text-xs text-gray-400">Not rated</span>
+            <span className="text-xs text-gray-400">{t('sef.notRated')}</span>
           )}
         </div>
       </div>
@@ -703,6 +703,7 @@ function IndicatorRow({
 // ─── Progress Pill ────────────────────────────────────────────
 
 function ProgressPill({ rated, total }: { rated: number; total: number }) {
+  const { t } = useTranslation();
   const pct = total > 0 ? Math.round((rated / total) * 100) : 0;
   const color =
     pct >= 80 ? '#437a22' : pct >= 50 ? '#d19900' : '#da7101';
@@ -710,14 +711,14 @@ function ProgressPill({ rated, total }: { rated: number; total: number }) {
   return (
     <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-xl px-4 py-2.5 shadow-sm">
       <div>
-        <p className="text-xs text-gray-500">Indicators Rated</p>
+        <p className="text-xs text-gray-500">{t('sef.indicatorsRated2')}</p>
         <p className="text-lg font-bold text-gray-900 leading-none mt-0.5">
           {rated} <span className="text-sm font-normal text-gray-400">/ {total}</span>
         </p>
       </div>
       <div className="w-px h-8 bg-gray-200" />
       <div>
-        <p className="text-xs text-gray-500">Complete</p>
+        <p className="text-xs text-gray-500">{t('sef.complete')}</p>
         <p className="text-lg font-bold leading-none mt-0.5" style={{ color }}>
           {pct}%
         </p>

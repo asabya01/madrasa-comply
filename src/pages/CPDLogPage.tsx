@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useCallback } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -136,6 +137,8 @@ function useTeachers(schoolId: string | undefined) {
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function CPDLogPage() {
+  const { t } = useTranslation();
+  const catLabel = (cat: string) => t(`cpd.cat_${cat}`, { defaultValue: CATEGORY_LABELS[cat] ?? cat });
   const { school, profile } = useSchoolStore();
   const { isTeacher } = usePermissions();
   const queryClient = useQueryClient();
@@ -220,10 +223,10 @@ export default function CPDLogPage() {
       map.set(cat, (map.get(cat) ?? 0) + Number(e.hours));
     }
     return CATEGORIES
-      .map(cat => ({ cat, name: CATEGORY_LABELS[cat], hours: map.get(cat) ?? 0 }))
+      .map(cat => ({ cat, name: catLabel(cat), hours: map.get(cat) ?? 0 }))
       .filter(d => d.hours > 0)
       .sort((a, b) => b.hours - a.hours);
-  }, [displayEntries]);
+  }, [displayEntries, t]);
 
   const selectedTeacherName = selectedTeacherId
     ? (teacherSummary.find(t => t.id === selectedTeacherId)?.full_name ?? 'Teacher')
@@ -336,12 +339,12 @@ export default function CPDLogPage() {
                   className="flex items-center gap-1 text-sm text-[#01696f] hover:text-[#0c4e54] mb-1"
                 >
                   <ChevronLeft className="h-4 w-4" />
-                  All teachers
+                  {t('cpd.allTeachers')}
                 </button>
                 <h1 className="text-2xl font-semibold text-gray-900">{selectedTeacherName}</h1>
               </div>
             ) : (
-              <h1 className="text-2xl font-semibold text-gray-900">CPD Log</h1>
+              <h1 className="text-2xl font-semibold text-gray-900">{t('nav.cpdLog')}</h1>
             )}
             <p className="text-sm text-gray-500 mt-1">
               {showSummaryTable
@@ -367,7 +370,7 @@ export default function CPDLogPage() {
               onClick={openCreate}
               className="flex items-center gap-2 px-4 py-2.5 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54] transition-colors"
             >
-              + Add CPD Entry
+              + {t('cpd.addEntry')}
             </button>
           </div>
         </div>
@@ -382,20 +385,20 @@ export default function CPDLogPage() {
             {/* Stats card */}
             <div className="bg-white border border-gray-200 rounded-xl p-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">
-                {resolvedYear} Summary
+                {resolvedYear} {t('cpd.yearSummary')}
               </p>
               <div className="flex items-end gap-8">
                 <div>
                   <p className="text-4xl font-bold text-[#01696f]">{totalHours.toFixed(1)}</p>
-                  <p className="text-xs text-gray-500 mt-1">Total hours</p>
+                  <p className="text-xs text-gray-500 mt-1">{t('cpd.totalHours')}</p>
                 </div>
                 <div>
                   <p className="text-2xl font-semibold text-gray-700">{displayEntries.length}</p>
-                  <p className="text-xs text-gray-500 mt-1">Entries</p>
+                  <p className="text-xs text-gray-500 mt-1">{t('cpd.entries')}</p>
                 </div>
                 <div>
                   <p className="text-2xl font-semibold text-gray-700">{categoryChartData.length}</p>
-                  <p className="text-xs text-gray-500 mt-1">Categories</p>
+                  <p className="text-xs text-gray-500 mt-1">{t('cpd.categories')}</p>
                 </div>
               </div>
             </div>
@@ -403,7 +406,7 @@ export default function CPDLogPage() {
             {/* Category chart */}
             <div className="bg-white border border-gray-200 rounded-xl p-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                Hours by Category
+                {t('cpd.hoursByCategory')}
               </p>
               <ResponsiveContainer
                 width="100%"
@@ -448,31 +451,31 @@ export default function CPDLogPage() {
           <div className="grid grid-cols-2 gap-5">
             <div className="bg-white border border-gray-200 rounded-xl p-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">
-                {resolvedYear} — School Overview
+                {resolvedYear} — {t('cpd.schoolOverview')}
               </p>
               <div className="flex items-end gap-8">
                 <div>
                   <p className="text-4xl font-bold text-[#01696f]">
                     {entries.reduce((s, e) => s + Number(e.hours), 0).toFixed(1)}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">Total hours</p>
+                  <p className="text-xs text-gray-500 mt-1">{t('cpd.totalHours')}</p>
                 </div>
                 <div>
                   <p className="text-2xl font-semibold text-gray-700">{entries.length}</p>
-                  <p className="text-xs text-gray-500 mt-1">Entries</p>
+                  <p className="text-xs text-gray-500 mt-1">{t('cpd.entries')}</p>
                 </div>
                 <div>
                   <p className="text-2xl font-semibold text-gray-700">
-                    {teacherSummary.filter(t => t.hours > 0).length}
+                    {teacherSummary.filter(ts => ts.hours > 0).length}
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">Active teachers</p>
+                  <p className="text-xs text-gray-500 mt-1">{t('cpd.activeTeachers')}</p>
                 </div>
               </div>
             </div>
 
             <div className="bg-white border border-gray-200 rounded-xl p-5">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                Hours by Category (All Teachers)
+                {t('cpd.hoursByCategoryAll')}
               </p>
               {(() => {
                 const allCatData = (() => {
@@ -482,7 +485,7 @@ export default function CPDLogPage() {
                     map.set(cat, (map.get(cat) ?? 0) + Number(e.hours));
                   }
                   return CATEGORIES
-                    .map(cat => ({ cat, name: CATEGORY_LABELS[cat], hours: map.get(cat) ?? 0 }))
+                    .map(cat => ({ cat, name: catLabel(cat), hours: map.get(cat) ?? 0 }))
                     .filter(d => d.hours > 0)
                     .sort((a, b) => b.hours - a.hours);
                 })();
@@ -524,10 +527,10 @@ export default function CPDLogPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Teacher</th>
-                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Total Hours</th>
-                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Entries</th>
-                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Last Activity</th>
+                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">{t('cpd.teacher')}</th>
+                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">{t('cpd.totalHoursCol')}</th>
+                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">{t('cpd.entries')}</th>
+                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">{t('cpd.lastActivity')}</th>
                     <th className="px-5 py-3" />
                   </tr>
                 </thead>
@@ -553,7 +556,7 @@ export default function CPDLogPage() {
                       <td className="px-5 py-3 text-gray-500">{t.count}</td>
                       <td className="px-5 py-3 text-gray-400 text-xs">{t.lastDate || '—'}</td>
                       <td className="px-5 py-3 text-right">
-                        <span className="text-xs text-[#01696f]">View entries →</span>
+                        <span className="text-xs text-[#01696f]">{t('cpd.viewEntries')} →</span>
                       </td>
                     </tr>
                   ))}
@@ -570,12 +573,12 @@ export default function CPDLogPage() {
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
-                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Date</th>
-                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Activity</th>
-                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Provider</th>
-                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Category</th>
-                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Hours</th>
-                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">Notes</th>
+                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">{t('cpd.date')}</th>
+                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">{t('cpd.activity')}</th>
+                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">{t('cpd.provider')}</th>
+                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">{t('cpd.category')}</th>
+                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">{t('cpd.hours')}</th>
+                    <th className="text-left px-5 py-3 text-xs font-medium text-gray-500">{t('cpd.notes')}</th>
                     <th className="px-5 py-3" />
                   </tr>
                 </thead>
@@ -606,7 +609,7 @@ export default function CPDLogPage() {
                             className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold text-white whitespace-nowrap"
                             style={{ backgroundColor: CATEGORY_COLORS[entry.category] ?? '#9ca3af' }}
                           >
-                            {CATEGORY_LABELS[entry.category] ?? entry.category}
+                            {catLabel(entry.category)}
                           </span>
                         ) : (
                           <span className="text-gray-300 text-xs">—</span>
@@ -649,7 +652,7 @@ export default function CPDLogPage() {
       {/* ── Modal ── */}
       {modalMode !== 'closed' && (
         <Modal
-          title={modalMode === 'edit' ? 'Edit CPD Entry' : 'Add CPD Entry'}
+          title={modalMode === 'edit' ? t('cpd.editEntry') : t('cpd.addEntry')}
           onClose={() => setModalMode('closed')}
         >
           <CPDEntryForm
@@ -692,20 +695,22 @@ function CPDEntryForm({
   onSave: () => void;
   onCancel: () => void;
 }) {
+  const { t } = useTranslation();
+  const catLabel = (cat: string) => t(`cpd.cat_${cat}`, { defaultValue: CATEGORY_LABELS[cat] ?? cat });
   return (
     <div className="space-y-4">
       {/* Teacher selector — admin/HOD only */}
       {!isTeacher && (
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Teacher *
+            {t('cpd.teacher')} *
           </label>
           <select
             value={form.teacher_id}
             onChange={e => setForm(f => ({ ...f, teacher_id: e.target.value }))}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01696f]"
           >
-            <option value="">Select teacher…</option>
+            <option value="">{t('observations.selectTeacher')}</option>
             {teachers.map(t => (
               <option key={t.user_id} value={t.user_id}>
                 {t.full_name ?? t.email ?? t.user_id}
@@ -718,7 +723,7 @@ function CPDEntryForm({
       {/* Title */}
       <div>
         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-          Activity Title *
+          {t('cpd.activityTitle')} *
         </label>
         <input
           type="text"
@@ -733,7 +738,7 @@ function CPDEntryForm({
       <div className="grid grid-cols-3 gap-3">
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Provider
+            {t('cpd.provider')}
           </label>
           <input
             type="text"
@@ -745,7 +750,7 @@ function CPDEntryForm({
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Date *
+            {t('cpd.date')} *
           </label>
           <input
             type="date"
@@ -756,7 +761,7 @@ function CPDEntryForm({
         </div>
         <div>
           <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-            Hours *
+            {t('cpd.hours')} *
           </label>
           <input
             type="number"
@@ -772,16 +777,16 @@ function CPDEntryForm({
       {/* Category */}
       <div>
         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-          Category
+          {t('cpd.category')}
         </label>
         <select
           value={form.category}
           onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
           className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#01696f]"
         >
-          <option value="">Select category…</option>
+          <option value="">{t('cpd.selectCategory')}</option>
           {CATEGORIES.map(cat => (
-            <option key={cat} value={cat}>{CATEGORY_LABELS[cat]}</option>
+            <option key={cat} value={cat}>{catLabel(cat)}</option>
           ))}
         </select>
       </div>
@@ -789,7 +794,7 @@ function CPDEntryForm({
       {/* Notes */}
       <div>
         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-          Notes
+          {t('cpd.notes')}
         </label>
         <textarea
           value={form.notes}
@@ -803,7 +808,7 @@ function CPDEntryForm({
       {/* Evidence */}
       <div>
         <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">
-          Evidence <span className="text-gray-400 font-normal">(optional)</span>
+          {t('sef.evidence')} <span className="text-gray-400 font-normal">({t('actions.optional')})</span>
         </label>
         {form.evidence_path ? (
           <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-100 text-xs">
@@ -838,14 +843,14 @@ function CPDEntryForm({
           onClick={onCancel}
           className="px-4 py-2 text-sm text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50"
         >
-          Cancel
+          {t('actions.cancel')}
         </button>
         <button
           onClick={onSave}
           disabled={saving}
           className="px-5 py-2 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54] disabled:opacity-50"
         >
-          {saving ? <InlineSpinner /> : isEdit ? 'Update Entry' : 'Add Entry'}
+          {saving ? <InlineSpinner /> : isEdit ? t('cpd.updateEntry') : t('cpd.addEntryBtn')}
         </button>
       </div>
     </div>
@@ -875,21 +880,19 @@ function Modal({ title, onClose, children }: {
 // ─── Small helpers ────────────────────────────────────────────
 
 function EmptyState({ isTeacher, onAdd }: { isTeacher: boolean; onAdd: () => void }) {
+  const { t } = useTranslation();
   return (
     <div className="text-center py-20 bg-white rounded-xl border border-gray-200">
       <p className="text-4xl mb-4">🎓</p>
-      <p className="text-base font-semibold text-gray-900">No CPD entries yet</p>
+      <p className="text-base font-semibold text-gray-900">{t('cpd.noCpdEntries')}</p>
       <p className="text-sm text-gray-500 mt-1 mb-5">
-        {isTeacher
-          ? 'Log your professional development activities to track your growth.'
-          : 'No CPD entries have been logged for this period yet.'
-        }
+        {isTeacher ? t('cpd.noCpdEntriesHint') : t('cpd.noCpdEntriesAdminHint')}
       </p>
       <button
         onClick={onAdd}
         className="px-5 py-2.5 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54]"
       >
-        + Add CPD Entry
+        + {t('cpd.addEntry')}
       </button>
     </div>
   );

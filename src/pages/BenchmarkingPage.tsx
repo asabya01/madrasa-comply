@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
   RadarChart, PolarGrid, PolarAngleAxis, Radar, ResponsiveContainer,
   LineChart, CartesianGrid, XAxis, YAxis, Tooltip, Line,
@@ -253,6 +254,7 @@ async function buildSnapshot(schoolId: string, year: string): Promise<Omit<Bench
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function BenchmarkingPage() {
+  const { t } = useTranslation();
   const { school } = useSchoolStore();
   const { isSchoolAdmin, isSuperAdmin } = usePermissions();
   const { showToast } = useToast();
@@ -390,8 +392,8 @@ export default function BenchmarkingPage() {
           <div className="flex items-center gap-3">
             <BarChart3 className="h-6 w-6 text-[#01696f]" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Benchmarking</h1>
-              <p className="text-sm text-gray-500">AI-powered peer comparison and insights</p>
+              <h1 className="text-xl font-bold text-gray-900">{t('nav.benchmarking')}</h1>
+              <p className="text-sm text-gray-500">{t('benchmarking.subtitle')}</p>
             </div>
           </div>
           <select
@@ -399,7 +401,7 @@ export default function BenchmarkingPage() {
             onChange={e => setYearFilter(e.target.value)}
             className="border border-gray-300 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-[#01696f]"
           >
-            <option value="">Current Year</option>
+            <option value="">{t('benchmarking.currentYear')}</option>
             {years.map(y => (
               <option key={y.id} value={y.label}>{y.label}</option>
             ))}
@@ -414,7 +416,7 @@ export default function BenchmarkingPage() {
             <Card>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-semibold">Your Performance — {resolvedYear}</CardTitle>
+                  <CardTitle className="text-sm font-semibold">{t('benchmarking.yourPerformance')} — {resolvedYear}</CardTitle>
                   {canManage && (
                     <button
                       onClick={handleSnapshot}
@@ -426,7 +428,7 @@ export default function BenchmarkingPage() {
                       ) : (
                         <Camera className="h-3 w-3" />
                       )}
-                      {snapshotting ? 'Taking…' : 'Take Snapshot'}
+                      {snapshotting ? t('benchmarking.takingSnapshot') : t('benchmarking.takeSnapshot')}
                     </button>
                   )}
                 </div>
@@ -439,8 +441,8 @@ export default function BenchmarkingPage() {
                 ) : !latestSnapshot ? (
                   <div className="h-56 flex flex-col items-center justify-center text-center text-sm text-gray-400">
                     <BarChart3 className="h-10 w-10 text-gray-200 mb-2" />
-                    <p className="font-medium text-gray-500">No snapshot yet</p>
-                    <p className="text-xs mt-1">Click "Take Snapshot" to capture your current performance data.</p>
+                    <p className="font-medium text-gray-500">{t('benchmarking.noSnapshot')}</p>
+                    <p className="text-xs mt-1">{t('benchmarking.noSnapshotHint')}</p>
                   </div>
                 ) : (
                   <div className="h-56">
@@ -469,25 +471,25 @@ export default function BenchmarkingPage() {
             {/* Stat cards */}
             <div className="grid grid-cols-2 gap-4">
               <StatCard
-                label="Overall Score"
+                label={t('benchmarking.overallScore')}
                 value={latestSnapshot?.overall_score != null ? `${latestSnapshot.overall_score}/4` : '—'}
                 sub={latestSnapshot?.overall_score != null
-                  ? latestSnapshot.overall_score <= 1.5 ? 'Outstanding'
-                  : latestSnapshot.overall_score <= 2.5 ? 'Good'
-                  : latestSnapshot.overall_score <= 3.5 ? 'Satisfactory'
-                  : 'Needs Improvement'
+                  ? latestSnapshot.overall_score <= 1.5 ? t('judgements.outstanding')
+                  : latestSnapshot.overall_score <= 2.5 ? t('judgements.good')
+                  : latestSnapshot.overall_score <= 3.5 ? t('judgements.satisfactory')
+                  : t('judgements.inadequate')
                   : undefined}
               />
               <StatCard
-                label="Obs Avg Rating"
+                label={t('benchmarking.obsAvgRating')}
                 value={latestSnapshot?.obs_avg_rating != null ? `${latestSnapshot.obs_avg_rating}/4` : '—'}
               />
               <StatCard
-                label="CPD Hours"
+                label={t('benchmarking.cpdHours')}
                 value={latestSnapshot?.cpd_hours_total != null ? latestSnapshot.cpd_hours_total : '—'}
               />
               <StatCard
-                label="Appraisal Avg"
+                label={t('benchmarking.appraisalAvg')}
                 value={latestSnapshot?.appraisal_avg != null ? `${latestSnapshot.appraisal_avg}/4` : '—'}
               />
             </div>
@@ -498,7 +500,7 @@ export default function BenchmarkingPage() {
             <Card>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-semibold">AI Insights</CardTitle>
+                  <CardTitle className="text-sm font-semibold">{t('benchmarking.aiInsights')}</CardTitle>
                   {canManage && (
                     <button
                       onClick={handleGenerateInsights}
@@ -511,7 +513,7 @@ export default function BenchmarkingPage() {
                       ) : (
                         <Sparkles className="h-3 w-3" />
                       )}
-                      {generating ? 'Generating…' : 'Generate Insights'}
+                      {generating ? t('benchmarking.generating') : t('benchmarking.generateInsights')}
                     </button>
                   )}
                 </div>
@@ -525,16 +527,16 @@ export default function BenchmarkingPage() {
                 ) : !hasInsights ? (
                   <div className="border border-dashed border-gray-300 rounded-xl p-6 text-center text-sm text-gray-400">
                     <Sparkles className="h-8 w-8 text-gray-200 mx-auto mb-2" />
-                    <p className="font-medium text-gray-500">No insights yet</p>
+                    <p className="font-medium text-gray-500">{t('benchmarking.noInsights')}</p>
                     <p className="text-xs mt-1 max-w-xs mx-auto">
-                      Take a snapshot first, then click Generate Insights to benchmark your school against anonymised peer data.
+                      {t('benchmarking.noInsightsHint')}
                     </p>
                   </div>
                 ) : (
                   <>
                     <CollapsibleCard
                       icon="✅"
-                      title="Strengths"
+                      title={t('benchmarking.strengths')}
                       defaultOpen
                       generatedAt={insightMap.strengths?.generated_at}
                       modelVersion={insightMap.strengths?.model_version}
@@ -543,7 +545,7 @@ export default function BenchmarkingPage() {
                     </CollapsibleCard>
                     <CollapsibleCard
                       icon="⚠️"
-                      title="Improvement Areas"
+                      title={t('benchmarking.improvementAreas')}
                       generatedAt={insightMap.improvement_areas?.generated_at}
                       modelVersion={insightMap.improvement_areas?.model_version}
                     >
@@ -551,7 +553,7 @@ export default function BenchmarkingPage() {
                     </CollapsibleCard>
                     <CollapsibleCard
                       icon="📊"
-                      title="Peer Comparison"
+                      title={t('benchmarking.peerComparison')}
                       generatedAt={insightMap.peer_comparison?.generated_at}
                       modelVersion={insightMap.peer_comparison?.model_version}
                     >
@@ -559,7 +561,7 @@ export default function BenchmarkingPage() {
                     </CollapsibleCard>
                     <CollapsibleCard
                       icon="🎯"
-                      title="Recommended Actions"
+                      title={t('benchmarking.recommendedActions')}
                       generatedAt={insightMap.recommended_actions?.generated_at}
                       modelVersion={insightMap.recommended_actions?.model_version}
                     >
@@ -576,7 +578,7 @@ export default function BenchmarkingPage() {
         {trendData.length >= 2 && (
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-semibold">Performance Trend — {resolvedYear}</CardTitle>
+              <CardTitle className="text-sm font-semibold">{t('benchmarking.performanceTrend')} — {resolvedYear}</CardTitle>
               <p className="text-xs text-gray-400 mt-0.5">Higher = better (inverted from 1–4 scale)</p>
             </CardHeader>
             <CardContent>
@@ -617,16 +619,16 @@ export default function BenchmarkingPage() {
         {/* Snapshot history (only show when multiple exist) */}
         {snapshots.length > 0 && (
           <div className="mt-6">
-            <h2 className="text-sm font-semibold text-gray-700 mb-3">Snapshot History</h2>
+            <h2 className="text-sm font-semibold text-gray-700 mb-3">{t('benchmarking.snapshotHistory')}</h2>
             <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">
                   <tr>
-                    <th className="text-left px-5 py-3">Date</th>
-                    <th className="text-left px-4 py-3">Overall</th>
-                    <th className="text-left px-4 py-3">Obs Avg</th>
-                    <th className="text-left px-4 py-3">CPD Hrs</th>
-                    <th className="text-left px-4 py-3">Appraisal</th>
+                    <th className="text-left px-5 py-3">{t('observations.date')}</th>
+                    <th className="text-left px-4 py-3">{t('benchmarking.overallScore')}</th>
+                    <th className="text-left px-4 py-3">{t('benchmarking.obsAvgRating')}</th>
+                    <th className="text-left px-4 py-3">{t('benchmarking.cpdHours')}</th>
+                    <th className="text-left px-4 py-3">{t('benchmarking.appraisalAvg')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">

@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { ChevronRight, FileCheck } from 'lucide-react';
 import { Card, CardContent } from '../components/ui/card';
 import { JudgementBadge } from '../components/ui/judgement-badge';
@@ -11,6 +12,8 @@ import type { Domain, Standard } from '../types';
 import type { JudgementLevel } from '../lib/judgement';
 
 export function DomainsPage() {
+  const { t, i18n } = useTranslation();
+  const isAr = i18n.language === 'ar';
   const { school } = useSchoolStore();
   const { judgements } = useJudgements();
 
@@ -87,9 +90,9 @@ export function DomainsPage() {
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <span className="text-xs font-medium text-[#6b7280]">Domain {domain.id}</span>
+                    <span className="text-xs font-medium text-[#6b7280]">{t('dashboard.domain')} {domain.id}</span>
                     <h3 className="text-base font-semibold text-[#1a1a1a] mt-0.5 leading-tight font-sans">
-                      {domain.name_en}
+                      {isAr ? (domain.name_ar || domain.name_en) : domain.name_en}
                     </h3>
                   </div>
                   <ChevronRight className="h-5 w-5 text-[#6b7280] shrink-0 mt-1" />
@@ -98,13 +101,13 @@ export function DomainsPage() {
                 <div className="mb-3">
                   <JudgementBadge level={level} size="sm" />
                   <span className="ml-2 text-xs text-[#6b7280]">
-                    {domain.weight === 'high' ? 'High weight' : 'Medium weight'}
+                    {domain.weight === 'high' ? t('domains.highWeight') : t('domains.mediumWeight')}
                   </span>
                 </div>
 
                 <div className="mb-3">
                   <div className="flex justify-between text-xs text-[#6b7280] mb-1">
-                    <span>Indicators rated</span>
+                    <span>{t('sef.indicatorsRated2')}</span>
                     <span>{rated}/{total}</span>
                   </div>
                   <Progress value={total ? (rated / total) * 100 : 0} className="h-1.5" />
@@ -113,9 +116,9 @@ export function DomainsPage() {
                 <div className="flex items-center gap-4 text-xs text-[#6b7280]">
                   <span className="flex items-center gap-1">
                     <FileCheck className="h-3.5 w-3.5" />
-                    {evidence} evidence files
+                    {evidence} {t('domains.evidenceFiles')}
                   </span>
-                  <span>{domainStandards.length} standards</span>
+                  <span>{domainStandards.length} {t('domains.standards')}</span>
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-1">
