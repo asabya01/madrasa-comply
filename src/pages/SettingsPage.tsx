@@ -1,4 +1,3 @@
-import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
@@ -10,7 +9,6 @@ type SettingsTab = 'profile' | 'academic-years' | 'audit' | 'notifications' | 'h
 
 export default function SettingsPage() {
   const { school, setSchool } = useSchoolStore();
-  const { t } = useTranslation();
   const perms = usePermissions();
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [saving, setSaving] = useState(false);

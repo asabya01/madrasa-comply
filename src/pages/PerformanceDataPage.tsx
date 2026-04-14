@@ -1399,9 +1399,6 @@ function CohortTab() {
 
 export default function PerformanceDataPage() {
   const { school, academicYear } = useSchoolStore();
-  const { t, i18n } = useTranslation();
-  const isAr = i18n.language === 'ar';
-  const displaySubject = (name: string) => isAr ? (SUBJECT_AR[name] || name) : name;
   const { showToast } = useToast();
 
   const handleExport = async (semester: 'semester_1' | 'semester_2' | 'annual') => {

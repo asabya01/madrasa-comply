@@ -429,7 +429,7 @@ function StaffCsvImportDialog({
 
 export default function SchoolUsersPage() {
   const { school } = useSchoolStore();
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const isAr = i18n.language === 'ar';
   const { isSchoolAdmin } = usePermissions();
 

@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
 interface Notification {
@@ -9,7 +8,7 @@ interface Notification {
   type: string;
   title: string;
   body: string | null;
-  link: string | null;
+  related_id: string | null;
   is_read: boolean;
   created_at: string;
 }
@@ -28,7 +27,6 @@ function timeAgo(isoString: string): string {
 export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
 
   const { data: notifications = [] } = useQuery({
@@ -36,7 +34,7 @@ export function NotificationBell() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('notifications')
-        .select('id, type, title, body, link, is_read, created_at')
+        .select('id, type, title, body, related_id, is_read, created_at')
         .order('created_at', { ascending: false })
         .limit(20);
       if (error) throw error;
@@ -75,7 +73,6 @@ export function NotificationBell() {
   async function handleClick(n: Notification) {
     if (!n.is_read) await markRead(n.id);
     setOpen(false);
-    if (n.link) navigate(n.link);
   }
 
   return (

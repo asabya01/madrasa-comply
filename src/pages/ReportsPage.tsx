@@ -1,4 +1,3 @@
-import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -76,7 +75,6 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
 
 export function ReportsPage() {
   const { school, academicYear } = useSchoolStore();
-  const { t } = useTranslation();
   const { judgements } = useJudgements();
   const [generating, setGenerating] = useState<string | null>(null);
   const [ministrySemester, setMinistrySemester] = useState<'semester_1' | 'semester_2' | 'annual'>('semester_1');

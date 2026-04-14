@@ -1,4 +1,3 @@
-import { useTranslation } from 'react-i18next';
 import { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -942,7 +941,6 @@ function CycleDetail({ cycle, schoolId, year, canEdit, isOwner, onBack, profileI
 
 export default function AppraisalPage() {
   const { school, profile } = useSchoolStore();
-  const { t, i18n } = useTranslation();
   const { isTeacher, isHOD, isSchoolAdmin, isSuperAdmin } = usePermissions();
   const { showToast } = useToast();
   const qc = useQueryClient();

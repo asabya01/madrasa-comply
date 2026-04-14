@@ -1,4 +1,3 @@
-import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
@@ -25,7 +24,6 @@ interface SurveyQuestion {
 
 export default function PublicSurveyPage() {
   const { shareToken } = useParams<{ shareToken: string }>();
-  const { t } = useTranslation();
   const [answers, setAnswers] = useState<Record<string, string | number>>({});
   const [respondentName, setRespondentName] = useState('');
   const [respondentType, setRespondentType] = useState<'parent' | 'student' | 'staff' | 'other'>('other');

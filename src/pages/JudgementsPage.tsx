@@ -167,7 +167,7 @@ function DomainCard({
 
 export default function JudgementsPage() {
   const { school, academicYear } = useSchoolStore();
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const isAr = i18n.language === 'ar';
   const { judgements, isLoading } = useJudgements();
   const queryClient = useQueryClient();

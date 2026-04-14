@@ -219,7 +219,6 @@ function CoverageWidget() {
 
 export function EvidencePage() {
   const [search, setSearch] = useState('');
-  const { t } = useTranslation();
   const [dragOver, setDragOver] = useState(false);
   const [linkingFile, setLinkingFile] = useState<EvidenceFile | null>(null);
   const { data: evidenceFiles, isLoading } = useEvidence();

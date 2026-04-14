@@ -1,4 +1,3 @@
-import { useTranslation } from 'react-i18next';
 import { Check, Mail } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────
@@ -242,7 +241,6 @@ function PlanCard({ plan }: { plan: Plan }) {
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function PricingPage() {
-  const { t } = useTranslation();
   return (
     <div className="min-h-screen bg-[#f7f6f2]">
       {/* Top bar */}

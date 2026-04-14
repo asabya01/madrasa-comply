@@ -89,7 +89,7 @@ async function callNotify(
 
 export default function IndicatorsPage() {
   const { school, academicYear, profile } = useSchoolStore();
-  const { t, i18n } = useTranslation();
+  const { i18n } = useTranslation();
   const isAr = i18n.language === 'ar';
   const queryClient = useQueryClient();
   const { showToast } = useToast();

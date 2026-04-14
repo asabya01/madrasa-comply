@@ -1,4 +1,3 @@
-import { useTranslation } from 'react-i18next';
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Building2, AlertTriangle, RefreshCw, Send } from 'lucide-react';
@@ -599,7 +598,6 @@ function PushToSchoolsTab() {
 
 export default function ChainDashboardPage() {
   const { profile } = useSchoolStore();
-  const { t, i18n } = useTranslation();
   const { isSuperAdmin } = usePermissions();
   const [activeTab, setActiveTab] = useState<'overview' | 'push'>('overview');
   const { data, isLoading, dataUpdatedAt, refetch, isFetching } = useChainData(profile?.id, isSuperAdmin);
