@@ -1,4 +1,5 @@
 import { Check, Mail } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -172,6 +173,7 @@ const BUNDLES: Bundle[] = [
 // ─── Components ───────────────────────────────────────────────
 
 function PlanCard({ plan }: { plan: Plan }) {
+  const { t } = useTranslation();
   return (
     <div className={`relative flex flex-col rounded-2xl border p-6 ${
       plan.highlighted
@@ -181,7 +183,7 @@ function PlanCard({ plan }: { plan: Plan }) {
       {plan.badge && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2">
           <span className="bg-amber-400 text-amber-900 text-xs font-bold px-3 py-1 rounded-full shadow">
-            {plan.badge}
+            {plan.badge === 'Most popular' ? t('pricing.mostPopular') : plan.badge}
           </span>
         </div>
       )}

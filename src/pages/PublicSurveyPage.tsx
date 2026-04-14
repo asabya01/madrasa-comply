@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CheckCircle2, Loader2 } from 'lucide-react';
@@ -23,6 +24,7 @@ interface SurveyQuestion {
 }
 
 export default function PublicSurveyPage() {
+  const { t } = useTranslation();
   const { shareToken } = useParams<{ shareToken: string }>();
   const [answers, setAnswers] = useState<Record<string, string | number>>({});
   const [respondentName, setRespondentName] = useState('');
@@ -134,7 +136,7 @@ export default function PublicSurveyPage() {
           <div className="w-16 h-16 rounded-full bg-[#01696f]/10 flex items-center justify-center mb-5">
             <CheckCircle2 className="h-9 w-9 text-[#01696f]" />
           </div>
-          <h2 className="text-xl font-semibold text-gray-900">Thank you for your response</h2>
+          <h2 className="text-xl font-semibold text-gray-900">{t('publicSurvey.thankYou')}</h2>
           <p className="text-sm text-gray-500 mt-2">{schoolName}</p>
           <p className="text-xs text-gray-400 mt-4">Your feedback helps improve the quality of education.</p>
         </div>
@@ -240,9 +242,9 @@ export default function PublicSurveyPage() {
           className="w-full flex items-center justify-center gap-2 py-3.5 bg-[#01696f] text-white font-semibold text-sm rounded-xl hover:bg-[#0c4e54] disabled:opacity-60 transition-colors"
         >
           {submitting ? (
-            <><Loader2 className="h-4 w-4 animate-spin" /> Submitting…</>
+            <><Loader2 className="h-4 w-4 animate-spin" /> {t('actions.loading')}</>
           ) : (
-            'Submit Response'
+            t('actions.submit')
           )}
         </button>
       </form>

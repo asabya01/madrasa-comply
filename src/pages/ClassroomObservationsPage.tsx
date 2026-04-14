@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useMemo, Fragment } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { List, CalendarDays, ChevronDown, ChevronUp, Link2, RotateCcw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -267,6 +268,7 @@ function useDomain3Framework() {
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function ClassroomObservationsPage() {
+  const { t } = useTranslation();
   const { school, profile } = useSchoolStore();
   const perms = usePermissions();
   const queryClient = useQueryClient();
@@ -480,7 +482,7 @@ export default function ClassroomObservationsPage() {
       <div className="bg-white border-b border-gray-200 px-8 py-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Classroom Observations</h1>
+            <h1 className="text-2xl font-semibold text-gray-900">{t('observations.title')}</h1>
             <p className="text-sm text-gray-500 mt-1">
               Domain 3 — {observations.length} observation{observations.length !== 1 ? 's' : ''} recorded
             </p>

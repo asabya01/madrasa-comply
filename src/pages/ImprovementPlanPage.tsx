@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -153,6 +154,7 @@ function generateCSV(
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function ImprovementPlanPage() {
+  const { t } = useTranslation();
   const { school, academicYear } = useSchoolStore();
   const [showArchived, setShowArchived] = useState(false);
   const [filterStatus, setFilterStatus] = useState<AFIStatus | 'all'>('all');
@@ -254,7 +256,7 @@ export default function ImprovementPlanPage() {
       <div className="bg-white border-b border-gray-200 px-8 py-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Improvement Plan</h1>
+            <h1 className="text-2xl font-semibold text-gray-900">{t('improvement.title')}</h1>
             <p className="text-sm text-gray-500 mt-0.5">{school.name_en} · Areas for Improvement (AFIs)</p>
           </div>
           <div className="flex items-center gap-3">
@@ -275,7 +277,7 @@ export default function ImprovementPlanPage() {
               className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Download className="h-4 w-4" />
-              Export CSV
+              {t('surveys.exportCsv')}
             </button>
             <button
               onClick={openCreate}
@@ -305,7 +307,12 @@ export default function ImprovementPlanPage() {
         >
           <option value="all">All Statuses</option>
           {(Object.keys(STATUS_CFG) as AFIStatus[]).map(s => (
-            <option key={s} value={s}>{STATUS_CFG[s].label}</option>
+            <option key={s} value={s}>{({
+              not_started: t('improvement.notStarted'),
+              in_progress: t('improvement.inProgress'),
+              completed:   t('improvement.completed'),
+              overdue:     t('improvement.overdue'),
+            } as Record<string, string>)[s] ?? STATUS_CFG[s].label}</option>
           ))}
         </select>
         <select
@@ -394,6 +401,13 @@ function AFIRow({
   afi, expanded, activeTab, userMap, indMap,
   onToggle, onTabChange, onEdit, onArchive, showArchived,
 }: AFIRowProps) {
+  const { t } = useTranslation();
+  const statusLabel: Record<string, string> = {
+    not_started: t('improvement.notStarted'),
+    in_progress:  t('improvement.inProgress'),
+    completed:    t('improvement.completed'),
+    overdue:      t('improvement.overdue'),
+  };
   const updateAFI = useUpdateAFI();
   const navigate = useNavigate();
   const [completionDialog, setCompletionDialog] = useState(false);
@@ -469,7 +483,7 @@ function AFIRow({
             </span>
           )}
           <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${cfg.cls}`}>
-            {cfg.label}
+            {statusLabel[afi.status] ?? cfg.label}
           </span>
         </div>
       </button>

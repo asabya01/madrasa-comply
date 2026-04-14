@@ -89,7 +89,7 @@ async function callNotify(
 
 export default function IndicatorsPage() {
   const { school, academicYear, profile } = useSchoolStore();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isAr = i18n.language === 'ar';
   const queryClient = useQueryClient();
   const { showToast } = useToast();
@@ -337,9 +337,9 @@ export default function IndicatorsPage() {
   const ratedCount = indicators.filter(i => ratingsMap[i.id]?.rating != null).length;
 
   const SEF_STATUS_BANNER: Record<SefStatus, { label: string; cls: string }> = {
-    draft:     { label: 'Self-Evaluation in Progress',              cls: 'bg-gray-100 text-gray-600 border-gray-200' },
-    submitted: { label: 'Submitted — Awaiting Principal Approval',  cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-    approved:  { label: 'Approved by Principal — Ready for SED Generation', cls: 'bg-green-50 text-green-700 border-green-200' },
+    draft:     { label: t('sef.draft') + ' — ' + t('nav.selfEvaluation'),   cls: 'bg-gray-100 text-gray-600 border-gray-200' },
+    submitted: { label: t('sef.pendingApproval'),                            cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+    approved:  { label: t('sef.approved'),                                   cls: 'bg-green-50 text-green-700 border-green-200' },
   };
 
   return (
@@ -372,7 +372,7 @@ export default function IndicatorsPage() {
                   disabled={workflowBusy}
                   className="px-4 py-2 bg-amber-500 text-white text-sm font-medium rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50"
                 >
-                  Submit for Principal Approval
+                  {t('sef.submitForApproval')}
                 </button>
               )}
               {(isPrincipalOrAdmin || isSuperAdmin) && sefStatus === 'submitted' && (
@@ -382,14 +382,14 @@ export default function IndicatorsPage() {
                     disabled={workflowBusy}
                     className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
                   >
-                    Approve Self-Evaluation
+                    {t('sef.approved')}
                   </button>
                   <button
                     onClick={() => void handleReturnToDraft()}
                     disabled={workflowBusy}
                     className="px-4 py-2 border border-gray-200 text-gray-600 text-sm font-medium rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                   >
-                    Return to Draft
+                    {t('sef.returned')}
                   </button>
                 </>
               )}

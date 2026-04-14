@@ -1287,7 +1287,7 @@ function CohortTab() {
       {/* Gender breakdown */}
       <Card>
         <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold">Gender Breakdown — Proficiency ≥75%</CardTitle>
+          <CardTitle className="text-sm font-semibold">{t('performance.genderBreakdown')} — Proficiency ≥75%</CardTitle>
         </CardHeader>
         <CardContent>
           <CohortTable
@@ -1398,6 +1398,7 @@ function CohortTab() {
 // ─── Page ────────────────────────────────────────────────────
 
 export default function PerformanceDataPage() {
+  const { t } = useTranslation();
   const { school, academicYear } = useSchoolStore();
   const { showToast } = useToast();
 
@@ -1445,7 +1446,7 @@ export default function PerformanceDataPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Performance Data</h1>
+        <h1 className="text-xl font-bold text-gray-900">{t('performance.title')}</h1>
         <p className="text-sm text-gray-500 mt-0.5">
           Quantitative data for OAAAQA indicators · {academicYear}
         </p>
@@ -1467,7 +1468,7 @@ export default function PerformanceDataPage() {
           </TabsTrigger>
           <TabsTrigger value="cohort" className="flex items-center gap-1.5">
             <PieChartIcon className="h-3.5 w-3.5" />
-            Cohort Breakdown
+            {t('performance.cohortBreakdown')}
           </TabsTrigger>
         </TabsList>
 

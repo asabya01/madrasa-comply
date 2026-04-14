@@ -429,7 +429,7 @@ function StaffCsvImportDialog({
 
 export default function SchoolUsersPage() {
   const { school } = useSchoolStore();
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const isAr = i18n.language === 'ar';
   const { isSchoolAdmin } = usePermissions();
 
@@ -534,7 +534,7 @@ export default function SchoolUsersPage() {
       <div className="bg-white border-b border-gray-200 px-8 py-6">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-gray-900">School Users</h1>
+            <h1 className="text-2xl font-semibold text-gray-900">{t('nav.schoolUsers')}</h1>
             <p className="text-sm text-gray-500 mt-1">
               {school?.name_en} · {users.length} member{users.length !== 1 ? 's' : ''}
               {!isSchoolAdmin && <span className="ml-2 text-xs text-gray-400">(view-only)</span>}

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   MessageSquare, Copy, Check, ToggleLeft, ToggleRight, ChevronDown,
@@ -129,12 +130,13 @@ function useResponseCounts(templateIds: string[]) {
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function SurveysPage() {
+  const { t } = useTranslation();
   const [resultsTemplateId, setResultsTemplateId] = useState<string | null>(null);
 
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Surveys</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">{t('surveys.title')}</h1>
         <p className="text-sm text-gray-500 mt-1">
           Collect feedback from staff, parents, and students to support your self-evaluation.
         </p>
@@ -155,6 +157,7 @@ export default function SurveysPage() {
 // ─── Survey Cards ─────────────────────────────────────────────
 
 function SurveyCards({ onViewResults }: { onViewResults: (id: string) => void }) {
+  const { t } = useTranslation();
   const { school, academicYear } = useSchoolStore();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
@@ -364,7 +367,7 @@ function SurveyCards({ onViewResults }: { onViewResults: (id: string) => void })
                     {copiedId === tpl.id
                       ? <Check className="h-3.5 w-3.5 text-green-600" />
                       : <Copy className="h-3.5 w-3.5 text-gray-400" />}
-                    {copiedId === tpl.id ? 'Link copied!' : 'Copy Survey Link'}
+                    {copiedId === tpl.id ? t('actions.copied') : t('surveys.copyLink')}
                   </button>
                 )}
 
@@ -374,7 +377,7 @@ function SurveyCards({ onViewResults }: { onViewResults: (id: string) => void })
                   className="flex items-center gap-2 w-full px-3 py-2 rounded-lg border border-gray-200 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
                 >
                   <BarChart2 className="h-3.5 w-3.5 text-gray-400" />
-                  View Results
+                  {t('surveys.viewResults')}
                 </button>
 
                 {/* Attach as evidence */}

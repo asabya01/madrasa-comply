@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Plus, ChevronLeft, FileDown, UserCheck, MessageSquare,
@@ -940,6 +941,7 @@ function CycleDetail({ cycle, schoolId, year, canEdit, isOwner, onBack, profileI
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function AppraisalPage() {
+  const { t } = useTranslation();
   const { school, profile } = useSchoolStore();
   const { isTeacher, isHOD, isSchoolAdmin, isSuperAdmin } = usePermissions();
   const { showToast } = useToast();
@@ -1093,7 +1095,7 @@ export default function AppraisalPage() {
           <div className="flex items-center gap-3">
             <UserCheck className="h-6 w-6 text-[#01696f]" />
             <div>
-              <h1 className="text-xl font-bold text-gray-900">Appraisals</h1>
+              <h1 className="text-xl font-bold text-gray-900">{t('appraisals.title')}</h1>
               <p className="text-sm text-gray-500">Teacher Professional Development Reviews</p>
             </div>
           </div>

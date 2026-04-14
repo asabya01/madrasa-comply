@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useSchoolStore } from '../stores/schoolStore';
@@ -8,6 +9,7 @@ import { useAcademicYears } from '../hooks/useAcademicYears';
 type SettingsTab = 'profile' | 'academic-years' | 'audit' | 'notifications' | 'hod-domains';
 
 export default function SettingsPage() {
+  const { t } = useTranslation();
   const { school, setSchool } = useSchoolStore();
   const perms = usePermissions();
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
@@ -84,7 +86,7 @@ export default function SettingsPage() {
   return (
     <div className="min-h-screen bg-[#f7f6f2]">
       <div className="bg-white border-b border-gray-200 px-8 py-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Settings</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">{t('settings.title')}</h1>
         <p className="text-sm text-gray-500 mt-1">{school?.name_en}</p>
       </div>
 

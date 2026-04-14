@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Building2, AlertTriangle, RefreshCw, Send } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -319,6 +320,7 @@ interface SchoolOption {
 }
 
 function PushToSchoolsTab() {
+  const { t } = useTranslation();
   const { profile } = useSchoolStore();
   const { isSuperAdmin } = usePermissions();
   const { showToast } = useToast();
@@ -498,7 +500,7 @@ function PushToSchoolsTab() {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-semibold flex items-center gap-2">
             <Send className="h-4 w-4 text-[#01696f]" />
-            Push Survey Template to Schools
+            {t('chain.pushSurveyTemplate')}
           </CardTitle>
           <p className="text-xs text-gray-400 mt-0.5">Clone a platform survey template to multiple schools at once</p>
         </CardHeader>
@@ -597,6 +599,7 @@ function PushToSchoolsTab() {
 // ─── Page ─────────────────────────────────────────────────────
 
 export default function ChainDashboardPage() {
+  const { t } = useTranslation();
   const { profile } = useSchoolStore();
   const { isSuperAdmin } = usePermissions();
   const [activeTab, setActiveTab] = useState<'overview' | 'push'>('overview');
@@ -671,7 +674,7 @@ export default function ChainDashboardPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Chain Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-900">{t('chain.title')}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {totalSchools} school{totalSchools !== 1 ? 's' : ''} across {groups.length} group{groups.length !== 1 ? 's' : ''}
             {updatedStr && <span className="ml-2 text-gray-400">· Last updated {updatedStr}</span>}
