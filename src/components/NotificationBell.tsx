@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Bell } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { supabase } from '../lib/supabase';
 
 interface Notification {
@@ -25,6 +26,7 @@ function timeAgo(isoString: string): string {
 }
 
 export function NotificationBell() {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
   const queryClient = useQueryClient();
@@ -94,13 +96,13 @@ export function NotificationBell() {
         <div className="absolute left-0 top-full mt-2 w-80 bg-white rounded-xl shadow-lg border border-gray-200 z-50 overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-            <span className="text-sm font-semibold text-gray-900">Notifications</span>
+            <span className="text-sm font-semibold text-gray-900">{t('notifications.title')}</span>
             {unreadCount > 0 && (
               <button
                 onClick={markAllRead}
                 className="text-xs text-[#01696f] hover:underline"
               >
-                Mark all as read
+                {t('notifications.markAllRead')}
               </button>
             )}
           </div>
@@ -109,7 +111,7 @@ export function NotificationBell() {
           <div className="max-h-80 overflow-y-auto">
             {notifications.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-gray-400">
-                No notifications yet
+                {t('notifications.none')}
               </div>
             ) : (
               notifications.map(n => (

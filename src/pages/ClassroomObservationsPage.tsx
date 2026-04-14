@@ -758,7 +758,7 @@ export default function ClassroomObservationsPage() {
       {/* ── Create / Edit Modal ── */}
       {(modalMode === 'create' || modalMode === 'edit') && (
         <Modal
-          title={modalMode === 'edit' ? 'Edit Observation' : 'Record Classroom Observation'}
+          title={modalMode === 'edit' ? t('observations.editObservation') : t('observations.addObservation')}
           wide
           onClose={closeModal}
         >
@@ -1517,10 +1517,11 @@ function MetaField({ label, value }: { label: string; value: string }) {
 }
 
 function EmptyState({ onRecord }: { onRecord: () => void }) {
+  const { t } = useTranslation();
   return (
     <div className="text-center py-20 bg-white rounded-xl border border-gray-200">
       <p className="text-4xl mb-4">📋</p>
-      <p className="text-base font-semibold text-gray-900">No observations yet</p>
+      <p className="text-base font-semibold text-gray-900">{t('observations.noObservations')}</p>
       <p className="text-sm text-gray-500 mt-1 mb-5">
         Record your first classroom observation to get started.
       </p>
@@ -1528,7 +1529,7 @@ function EmptyState({ onRecord }: { onRecord: () => void }) {
         onClick={onRecord}
         className="px-5 py-2.5 bg-[#01696f] text-white text-sm font-medium rounded-lg hover:bg-[#0c4e54]"
       >
-        + Record Observation
+        + {t('observations.addObservation')}
       </button>
     </div>
   );

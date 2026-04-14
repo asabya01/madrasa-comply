@@ -1137,6 +1137,7 @@ function CohortDataDialog({
 }
 
 function CohortTab() {
+  const { t } = useTranslation();
   const { school, academicYear, profile } = useSchoolStore();
   const { i18n } = useTranslation();
   const isAr = i18n.language === 'ar';
@@ -1325,8 +1326,8 @@ function CohortTab() {
               <YAxis tick={{ fontSize: 11 }} unit="%" domain={[0, 100]} />
               <Tooltip formatter={(v) => [`${(v as number ?? 0).toFixed(1)}%`]} />
               <Legend />
-              <Bar dataKey="Boys" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={32} />
-              <Bar dataKey="Girls" fill="#ec4899" radius={[4, 4, 0, 0]} maxBarSize={32} />
+              <Bar dataKey="Boys" name={t('performance.boys')} fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={32} />
+              <Bar dataKey="Girls" name={t('performance.girls')} fill="#ec4899" radius={[4, 4, 0, 0]} maxBarSize={32} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>
@@ -1373,8 +1374,8 @@ function CohortTab() {
               <YAxis tick={{ fontSize: 11 }} unit="%" domain={[0, 100]} />
               <Tooltip formatter={(v) => [`${(v as number ?? 0).toFixed(1)}%`]} />
               <Legend />
-              <Bar dataKey="Omani" fill="#01696f" radius={[4, 4, 0, 0]} maxBarSize={32} />
-              <Bar dataKey="Non-Omani" fill="#d19900" radius={[4, 4, 0, 0]} maxBarSize={32} />
+              <Bar dataKey="Omani" name={t('performance.omani')} fill="#01696f" radius={[4, 4, 0, 0]} maxBarSize={32} />
+              <Bar dataKey="Non-Omani" name={t('performance.nonOmani')} fill="#d19900" radius={[4, 4, 0, 0]} maxBarSize={32} />
             </BarChart>
           </ResponsiveContainer>
         </CardContent>

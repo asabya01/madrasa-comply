@@ -187,6 +187,8 @@ export const ar = {
     dateOfObservation: 'تاريخ الملاحظة',
     preObservation: 'قبل الملاحظة',
     postObservation: 'بعد الملاحظة',
+    addObservation: 'تسجيل ملاحظة صفية',
+    editObservation: 'تعديل الملاحظة الصفية',
   },
   users: {
     title: 'المستخدمون',
@@ -328,6 +330,8 @@ export const ar = {
     schoolType: 'نوع المدرسة',
     region: 'المنطقة',
     phases: 'المراحل',
+    changePassword: 'تغيير كلمة المرور',
+    schoolInfo: 'معلومات المدرسة',
   },
   publicSurvey: {
     title: 'استبيان',
@@ -352,5 +356,12 @@ export const ar = {
     noAppraisals: 'لا توجد تقييمات بعد.',
     overallRating: 'التقييم الإجمالي',
     exportPdf: 'تصدير PDF',
+    addAppraisal: 'إضافة تقييم وظيفي',
+    editAppraisal: 'تعديل التقييم الوظيفي',
+  },
+  notifications: {
+    title: 'الإشعارات',
+    markAllRead: 'تعليم الكل كمقروء',
+    none: 'لا توجد إشعارات بعد',
   },
 };

@@ -187,6 +187,8 @@ export const en = {
     dateOfObservation: 'Date of Observation',
     preObservation: 'Pre-Observation',
     postObservation: 'Post-Observation',
+    addObservation: 'Record Classroom Observation',
+    editObservation: 'Edit Observation',
   },
   users: {
     title: 'Users',
@@ -328,6 +330,8 @@ export const en = {
     schoolType: 'School Type',
     region: 'Region',
     phases: 'Phases',
+    changePassword: 'Change Password',
+    schoolInfo: 'School Information',
   },
   publicSurvey: {
     title: 'Survey',
@@ -352,6 +356,13 @@ export const en = {
     noAppraisals: 'No appraisals yet.',
     overallRating: 'Overall Rating',
     exportPdf: 'Export PDF',
+    addAppraisal: 'Add Appraisal',
+    editAppraisal: 'Edit Appraisal',
+  },
+  notifications: {
+    title: 'Notifications',
+    markAllRead: 'Mark all as read',
+    none: 'No notifications yet',
   },
 };
 
