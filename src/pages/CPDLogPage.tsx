@@ -535,26 +535,26 @@ export default function CPDLogPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {teacherSummary.map(t => (
+                  {teacherSummary.map(ts => (
                     <tr
-                      key={t.id}
+                      key={ts.id}
                       className="hover:bg-gray-50 cursor-pointer"
-                      onClick={() => setSelectedTeacherId(t.id)}
+                      onClick={() => setSelectedTeacherId(ts.id)}
                     >
                       <td className="px-5 py-3 font-medium text-gray-800">
-                        {t.full_name ?? '—'}
+                        {ts.full_name ?? '—'}
                       </td>
                       <td className="px-5 py-3">
                         <span className={
-                          t.hours >= 20 ? 'font-semibold text-green-700' :
-                          t.hours > 0   ? 'font-semibold text-amber-700' :
+                          ts.hours >= 20 ? 'font-semibold text-green-700' :
+                          ts.hours > 0   ? 'font-semibold text-amber-700' :
                           'text-gray-400'
                         }>
-                          {t.hours.toFixed(1)} hrs
+                          {ts.hours.toFixed(1)} hrs
                         </span>
                       </td>
-                      <td className="px-5 py-3 text-gray-500">{t.count}</td>
-                      <td className="px-5 py-3 text-gray-400 text-xs">{t.lastDate || '—'}</td>
+                      <td className="px-5 py-3 text-gray-500">{ts.count}</td>
+                      <td className="px-5 py-3 text-gray-400 text-xs">{ts.lastDate || '—'}</td>
                       <td className="px-5 py-3 text-right">
                         <span className="text-xs text-[#01696f]">{t('cpd.viewEntries')} →</span>
                       </td>

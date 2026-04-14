@@ -41,6 +41,12 @@ export const en = {
       4: 'Curriculum',
       5: 'Leadership',
     },
+    highWeight: 'High weight',
+    mediumWeight: 'Medium weight',
+    lowWeight: 'Low weight',
+    weight: 'Weight',
+    standards: 'standards',
+    evidenceFiles: 'evidence files',
   },
   judgements: {
     outstanding: 'Outstanding',
@@ -586,14 +592,6 @@ export const en = {
     noData: 'No multi-year data available. Enter performance data for at least one academic year.',
     subject: 'Subject',
     progress: 'Progress',
-  },
-  domains: {
-    highWeight: 'High weight',
-    mediumWeight: 'Medium weight',
-    lowWeight: 'Low weight',
-    weight: 'Weight',
-    standards: 'standards',
-    evidenceFiles: 'evidence files',
   },
 };
 

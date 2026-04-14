@@ -44,6 +44,12 @@ export const ar = {
       4: 'المنهج',
       5: 'القيادة',
     },
+    highWeight: 'وزن عالٍ',
+    mediumWeight: 'وزن متوسط',
+    lowWeight: 'وزن منخفض',
+    weight: 'الوزن',
+    standards: 'معايير',
+    evidenceFiles: 'ملفات الأدلة',
   },
   judgements: {
     outstanding: 'متميز',
@@ -58,7 +64,6 @@ export const ar = {
   },
   sef: {
     title: 'نموذج التقييم المدرسي',
-    document: 'وثيقة التقييم المدرسي',
     domain: 'المجال',
     indicator: 'المؤشر',
     judgement: 'الحكم',
@@ -301,10 +306,6 @@ export const ar = {
     email: 'البريد الإلكتروني',
     school: 'المدرسة',
     optional: 'اختياري',
-    saved: 'تم الحفظ',
-    deleted: 'تم الحذف',
-    error: 'حدث خطأ',
-    actions: 'الإجراءات',
     chooseFile: 'اختر ملفاً…',
   },
   banners: {
@@ -604,13 +605,5 @@ export const ar = {
     noData: 'لا توجد بيانات متعددة السنوات. أدخل بيانات الأداء لسنة دراسية واحدة على الأقل.',
     subject: 'المادة',
     progress: 'التقدم',
-  },
-  domains: {
-    highWeight: 'وزن عالٍ',
-    mediumWeight: 'وزن متوسط',
-    lowWeight: 'وزن منخفض',
-    weight: 'الوزن',
-    standards: 'معايير',
-    evidenceFiles: 'ملفات الأدلة',
   },
 };
