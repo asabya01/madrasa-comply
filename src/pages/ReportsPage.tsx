@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import {
   FileText, BarChart2, PieChart, AlertCircle, ClipboardList,
@@ -75,7 +74,6 @@ function hexToRgb(hex: string): { r: number; g: number; b: number } {
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function ReportsPage() {
-  const { t } = useTranslation();
   const { school, academicYear } = useSchoolStore();
   const { judgements } = useJudgements();
   const [generating, setGenerating] = useState<string | null>(null);
