@@ -93,8 +93,9 @@ function App() {
           .from('profiles')
           .select('is_active')
           .eq('id', session.user.id)
-          .single()
+          .maybeSingle()
           .then(({ data }) => {
+            // data is null if the profile row doesn't exist yet (new signup)
             if (data && data.is_active === false) {
               supabase.auth.signOut().then(() => {
                 window.location.href = '/login?reason=inactive';
